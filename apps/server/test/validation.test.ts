@@ -23,7 +23,15 @@ describe('validation', () => {
 
   it('parses input structure', () => {
     assert.deepEqual(parseInput({ seq: 1, x: 0.5, y: -0.5 }), { seq: 1, x: 0.5, y: -0.5 });
+    assert.deepEqual(parseInput({ seq: 2, x: 0, y: 0, grab: true, throwX: 1 }), {
+      seq: 2,
+      x: 0,
+      y: 0,
+      grab: true,
+      throwX: 1,
+    });
     assert.equal(parseInput({ seq: '1', x: 0, y: 0 }), null);
+    assert.equal(parseInput({ seq: 1, x: 0, y: 0, punch: 'yes' }), null);
     assert.equal(parseInput([1, 2, 3]), null);
     assert.equal(parseInput(null), null);
   });

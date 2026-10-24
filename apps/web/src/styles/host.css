@@ -193,6 +193,10 @@
 .scoreboard li.away {
   opacity: 0.45;
 }
+.scoreboard li.out {
+  opacity: 0.42;
+  filter: grayscale(0.7);
+}
 .scoreboard .name {
   flex: 1;
   font-weight: 600;
@@ -201,8 +205,9 @@
   white-space: nowrap;
 }
 .scoreboard .score {
-  font-size: 1.4rem;
+  font-size: 0.95rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 /* ---------- results ---------- */

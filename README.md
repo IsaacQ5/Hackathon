@@ -1,6 +1,6 @@
 # Tilt Mayhem
 
-A Jackbox-style party game. One laptop/TV shows the arena; 2–8 players join from their phone browsers (no app install) and **tilt their phones** to roll their character around and grab gems. Gems are 1 point, gold stars are 3. Rounds last 60 seconds, then a leaderboard and one-click rematch.
+A Jackbox-style slapstick brawler. One laptop/TV shows the arena; 2–8 players join from their phone browsers (no app install) and control floppy fighters by tilting to move, tapping to punch or grab, and flicking their phone to throw. Battle on a moving train, icy rooftop, spinning platform, or shrinking island. Knock everyone off to win; the last fighter standing takes the round.
 
 ```
 packages/shared   TypeScript types, socket event contracts, game config
@@ -51,7 +51,7 @@ Run `npm run dev`, tunnel port **5173**, and open the tunnel URL on the laptop. 
 
 Set `VITE_PUBLIC_URL=http://<laptop-LAN-IP>:5173` in `.env`. Players can join, but **motion controls are blocked on plain http**, so phones fall back to the on-screen joystick.
 
-On the phone: scan the QR code, enter a name and tap **Join**. That same tap asks for motion permission on iPhone. Hold the phone flat like a tray. The controller recenters automatically when the countdown starts, and there's a **Recenter** button.
+On the phone: scan the QR code, enter a name and tap **Join**. That same tap asks for motion permission on iPhone. Hold the phone flat like a tray. The controller recenters automatically when the countdown starts, and there's a **Recenter** button. In a round, tap **Punch** or **Grab**, then flick the phone to throw; **Throw** is available as a fallback.
 
 ## Deploying (HTTPS + WebSockets)
 
@@ -71,10 +71,10 @@ If you host the frontend separately (e.g. Vercel), set `VITE_SERVER_URL` at web 
 ## How it works
 
 - **Rooms**: `RoomManager` keeps rooms in memory Maps. Room codes are 4 random letters (no I/O), checked for collisions. Each player gets a server-issued reconnect token, which rotates on every resume. Reloading a phone or the host screen restores the same player or host. Disconnected players keep their slot for 60 seconds in the lobby and results screens, and for the whole round during play. Empty rooms expire after 10 minutes.
-- **Game loop**: `GameEngine` has no socket code. It uses a fixed-step accumulator at 30 Hz and runs at most 5 catch-up ticks after a stall. Phase deadlines (3 s countdown, 60 s round) use wall-clock time, so a round always lasts 60 s. Movement is `pos += input * 220 * dt`, clamped to the 1000×600 arena. There is light separation so players don't overlap. Each collectible goes to the closest player and is removed in the same tick, so it can't score twice.
-- **Network**: phones send `player:input {seq,x,y}` at 30 Hz with volatile delivery. The server drops stale sequence numbers, non-finite values, values outside [-1, 1], non-players, and out-of-phase input, and rate-limits each socket with a token bucket. Snapshots go **only to the host screen** at 30 Hz, also volatile. Phones receive low-frequency `room:state` updates, max 5 per second, for score and phase. Join, start, and results use acknowledgements and reliable delivery.
+- **Game loop**: `GameEngine` has no socket code. It uses a fixed-step accumulator at 30 Hz and runs at most 5 catch-up ticks after a stall. Phase deadlines (3 s countdown, 60 s round) use wall-clock time. Tilt accelerates fighters; arena edges knock them out. Punches launch nearby opponents, Grab holds a nearby fighter, and a flick throws the held opponent. The island contracts as the round progresses; one survivor ends the round early.
+- **Network**: phones send `player:input {seq,x,y,punch,grab,throwX,throwY}` at 30 Hz with volatile delivery. The server drops stale sequence numbers, malformed actions, non-finite values, values outside [-1, 1], non-players, and out-of-phase input, and rate-limits each socket with a token bucket. Snapshots go **only to the host screen** at 30 Hz, also volatile. Phones receive low-frequency `room:state` updates, max 5 per second, for knockouts and phase. Join, start, and results use acknowledgements and reliable delivery.
 - **Rendering**: the host canvas runs at display refresh rate. It renders about 100 ms behind the newest snapshot and interpolates between snapshots using server timestamps. The timer is also derived from server time.
-- **Tilt** (`apps/web/src/hooks/useTilt.ts`): gamma controls left/right and beta controls forward/back, relative to a captured neutral pose. There is a 3° dead zone, 25° counts as full tilt, and an EMA smoothing factor of 0.25 is applied. Angle deltas handle wraparound. Values are kept in refs to avoid React re-renders. The hook verifies that sensor data actually arrives (2 s timeout) before reporting motion as available. Otherwise the phone shows a touch joystick. Players can flip either axis with "Controls feel backwards?".
+- **Tilt** (`apps/web/src/hooks/useTilt.ts`): gamma controls left/right and beta controls forward/back, relative to a captured neutral pose. There is a 3° dead zone, 25° counts as full tilt, and an EMA smoothing factor of 0.25 is applied. Angle deltas handle wraparound. Values are kept in refs to avoid React re-renders. The hook requests motion access for tilt and flick throws. It verifies that tilt data arrives (2 s timeout) before reporting motion as available. Otherwise the phone shows a touch joystick; the Throw button is available as a flick fallback. Players can flip either axis with "Controls feel backwards?".
 
 ### Events (see `packages/shared/src/events.ts`)
 
@@ -84,7 +84,7 @@ If you host the frontend separately (e.g. Vercel), set `VITE_SERVER_URL` at web 
 | `room:resume-host {code, token}` | same | host reload / reconnect |
 | `room:join {code, nickname, token?}` | `{code, playerId, token, nickname, color, phase, resumed}` | |
 | `game:start {}` / `game:rematch {}` | `{ok}` | host only |
-| `player:input {seq, x, y}` | — | volatile |
+| `player:input {seq, x, y, punch?, grab?, throwX?, throwY?}` | — | volatile |
 | `player:recenter {}` | — | stops the character until next input |
 | `net:ping {}` | `{serverTime}` | connectivity test |
 

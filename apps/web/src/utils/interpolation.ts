@@ -1,4 +1,4 @@
-import type { Collectible, GamePhase, GameSnapshot, PickupEvent, PublicPlayer } from '@tilt-mayhem/shared';
+import type { ArenaId, GamePhase, GameSnapshot, PublicPlayer } from '@tilt-mayhem/shared';
 
 export interface RenderPlayer extends PublicPlayer {
   /** Approximate velocity in units/s, for facing direction. */
@@ -10,7 +10,8 @@ export interface RenderFrame {
   phase: GamePhase;
   tick: number;
   players: RenderPlayer[];
-  collectibles: Collectible[];
+  arena: ArenaId;
+  platformScale: number;
   timeLeftMs: number;
   countdownMs: number;
 }
@@ -29,7 +30,6 @@ export class SnapshotBuffer {
   private entries: Entry[] = [];
   /** Estimated (local clock - server clock) at minimum latency. */
   private offset: number | null = null;
-  private events: PickupEvent[] = [];
   delayMs = 100;
 
   push(snap: GameSnapshot, recv: number = performance.now()): void {
@@ -47,23 +47,15 @@ export class SnapshotBuffer {
     const sample = recv - snap.serverTime;
     if (this.offset === null || sample < this.offset) this.offset = sample;
     else this.offset += (sample - this.offset) * 0.02; // drift slowly if latency rises
-    if (snap.events.length) this.events.push(...snap.events);
   }
 
   reset(): void {
     this.entries = [];
     this.offset = null;
-    this.events = [];
   }
 
   latest(): GameSnapshot | null {
     return this.entries[this.entries.length - 1]?.snap ?? null;
-  }
-
-  drainEvents(): PickupEvent[] {
-    const e = this.events;
-    this.events = [];
-    return e;
   }
 
   frame(now: number = performance.now()): RenderFrame | null {
@@ -108,7 +100,8 @@ export class SnapshotBuffer {
       phase: t < 1 ? a.snap.phase : b.snap.phase,
       tick: b.snap.tick,
       players,
-      collectibles: b.snap.collectibles,
+      arena: b.snap.arena,
+      platformScale: a.snap.platformScale + (b.snap.platformScale - a.snap.platformScale) * t,
       timeLeftMs: a.snap.timeLeftMs + (b.snap.timeLeftMs - a.snap.timeLeftMs) * t,
       countdownMs: a.snap.countdownMs + (b.snap.countdownMs - a.snap.countdownMs) * t,
     };

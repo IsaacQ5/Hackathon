@@ -172,13 +172,19 @@ export function useTilt(options: TiltOptions = {}): TiltController {
     if (s === 'insecure' || s === 'unsupported' || s === 'active' || s === 'requesting') return;
 
     // iOS 13+: must be called directly inside the tap handler.
-    const api = window.DeviceOrientationEvent as unknown as PermissionApi;
-    if (typeof api.requestPermission === 'function') {
+    const orientationApi = window.DeviceOrientationEvent as unknown as PermissionApi;
+    const motionApi = window.DeviceMotionEvent as unknown as PermissionApi | undefined;
+    const needsPermission =
+      typeof orientationApi.requestPermission === 'function' || typeof motionApi?.requestPermission === 'function';
+    if (needsPermission) {
       setStatus('requesting');
       statusRef.current = 'requesting';
       try {
-        const result = await api.requestPermission();
-        if (result !== 'granted') {
+        const [orientationResult, motionResult] = await Promise.all([
+          orientationApi.requestPermission?.() ?? Promise.resolve('granted'),
+          motionApi?.requestPermission?.() ?? Promise.resolve('granted'),
+        ]);
+        if (orientationResult !== 'granted' || motionResult === 'denied') {
           setStatus('denied');
           statusRef.current = 'denied';
           return;

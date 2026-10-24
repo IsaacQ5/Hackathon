@@ -68,7 +68,7 @@ export function HomePage() {
         <h1 className="logo">
           TILT <span>MAYHEM</span>
         </h1>
-        <p className="tagline">Your phone is the controller. Tilt, roll, grab the gems.</p>
+        <p className="tagline">Your phone is the controller. Tilt, grab, and fling your way to victory.</p>
         <ConnectionBadge connected={connected} label={connected ? 'Server online' : 'Connecting to server…'} />
       </header>
       <main className="home__cards">

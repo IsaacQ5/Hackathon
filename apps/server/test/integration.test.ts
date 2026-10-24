@@ -48,7 +48,7 @@ function waitFor<T>(s: ClientSocket, event: keyof ServerToClientEvents, pred: (v
 before(async () => {
   server = createAppServer({
     staticDir: null,
-    gameConfig: { countdownMs: 200, roundDurationMs: 1500, collectibleCount: 3 },
+    gameConfig: { countdownMs: 200, roundDurationMs: 1500 },
   });
   await new Promise<void>((r) => server.httpServer.listen(0, '127.0.0.1', r));
   url = `http://127.0.0.1:${(server.httpServer.address() as AddressInfo).port}`;

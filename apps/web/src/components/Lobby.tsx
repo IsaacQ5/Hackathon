@@ -71,9 +71,8 @@ export function Lobby({ room, joinUrl, onStart, starting, error }: Props) {
           <li>Scan the code or open the link.</li>
           <li>Enter a nickname and tap <b>Join</b>.</li>
           <li>Hold your phone flat like a tray and allow motion access.</li>
-          <li>
-            Tilt to roll around. Gems = 1 pt, <span className="gold">gold stars = 3 pts</span>.
-          </li>
+          <li>Tilt to move, tap Punch or Grab, then flick to throw.</li>
+          <li>Knock everyone off the arena. Last floppy fighter standing wins!</li>
         </ol>
 
         <button className="btn btn--big btn--go" onClick={onStart} disabled={need > 0 || starting}>

@@ -12,22 +12,20 @@ export const GAME_CONFIG = {
   /** Never simulate more than this many ticks in one update (stall protection). */
   maxCatchUpTicks: 5,
 
-  /** Character movement. */
+  /** Character movement and combat. */
   maxSpeed: 220,
   playerRadius: 15,
+  punchReach: 58,
+  punchImpulse: 520,
+  throwImpulse: 760,
+  punchCooldownTicks: 12,
+  grabReach: 54,
+  arenaMargin: 28,
+  islandCollapseMs: 42_000,
 
   /** Round timing. */
   countdownMs: 3000,
   roundDurationMs: 60_000,
-
-  /** Collectibles. */
-  collectibleRadius: 12,
-  collectibleCount: 6,
-  /** Ticks before a collected item is replaced. */
-  collectibleRespawnTicks: 12,
-  goldenChance: 0.12,
-  normalValue: 1,
-  goldenValue: 3,
 
   /** Room limits. */
   minPlayers: 2,

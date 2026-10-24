@@ -215,6 +215,52 @@
   pointer-events: none;
 }
 
+.fight-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  width: 100%;
+  max-width: 440px;
+}
+.fight-controls__button {
+  min-height: 58px;
+  padding: 0.6rem 0.35rem;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-radius: 16px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  background: rgba(255, 255, 255, 0.1);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fight-controls__button:active {
+  transform: scale(0.96);
+  filter: brightness(1.25);
+}
+.fight-controls__button--punch {
+  background: color-mix(in srgb, #ff3d7f 48%, transparent);
+}
+.fight-controls__button--grab {
+  background: color-mix(in srgb, #7cff6b 35%, transparent);
+}
+.fight-controls__button--throw {
+  background: color-mix(in srgb, #2de2e6 32%, transparent);
+}
+.fight-controls__button--active {
+  border-color: #fff;
+  box-shadow: 0 0 18px rgba(124, 255, 107, 0.72);
+}
+.fight-controls__hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .ctrl__foot {
   display: flex;
   flex-wrap: wrap;

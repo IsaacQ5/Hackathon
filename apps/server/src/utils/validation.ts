@@ -47,9 +47,21 @@ export function isToken(raw: unknown): raw is string {
  */
 export function parseInput(raw: unknown): PlayerInput | null {
   if (!isPlainObject(raw)) return null;
-  const { seq, x, y } = raw;
+  const { seq, x, y, punch, grab, throwX, throwY } = raw;
   if (typeof seq !== 'number' || typeof x !== 'number' || typeof y !== 'number') return null;
-  return { seq, x, y };
+  if (punch !== undefined && typeof punch !== 'boolean') return null;
+  if (grab !== undefined && typeof grab !== 'boolean') return null;
+  if (throwX !== undefined && typeof throwX !== 'number') return null;
+  if (throwY !== undefined && typeof throwY !== 'number') return null;
+  return {
+    seq,
+    x,
+    y,
+    ...(punch === undefined ? {} : { punch }),
+    ...(grab === undefined ? {} : { grab }),
+    ...(throwX === undefined ? {} : { throwX }),
+    ...(throwY === undefined ? {} : { throwY }),
+  };
 }
 
 /** Simple token-bucket rate limiter. */

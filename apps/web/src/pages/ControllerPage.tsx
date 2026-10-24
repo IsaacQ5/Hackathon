@@ -56,9 +56,13 @@ export function ControllerPage({ code }: { code: string }) {
   const [axis, setAxis] = useState<AxisSettings>(storage.axis);
   const [preferTouch, setPreferTouch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [grabMode, setGrabMode] = useState(false);
 
   const tilt = useTilt({ invertX: axis.invertX, invertY: axis.invertY });
   const touchRef = useRef<Vec2>({ x: 0, y: 0 });
+  const actionsRef = useRef({ punch: false, grab: false, throwX: 0, throwY: 0 });
+  const lastMotionRef = useRef<{ x: number; y: number } | null>(null);
+  const lastFlickAtRef = useRef(0);
   const seqRef = useRef(0);
   const joiningRef = useRef(false);
 
@@ -149,14 +153,56 @@ export function ControllerPage({ code }: { code: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  useEffect(() => {
+    if (joinState !== 'joined' || phase !== 'playing' || typeof DeviceMotionEvent === 'undefined') return;
+    const onMotion = (event: DeviceMotionEvent) => {
+      const acceleration = event.acceleration;
+      let x = acceleration?.x ?? null;
+      let y = acceleration?.y ?? null;
+      if (x === null || y === null) {
+        const gravity = event.accelerationIncludingGravity;
+        if (gravity?.x == null || gravity.y == null) return;
+        const previous = lastMotionRef.current;
+        lastMotionRef.current = { x: gravity.x, y: gravity.y };
+        if (!previous) return;
+        x = gravity.x - previous.x;
+        y = gravity.y - previous.y;
+      }
+      if (!Number.isFinite(x) || !Number.isFinite(y) || Math.hypot(x, y) < 12) return;
+      const now = performance.now();
+      if (now - lastFlickAtRef.current < 700) return;
+      lastFlickAtRef.current = now;
+      const length = Math.hypot(x, y);
+      actionsRef.current.throwX = x / length;
+      actionsRef.current.throwY = -y / length;
+      actionsRef.current.grab = false;
+      setGrabMode(false);
+      vibrate(20);
+    };
+    window.addEventListener('devicemotion', onMotion);
+    return () => window.removeEventListener('devicemotion', onMotion);
+  }, [joinState, phase]);
+
   // ------------------------------------------------------------ input loop
 
   useEffect(() => {
     if (joinState !== 'joined' || phase !== 'playing' || !connected) return;
     const id = window.setInterval(() => {
       const v = source === 'tilt' ? tilt.inputRef.current : touchRef.current;
+      const actions = actionsRef.current;
       seqRef.current += 1;
-      socket.volatile.emit('player:input', { seq: seqRef.current, x: round3(v.x), y: round3(v.y) });
+      socket.volatile.emit('player:input', {
+        seq: seqRef.current,
+        x: round3(v.x),
+        y: round3(v.y),
+        punch: actions.punch,
+        grab: actions.grab,
+        throwX: round3(actions.throwX),
+        throwY: round3(actions.throwY),
+      });
+      actions.punch = false;
+      actions.throwX = 0;
+      actions.throwY = 0;
     }, 1000 / INPUT_SEND_HZ);
     return () => window.clearInterval(id);
   }, [joinState, phase, connected, source, tilt.inputRef]);
@@ -261,10 +307,16 @@ export function ControllerPage({ code }: { code: string }) {
       : phase === 'countdown'
         ? { title: 'Get ready!', text: 'Hold your phone still — calibrating' }
         : phase === 'playing'
-          ? { title: 'GO!', text: source === 'tilt' ? 'Tilt to roll around' : 'Drag to move' }
+          ? { title: 'BRAWL!', text: source === 'tilt' ? 'Tilt to wobble, flick to throw!' : 'Move, grab, and toss!' }
           : {
               title: myRank ? `#${myRank.rank} place` : 'Round over',
-              text: myRank ? `You scored ${myRank.score} point${myRank.score === 1 ? '' : 's'}` : 'Look at the big screen',
+              text: me?.alive && room?.players.filter((p) => p.alive).length === 1
+                ? `Last one standing! ${myRank?.score ?? me.score} KO points`
+                : me?.alive
+                  ? `${myRank?.score ?? me.score} KO points · you survived!`
+                : myRank
+                  ? `${myRank.score} KO points`
+                  : 'Look at the big screen',
             };
 
   return (
@@ -274,7 +326,7 @@ export function ControllerPage({ code }: { code: string }) {
           <span className="avatar avatar--sm">{Array.from(session.nickname)[0]?.toUpperCase()}</span>
           {session.nickname}
         </span>
-        <span className="ctrl__score" aria-label="Your score">
+        <span className="ctrl__score" aria-label="Your knockout points">
           {me?.score ?? 0}
         </span>
         <ConnectionBadge connected={connected} label={connected ? 'Live' : 'Reconnecting…'} />
@@ -326,6 +378,38 @@ export function ControllerPage({ code }: { code: string }) {
             <button className="btn btn--ghost" onClick={() => setPreferTouch(true)}>
               Use touch controls instead
             </button>
+          </div>
+        )}
+        {phase === 'playing' && (
+          <div className="fight-controls" aria-label="Fight controls">
+            <button className="fight-controls__button fight-controls__button--punch" onClick={() => (actionsRef.current.punch = true)}>
+              👊 Punch
+            </button>
+            <button
+              className={`fight-controls__button fight-controls__button--grab${grabMode ? ' fight-controls__button--active' : ''}`}
+              aria-pressed={grabMode}
+              onClick={() => {
+                const next = !actionsRef.current.grab;
+                actionsRef.current.grab = next;
+                setGrabMode(next);
+              }}
+            >
+              ✊ {grabMode ? 'Release grab' : 'Grab'}
+            </button>
+            <button
+              className="fight-controls__button fight-controls__button--throw"
+              onClick={() => {
+                const input = source === 'tilt' ? tilt.inputRef.current : touchRef.current;
+                const length = Math.hypot(input.x, input.y);
+                actionsRef.current.throwX = length > 0.1 ? input.x / length : 1;
+                actionsRef.current.throwY = length > 0.1 ? input.y / length : 0;
+                actionsRef.current.grab = false;
+                setGrabMode(false);
+              }}
+            >
+              💨 Throw
+            </button>
+            <p className="fight-controls__hint">Tap Grab, then flick your phone to launch!</p>
           </div>
         )}
       </main>

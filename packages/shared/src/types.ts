@@ -1,12 +1,18 @@
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'results';
 
 export type Role = 'host' | 'player';
+export type ArenaId = 'train' | 'ice' | 'spinner' | 'island';
+export type PlayerAction = 'idle' | 'punch' | 'grab' | 'thrown' | 'out';
 
-/** Normalized movement input. x and y are in [-1, 1]. */
+/** Normalized movement and action input sent by a player's controller. */
 export interface PlayerInput {
   seq: number;
   x: number;
   y: number;
+  punch?: boolean;
+  grab?: boolean;
+  throwX?: number;
+  throwY?: number;
 }
 
 /** Player state that is safe to send to every client in the room. */
@@ -18,22 +24,8 @@ export interface PublicPlayer {
   y: number;
   score: number;
   connected: boolean;
-}
-
-export interface Collectible {
-  id: number;
-  x: number;
-  y: number;
-  value: number;
-}
-
-/** One-off visual events (e.g. a pickup) carried in the snapshot of the tick they happened. */
-export interface PickupEvent {
-  type: 'pickup';
-  playerId: string;
-  x: number;
-  y: number;
-  value: number;
+  alive: boolean;
+  action: PlayerAction;
 }
 
 export interface GameSnapshot {
@@ -42,12 +34,13 @@ export interface GameSnapshot {
   /** Server wall-clock time (ms) when the snapshot was produced. Used for interpolation. */
   serverTime: number;
   players: PublicPlayer[];
-  collectibles: Collectible[];
+  arena: ArenaId;
+  /** Current arena size, from 1 (full size) to 0 (collapsed). */
+  platformScale: number;
   /** Remaining round time; equals the full duration during countdown. */
   timeLeftMs: number;
   /** Remaining countdown time; 0 outside the countdown phase. */
   countdownMs: number;
-  events: PickupEvent[];
 }
 
 export interface LeaderboardEntry {

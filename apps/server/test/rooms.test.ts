@@ -137,16 +137,9 @@ describe('RoomManager', () => {
     const e = room.engine;
     const t0 = 1_000_000 + 3000;
     e.update(t0);
-    e.clearCollectibles();
-    let t = t0;
-    // Each player on their own row so nobody steals another's item.
-    for (const [p, n, row] of [[a, 2, 100], [b, 2, 300], [c, 1, 500]] as const) {
-      for (let i = 0; i < n; i++) {
-        e.setPlayerPosition(p.player.id, 100 + i * 200, row);
-        e.placeCollectible(100 + i * 200, row);
-        e.update((t += 40));
-      }
-    }
+    e.setPlayerScore(a.player.id, 2);
+    e.setPlayerScore(b.player.id, 2);
+    e.setPlayerScore(c.player.id, 1);
     const board = rm.finishRound(room);
     assert.deepEqual(board.map((x) => [x.nickname, x.score, x.rank]), [
       ['A', 2, 1],

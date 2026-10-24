@@ -58,7 +58,7 @@ export function TouchPad({ outputRef, color }: Props) {
       onLostPointerCapture={release}
     >
       <div className="touchpad__knob" ref={knobRef} style={{ background: color }} />
-      <span className="touchpad__hint">Drag to move</span>
+      <span className="touchpad__hint">Drag to wobble</span>
     </div>
   );
 }

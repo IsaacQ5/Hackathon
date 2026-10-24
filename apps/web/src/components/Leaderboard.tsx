@@ -22,6 +22,7 @@ export function Leaderboard({ entries, round, code, onRematch, busy, error, canR
   return (
     <div className="results">
       <h1 className="results__title">Round {round} results</h1>
+      <p className="muted">KO points · the last fighter standing earns a survival bonus</p>
       {entries[0] && (
         <p className="results__winner" style={{ color: entries[0].color }}>
           {entries.filter((e) => e.rank === 1).length > 1 ? "It's a tie!" : `${entries[0].nickname} wins!`}
