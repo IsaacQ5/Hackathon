@@ -1,0 +1,241 @@
+.ctrl {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+  max-width: 520px;
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ctrl--join {
+  align-items: center;
+  justify-content: center;
+}
+.ctrl--join .logo {
+  margin-bottom: 0.5rem;
+}
+
+.join {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.join__room {
+  font-size: 1.1rem;
+  margin: 0;
+}
+.join__room b {
+  color: var(--yellow);
+  letter-spacing: 0.12em;
+}
+.join__label {
+  font-weight: 600;
+}
+
+.ctrl__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.ctrl__me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  font-weight: 700;
+  font-size: 1.15rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ctrl__score {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--c);
+  min-width: 2ch;
+  text-align: right;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--c) 70%, transparent);
+}
+
+.ctrl__banner {
+  text-align: center;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  border: 2px solid color-mix(in srgb, var(--c) 60%, transparent);
+}
+.ctrl__banner h2 {
+  font-size: 2rem;
+  margin: 0 0 0.2rem;
+}
+.ctrl__banner p {
+  margin: 0;
+  color: var(--muted);
+}
+.ctrl__banner--playing {
+  background: color-mix(in srgb, var(--c) 30%, transparent);
+}
+.ctrl__banner--playing h2 {
+  color: var(--c);
+}
+
+.ctrl__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.setup {
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.setup__phone {
+  font-size: 3.4rem;
+  animation: wobble 2.4s ease-in-out infinite;
+}
+@keyframes wobble {
+  0%,
+  100% {
+    transform: rotate(-14deg);
+  }
+  50% {
+    transform: rotate(14deg);
+  }
+}
+
+/* tilt indicator */
+.tilt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.tilt__ring {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--c) 70%, transparent);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.06) 0 30%, transparent 31%),
+    radial-gradient(circle, transparent 0 60%, rgba(255, 255, 255, 0.04) 61%);
+  box-shadow: inset 0 0 40px color-mix(in srgb, var(--c) 25%, transparent);
+}
+.tilt__center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: translate(-50%, -50%);
+}
+.tilt__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 22px var(--c);
+}
+.tilt__arrow {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+}
+.tilt__arrow--up {
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tilt__arrow--down {
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tilt__arrow--left {
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tilt__arrow--right {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tilt__debug {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* touch joystick */
+.touchpad {
+  position: relative;
+  width: min(80vw, 300px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px dashed color-mix(in srgb, var(--c) 70%, transparent);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.07), transparent 70%);
+  touch-action: none;
+}
+.touchpad__knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 22px var(--c);
+  pointer-events: none;
+}
+.touchpad__hint {
+  position: absolute;
+  bottom: 14%;
+  width: 100%;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.ctrl__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.settings {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+.settings label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1.05rem;
+}
+.settings input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--c);
+}
