@@ -1,0 +1,27 @@
+{
+  "name": "tilt-mayhem",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Jackbox-style party game: phones are tilt controllers, one screen is the arena.",
+  "type": "module",
+  "workspaces": [
+    "packages/shared",
+    "apps/server",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build:shared": "npm run build -w @tilt-mayhem/shared",
+    "dev": "npm run build:shared && concurrently -k -n shared,server,web -c magenta,cyan,yellow \"npm run dev -w @tilt-mayhem/shared\" \"npm run dev -w @tilt-mayhem/server\" \"npm run dev -w @tilt-mayhem/web\"",
+    "build": "npm run build:shared && npm run build -w @tilt-mayhem/server && npm run build -w @tilt-mayhem/web",
+    "start": "npm run start -w @tilt-mayhem/server",
+    "typecheck": "npm run build:shared && npm run typecheck -w @tilt-mayhem/server && npm run typecheck -w @tilt-mayhem/web",
+    "test": "npm run build:shared && npm run test -w @tilt-mayhem/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "~5.7.2"
+  }
+}
