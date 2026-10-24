@@ -48,7 +48,7 @@ function waitFor<T>(s: ClientSocket, event: keyof ServerToClientEvents, pred: (v
 before(async () => {
   server = createAppServer({
     staticDir: null,
-    gameConfig: { countdownMs: 200, roundDurationMs: 1500, collectibleCount: 3 },
+    gameConfig: { countdownMs: 200, roundDurationMs: 1500 },
   });
   await new Promise<void>((r) => server.httpServer.listen(0, '127.0.0.1', r));
   url = `http://127.0.0.1:${(server.httpServer.address() as AddressInfo).port}`;
@@ -99,13 +99,13 @@ describe('socket flow', () => {
     await started;
 
     const playing = await waitFor<GameSnapshot>(host, 'game:snapshot', (s) => s.phase === 'playing');
-    const startX = playing.players.find((p) => p.id === p1.res.playerId)!.x;
+    const startX = playing.chefs.find((p) => p.id === p1.res.playerId)!.x;
 
     let seq = 0;
     const pump = setInterval(() => p1.s.volatile.emit('player:input', { seq: ++seq, x: 1, y: 0 }), 33);
     const later = await waitFor<GameSnapshot>(host, 'game:snapshot', (s) => s.phase === 'playing' && s.tick > playing.tick + 15);
     clearInterval(pump);
-    const movedX = later.players.find((p) => p.id === p1.res.playerId)!.x;
+    const movedX = later.chefs.find((p) => p.id === p1.res.playerId)!.x;
     assert.ok(movedX > startX + 20, `expected movement: ${startX} -> ${movedX}`);
 
     // Phones must not receive host snapshots.

@@ -172,6 +172,11 @@ export function useTilt(options: TiltOptions = {}): TiltController {
     if (s === 'insecure' || s === 'unsupported' || s === 'active' || s === 'requesting') return;
 
     // iOS 13+: must be called directly inside the tap handler.
+    // Ask for motion (shake gestures) in the same tap, before any await.
+    const motionApi = (window as unknown as { DeviceMotionEvent?: PermissionApi }).DeviceMotionEvent;
+    if (motionApi && typeof motionApi.requestPermission === 'function') {
+      void motionApi.requestPermission().catch(() => 'denied');
+    }
     const api = window.DeviceOrientationEvent as unknown as PermissionApi;
     if (typeof api.requestPermission === 'function') {
       setStatus('requesting');

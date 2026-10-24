@@ -1,23 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  INGREDIENTS,
   INPUT_SEND_HZ,
+  recipeById,
+  stationById,
   type GameEndedPayload,
   type GamePhase,
+  type KitchenStatus,
+  type MatchResults,
   type PlayerSession,
   type RoomState,
   type ServerError,
 } from '@tilt-mayhem/shared';
+import { ChefPortrait } from '../components/ChefPortrait';
 import { ConnectionBadge } from '../components/ConnectionBadge';
+import { DPad } from '../components/DPad';
 import { JoinForm } from '../components/JoinForm';
+import { RecipeBar } from '../components/RecipeBar';
+import { StationPanel } from '../components/StationPanel';
 import { TiltIndicator } from '../components/TiltIndicator';
 import { TouchPad } from '../components/TouchPad';
+import { awardsFor, fmtSecs, ordinal } from '../game/kawards';
 import { useConnection } from '../hooks/useConnection';
 import { useTilt, type TiltStatus, type Vec2 } from '../hooks/useTilt';
 import { storage, type AxisSettings } from '../network/session';
-import { api, socket } from '../network/socket';
+import { api, kitchenApi, socket } from '../network/socket';
+import { prefs, type ControllerPrefs, type MoveMode } from '../utils/prefs';
 import { navigate } from '../utils/router';
 import { colorVar } from '../utils/style';
 import '../styles/controller.css';
+import '../styles/sizzle.css';
 
 type JoinState = 'form' | 'joining' | 'joined';
 
@@ -34,15 +46,15 @@ const vibrate = (pattern: number | number[]) => {
 };
 
 const TILT_HELP: Record<TiltStatus, string> = {
-  idle: 'Tap below to turn on motion controls.',
+  idle: 'Tap below to walk by tilting your phone.',
   requesting: 'Allow motion access in the popup…',
   waiting: 'Listening for your phone’s motion sensor…',
   active: '',
   denied:
-    'Motion access was blocked. Reload and tap Allow (on iPhone, close the tab and reopen the link first). Or use touch controls.',
-  'no-data': 'No motion data from this device. Use touch controls instead.',
-  unsupported: 'This browser has no motion sensor support. Use touch controls instead.',
-  insecure: 'Motion sensors need a secure (https://) link. Use touch controls, or ask the host for the https link.',
+    'Motion access was blocked. Reload and tap Allow (on iPhone, close the tab and reopen the link first). Buttons work too!',
+  'no-data': 'No motion sensor here. Use the joystick or arrows, and buttons at stations.',
+  unsupported: 'This browser has no motion sensors. Use the joystick or arrows, and buttons at stations.',
+  insecure: 'Motion needs a secure (https://) link. Use the joystick and buttons, or ask the host for the https link.',
 };
 
 export function ControllerPage({ code }: { code: string }) {
@@ -53,11 +65,13 @@ export function ControllerPage({ code }: { code: string }) {
   const [error, setError] = useState<ServerError | null>(null);
   const [room, setRoom] = useState<RoomState | null>(null);
   const [result, setResult] = useState<GameEndedPayload | null>(null);
+  const [match, setMatch] = useState<MatchResults | null>(null);
+  const [status, setStatus] = useState<KitchenStatus | null>(null);
   const [axis, setAxis] = useState<AxisSettings>(storage.axis);
-  const [preferTouch, setPreferTouch] = useState(false);
+  const [ctrl, setCtrl] = useState<ControllerPrefs>(prefs.controller);
   const [showSettings, setShowSettings] = useState(false);
 
-  const tilt = useTilt({ invertX: axis.invertX, invertY: axis.invertY });
+  const tilt = useTilt({ invertX: axis.invertX, invertY: axis.invertY, fullTiltDeg: ctrl.tiltDeg });
   const touchRef = useRef<Vec2>({ x: 0, y: 0 });
   const seqRef = useRef(0);
   const joiningRef = useRef(false);
@@ -67,8 +81,10 @@ export function ControllerPage({ code }: { code: string }) {
   const color = session?.color ?? '#ffffff';
   const tiltReady = tilt.status === 'active';
   const tiltBroken = ['denied', 'no-data', 'unsupported', 'insecure'].includes(tilt.status);
-  const source: 'tilt' | 'touch' = tiltReady && !preferTouch ? 'tilt' : 'touch';
-  const showTouch = preferTouch || tiltBroken;
+  const mode: MoveMode = ctrl.moveMode === 'tilt' && tiltBroken ? 'joystick' : ctrl.moveMode;
+  const source: 'tilt' | 'touch' = mode === 'tilt' && tiltReady ? 'tilt' : 'touch';
+  // The same permission covers the station gestures.
+  const motionAllowed = tiltReady;
 
   // ------------------------------------------------------------ joining
 
@@ -113,13 +129,14 @@ export function ControllerPage({ code }: { code: string }) {
     };
   }, [code, doJoin]);
 
-  // Room events.
+  // Room + game events.
   useEffect(() => {
     const onState = (s: RoomState) => {
       if (s.code === code) setRoom(s);
     };
     const onStarted = () => {
       setResult(null);
+      setMatch(null);
       // Players are told to hold still during the countdown: use that as neutral.
       tilt.recenter();
       vibrate(30);
@@ -128,6 +145,8 @@ export function ControllerPage({ code }: { code: string }) {
       setResult(p);
       vibrate([60, 40, 60]);
     };
+    const onMatch = (m: MatchResults) => setMatch(m);
+    const onStatus = (s: KitchenStatus) => setStatus(s);
     const onError = (e: ServerError) => {
       if (e.code === 'INVALID_SESSION') {
         setSession(null);
@@ -138,11 +157,15 @@ export function ControllerPage({ code }: { code: string }) {
     socket.on('room:state', onState);
     socket.on('game:started', onStarted);
     socket.on('game:ended', onEnded);
+    socket.on('game:results', onMatch);
+    socket.on('kitchen:status', onStatus);
     socket.on('server:error', onError);
     return () => {
       socket.off('room:state', onState);
       socket.off('game:started', onStarted);
       socket.off('game:ended', onEnded);
+      socket.off('game:results', onMatch);
+      socket.off('kitchen:status', onStatus);
       socket.off('server:error', onError);
     };
     // tilt.recenter is stable (useCallback with no deps).
@@ -151,23 +174,37 @@ export function ControllerPage({ code }: { code: string }) {
 
   // ------------------------------------------------------------ input loop
 
+  const working = !!status?.working;
   useEffect(() => {
-    if (joinState !== 'joined' || phase !== 'playing' || !connected) return;
+    if (joinState !== 'joined' || phase !== 'playing' || !connected || working) return;
     const id = window.setInterval(() => {
       const v = source === 'tilt' ? tilt.inputRef.current : touchRef.current;
       seqRef.current += 1;
       socket.volatile.emit('player:input', { seq: seqRef.current, x: round3(v.x), y: round3(v.y) });
     }, 1000 / INPUT_SEND_HZ);
-    return () => window.clearInterval(id);
-  }, [joinState, phase, connected, source, tilt.inputRef]);
+    return () => {
+      window.clearInterval(id);
+      // Stand still while cooking.
+      seqRef.current += 1;
+      socket.volatile.emit('player:input', { seq: seqRef.current, x: 0, y: 0 });
+    };
+  }, [joinState, phase, connected, source, tilt.inputRef, working]);
 
-  // Buzz when my score goes up.
+  // Buzz when you arrive somewhere useful, and when you score.
+  const canInteract = status?.canInteract ?? false;
+  const canServe = status?.canServe ?? false;
+  useEffect(() => {
+    if (canInteract) vibrate([30, 40, 30]);
+  }, [canInteract, status?.near]);
+  useEffect(() => {
+    if (canServe) vibrate([40, 40, 80]);
+  }, [canServe]);
   const lastScore = useRef(0);
   useEffect(() => {
-    const s = me?.score ?? 0;
-    if (s > lastScore.current) vibrate(s - lastScore.current > 1 ? [25, 30, 25] : 20);
+    const s = status?.score ?? 0;
+    if (s > lastScore.current) vibrate([60, 30, 60, 30, 120]);
     lastScore.current = s;
-  }, [me?.score]);
+  }, [status?.score]);
 
   // Keep the screen awake while joined.
   useEffect(() => {
@@ -210,6 +247,12 @@ export function ControllerPage({ code }: { code: string }) {
     storage.setAxis(next);
   };
 
+  const updateCtrl = (next: ControllerPrefs) => {
+    setCtrl(next);
+    prefs.setController(next);
+    if (next.moveMode === 'tilt' && tilt.status === 'idle') void tilt.enable();
+  };
+
   const leave = () => {
     storage.setPlayer(code, null);
     socket.disconnect();
@@ -217,30 +260,24 @@ export function ControllerPage({ code }: { code: string }) {
     navigate('/');
   };
 
-  // ------------------------------------------------------------ render
+  // ------------------------------------------------------------ render: join
 
   if (joinState !== 'joined' || !session) {
     return (
-      <div className="ctrl ctrl--join">
-        <h1 className="logo logo--sm">
-          TILT <span>MAYHEM</span>
+      <div className="kctrl kctrl--join">
+        <h1 className="klogo klogo--sm">
+          SIZZLE <span>SCRAMBLE</span>
         </h1>
         {joinState === 'joining' ? (
-          <div className="card narrow">
-            <p>Joining room {code}…</p>
+          <div className="kcard narrow">
+            <p>Joining kitchen {code}…</p>
             {!connected && <p className="muted small">Waiting for connection…</p>}
           </div>
         ) : (
-          <JoinForm
-            code={code}
-            defaultNickname={storage.nickname()}
-            busy={false}
-            error={error}
-            onSubmit={onJoinSubmit}
-          />
+          <JoinForm code={code} defaultNickname={storage.nickname()} busy={false} error={error} onSubmit={onJoinSubmit} />
         )}
         {error?.code === 'ROOM_NOT_FOUND' && (
-          <button className="btn btn--ghost" onClick={() => navigate('/')}>
+          <button className="kbtn kbtn--ghost" onClick={() => navigate('/')}>
             Enter a different code
           </button>
         )}
@@ -249,122 +286,230 @@ export function ControllerPage({ code }: { code: string }) {
     );
   }
 
-  // After a reload during results we missed game:ended; rank from room state instead.
-  const myRank =
-    result?.leaderboard.find((e) => e.id === session.playerId) ??
-    (phase === 'results' && me && room
-      ? { rank: 1 + room.players.filter((p) => p.score > me.score).length, score: me.score }
-      : undefined);
-  const banner =
-    phase === 'lobby'
-      ? { title: 'You’re in!', text: 'Waiting for the host to start…' }
-      : phase === 'countdown'
-        ? { title: 'Get ready!', text: 'Hold your phone still — calibrating' }
-        : phase === 'playing'
-          ? { title: 'GO!', text: source === 'tilt' ? 'Tilt to roll around' : 'Drag to move' }
-          : {
-              title: myRank ? `#${myRank.rank} place` : 'Round over',
-              text: myRank ? `You scored ${myRank.score} point${myRank.score === 1 ? '' : 's'}` : 'Look at the big screen',
-            };
+  const secs = Math.max(0, Math.ceil((status?.timeLeftMs ?? 0) / 1000));
+  const header = (
+    <header className="kctrl__bar">
+      <span className="kctrl__me">
+        <ChefPortrait color={color} size={40} />
+        <b>{session.nickname}</b>
+      </span>
+      {phase === 'playing' && (
+        <span className={`kctrl__timer ${status?.rush ? 'is-rush' : ''}`}>
+          {status?.rush ? '🔥x2 ' : ''}
+          {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
+        </span>
+      )}
+      <span className="kctrl__score">{status?.score ?? me?.score ?? 0}</span>
+      <ConnectionBadge connected={connected} label={connected ? 'Live' : '…'} />
+    </header>
+  );
+
+  const settingsPanel = (
+    <>
+      <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => setShowSettings(!showSettings)}>
+        {showSettings ? 'Hide controls' : '⚙️ Controls'}
+      </button>
+      {showSettings && (
+        <div className="kcard ksettings">
+          <p className="ksettings__label">Walk with</p>
+          <div className="kseg">
+            {(['tilt', 'joystick', 'dpad'] as const).map((m) => (
+              <button
+                key={m}
+                className={mode === m ? 'is-on' : ''}
+                disabled={m === 'tilt' && tiltBroken}
+                onClick={() => updateCtrl({ ...ctrl, moveMode: m })}
+              >
+                {m === 'tilt' ? '📱 Tilt' : m === 'joystick' ? '🕹️ Stick' : '✚ Arrows'}
+              </button>
+            ))}
+          </div>
+          {tiltBroken && <p className="note small">{TILT_HELP[tilt.status]}</p>}
+          <label>
+            <input
+              type="checkbox"
+              checked={ctrl.stationButtons}
+              onChange={(e) => updateCtrl({ ...ctrl, stationButtons: e.target.checked })}
+            />
+            Use buttons at stations (no motion gestures)
+          </label>
+          <label className="kslider">
+            Tilt sensitivity
+            <input
+              type="range"
+              min={10}
+              max={40}
+              step={1}
+              value={50 - ctrl.tiltDeg}
+              onChange={(e) => updateCtrl({ ...ctrl, tiltDeg: 50 - Number(e.target.value) })}
+            />
+          </label>
+          <label>
+            <input type="checkbox" checked={axis.invertX} onChange={(e) => updateAxis({ ...axis, invertX: e.target.checked })} />
+            Flip left / right
+          </label>
+          <label>
+            <input type="checkbox" checked={axis.invertY} onChange={(e) => updateAxis({ ...axis, invertY: e.target.checked })} />
+            Flip forward / back
+          </label>
+          <p className="muted small">
+            Kitchen {code} · motion: {tilt.status}
+          </p>
+          <button className="kbtn kbtn--ghost kbtn--sm" onClick={leave}>
+            Leave game
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  const motionSetup =
+    ctrl.moveMode === 'tilt' && !tiltReady && !tiltBroken ? (
+      <div className="kcard ksetup">
+        <p>{TILT_HELP[tilt.status]}</p>
+        <button className="kbtn kbtn--go" onClick={() => void tilt.enable()} disabled={tilt.status === 'requesting'}>
+          📱 Enable motion controls
+        </button>
+        <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => updateCtrl({ ...ctrl, moveMode: 'joystick' })}>
+          Use the joystick instead
+        </button>
+      </div>
+    ) : null;
+
+  // ------------------------------------------------------------ render: lobby / results
+
+  if (phase === 'lobby' || phase === 'results') {
+    const mine = match?.results.find((r) => r.id === session.playerId);
+    const myAwards = mine && match ? awardsFor(match.results).get(mine.id) ?? [] : [];
+    const fallbackRank = result?.leaderboard.find((e) => e.id === session.playerId)?.rank;
+    const title = mine
+      ? mine.placement === 1 && mine.score > 0
+        ? '👑 HEAD CHEF!'
+        : `${ordinal(mine.placement)} place`
+      : fallbackRank
+        ? `${ordinal(fallbackRank)} place`
+        : 'Kitchen closed';
+    return (
+      <div className="kctrl" style={colorVar(color)}>
+        {header}
+        {phase === 'results' && (
+          <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 ? 'kplace--win' : ''}`}>
+            <h2>{title}</h2>
+            {mine && (
+              <p className="kplace__stats">
+                {mine.score} pts · {mine.served} dish{mine.served === 1 ? '' : 'es'}
+                {mine.fastestMs !== null ? ` · fastest ${fmtSecs(mine.fastestMs)}` : ''}
+              </p>
+            )}
+            {myAwards.map((a) => (
+              <p key={a.title} className="kaward">
+                {a.emoji} {a.title} <small>({a.why})</small>
+              </p>
+            ))}
+          </section>
+        )}
+        <section className="kbanner">
+          <ChefPortrait color={color} size={110} />
+          <h2>{phase === 'lobby' ? 'You’re on the line!' : 'Another shift?'}</h2>
+          <p>Waiting for the host to start…</p>
+        </section>
+        {motionSetup}
+        <section className="kcard khowto-card">
+          <h3>How to cook</h3>
+          <ol>
+            <li>Your recipe shows 4 station symbols at the top of this screen.</li>
+            <li>{mode === 'tilt' ? 'Tilt' : 'Use the stick'} to walk to a station. Your phone buzzes when you're there.</li>
+            <li>Tap the button under the circle, then do the motion shown on screen.</li>
+            <li>Got all 4? Walk to the PASS in the middle and hit SEND!</li>
+          </ol>
+        </section>
+        <footer className="kctrl__foot">{settingsPanel}</footer>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------ render: countdown
+
+  if (phase === 'countdown') {
+    return (
+      <div className="kctrl kctrl--ready" style={colorVar(color)}>
+        {header}
+        {status && <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={null} />}
+        <section className="kready">
+          <ChefPortrait color={color} size={140} station="stir" />
+          <h2>GET READY!</h2>
+          <p>{mode === 'tilt' ? 'Hold your phone flat and still: calibrating…' : 'Thumbs on the controls!'}</p>
+        </section>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------ render: at a station
+
+  if (status?.working) {
+    return (
+      <div className="kctrl kctrl--work" style={colorVar(color)}>
+        {header}
+        <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={status.working.ingredient} />
+        <StationPanel
+          work={status.working}
+          motionAllowed={motionAllowed}
+          preferButtons={ctrl.stationButtons}
+          onToggleButtons={() => updateCtrl({ ...ctrl, stationButtons: !ctrl.stationButtons })}
+        />
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------ render: walking around
+
+  const near = status?.near ?? null;
+  const nearDef = near && near !== 'pass' ? stationById(near) : null;
+  const recipe = status ? recipeById(status.recipeId) : undefined;
+  const neededHere =
+    nearDef && recipe && status
+      ? recipe.ingredients.find((i) => INGREDIENTS.get(i)?.station === nearDef.id && !status.have.includes(i))
+      : undefined;
+  const neededIcon = neededHere ? INGREDIENTS.get(neededHere)?.ingredient.icon ?? '' : '';
+  const allFour = status ? status.have.length === 4 : false;
+
+  let action: { label: string; cls: string; onClick?: () => void } = { label: 'Walk to a station', cls: 'is-idle' };
+  if (canServe) action = { label: '🔔 SEND DISH!', cls: 'is-serve', onClick: () => kitchenApi.serve() };
+  else if (canInteract && nearDef) action = { label: `${nearDef.icon} ${nearDef.verb} ${neededIcon}`, cls: 'is-go', onClick: () => kitchenApi.interact() };
+  else if (nearDef) action = { label: `${nearDef.icon} Nothing needed here`, cls: 'is-no' };
+  else if (near === 'pass') action = { label: 'Make all 4 first!', cls: 'is-no' };
+  else if (allFour) action = { label: '🔔 Take it to the PASS!', cls: 'is-hint' };
 
   return (
-    <div className="ctrl" style={colorVar(color)}>
-      <header className="ctrl__bar">
-        <span className="ctrl__me">
-          <span className="avatar avatar--sm">{Array.from(session.nickname)[0]?.toUpperCase()}</span>
-          {session.nickname}
-        </span>
-        <span className="ctrl__score" aria-label="Your score">
-          {me?.score ?? 0}
-        </span>
-        <ConnectionBadge connected={connected} label={connected ? 'Live' : 'Reconnecting…'} />
-      </header>
-
-      <section className={`ctrl__banner ctrl__banner--${phase}`}>
-        <h2>{banner.title}</h2>
-        <p>{banner.text}</p>
-      </section>
-
-      <main className="ctrl__main">
-        {showTouch ? (
-          <>
-            {tiltBroken && <p className="note">{TILT_HELP[tilt.status]}</p>}
-            <TouchPad outputRef={touchRef} color={color} />
-            {!tiltBroken && (
-              <button className="btn btn--ghost" onClick={() => setPreferTouch(false)}>
-                Use motion controls
-              </button>
-            )}
-          </>
-        ) : tiltReady ? (
-          <>
-            <TiltIndicator
-              read={() => tilt.inputRef.current}
-              readDebug={showSettings ? () => tilt.debugRef.current : undefined}
-              color={color}
-            />
-            <button className="btn btn--big" onClick={recenter}>
-              🎯 Recenter
-            </button>
-            <p className="muted small center">Hold the phone flat in front of you, then tap Recenter.</p>
-          </>
+    <div className={`kctrl kctrl--play ${status?.rush ? 'is-rush' : ''}`} style={colorVar(color)}>
+      {header}
+      {status && <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={null} />}
+      <div className="kctrl__move">
+        {mode === 'tilt' && tiltReady ? (
+          <TiltIndicator read={() => tilt.inputRef.current} color={color} />
+        ) : mode === 'dpad' ? (
+          <DPad outputRef={touchRef} />
+        ) : mode === 'joystick' || tiltBroken ? (
+          <TouchPad outputRef={touchRef} color={color} />
         ) : (
-          <div className="card setup">
-            <div className="setup__phone" aria-hidden>
-              📱
-            </div>
-            <h3>Motion controls</h3>
-            <p className="muted">Hold your phone flat in front of you, screen up, like a tray.</p>
-            <p className="note">{TILT_HELP[tilt.status]}</p>
-            <button
-              className="btn btn--big btn--go"
-              onClick={() => void tilt.enable()}
-              disabled={tilt.status === 'requesting'}
-            >
-              Enable motion controls
-            </button>
-            <button className="btn btn--ghost" onClick={() => setPreferTouch(true)}>
-              Use touch controls instead
-            </button>
-          </div>
+          motionSetup
         )}
-      </main>
-
-      <footer className="ctrl__foot">
-        {tiltReady && (
-          <button className="btn btn--ghost btn--sm" onClick={() => setPreferTouch(!preferTouch)}>
-            {preferTouch ? 'Use tilt' : 'Use touch'}
+      </div>
+      <button className={`kact ${action.cls}`} disabled={!action.onClick} onClick={action.onClick}>
+        {action.label}
+      </button>
+      <footer className="kctrl__foot kctrl__foot--row">
+        {mode === 'tilt' && tiltReady && (
+          <button className="kbtn kbtn--ghost kbtn--sm" onClick={recenter}>
+            🎯 Recenter
           </button>
         )}
-        <button className="btn btn--ghost btn--sm" onClick={() => setShowSettings(!showSettings)}>
-          {showSettings ? 'Hide settings' : 'Controls feel backwards?'}
-        </button>
-        {showSettings && (
-          <div className="settings card">
-            <label>
-              <input
-                type="checkbox"
-                checked={axis.invertX}
-                onChange={(e) => updateAxis({ ...axis, invertX: e.target.checked })}
-              />
-              Flip left / right
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={axis.invertY}
-                onChange={(e) => updateAxis({ ...axis, invertY: e.target.checked })}
-              />
-              Flip forward / back
-            </label>
-            <p className="muted small">
-              Room {code} · tilt: {tilt.status}
-            </p>
-            <button className="btn btn--ghost btn--sm" onClick={leave}>
-              Leave game
-            </button>
-          </div>
+        {status && (
+          <span className="kctrl__rank">
+            #{status.rank} · {status.served} served
+          </span>
         )}
+        {settingsPanel}
       </footer>
     </div>
   );

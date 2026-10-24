@@ -1,4 +1,4 @@
-import type { GamePhase } from '@tilt-mayhem/shared';
+import type { GamePhase, StationId } from '@tilt-mayhem/shared';
 
 /** Internal (server-only) per-player simulation state. */
 export interface EnginePlayer {
@@ -11,7 +11,27 @@ export interface EnginePlayer {
   connected: boolean;
 }
 
+export interface Chef extends EnginePlayer {
+  nickname: string;
+  color: string;
+  vx: number;
+  vy: number;
+  facing: number;
+  recipeId: string;
+  /** playMs when the current ticket was handed out. */
+  ticketAt: number;
+  have: Set<string>;
+  /** Partly made ingredients survive stepping away from a station. */
+  partial: Map<string, number>;
+  working: { station: StationId; ingredient: string; reps: number; lastRepAt: number } | null;
+  near: StationId | 'pass' | null;
+  served: number;
+  stats: { gestures: number; oops: number; perStation: Partial<Record<StationId, number>>; fastestMs: number | null };
+}
+
 export type InputResult = 'ok' | 'stale' | 'invalid' | 'phase' | 'unknown';
+
+export type InteractResult = 'ok' | 'not-near' | 'not-needed' | 'already-have' | 'busy' | 'phase';
 
 export interface UpdateResult {
   /** Number of fixed simulation ticks executed. */

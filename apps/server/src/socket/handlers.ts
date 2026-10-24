@@ -13,6 +13,7 @@ import type {
 } from '@tilt-mayhem/shared';
 import type { Room, RoomManager, SocketBinding } from '../rooms/RoomManager.js';
 import { isPlainObject, parseInput, TokenBucket } from '../utils/validation.js';
+import { registerKitchenHandlers } from './kitchenHandlers.js';
 
 export type IOServer = Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 type IOSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
@@ -192,6 +193,18 @@ export function registerSocketHandlers(io: IOServer, rooms: RoomManager): void {
       if (found) emitRoomState(io, rooms, found.room);
     });
   });
+
+  // Sizzle Scramble gameplay events (interact, gestures, cancel, serve).
+  registerKitchenHandlers(io, rooms);
+}
+
+/** Each phone gets its own chef's status (recipe, progress, score). */
+function sendPlayerStatuses(io: IOServer, room: Room, now: number): void {
+  for (const p of room.players.values()) {
+    if (!p.socketId) continue;
+    const status = room.engine.status(p.id, now);
+    if (status) io.to(p.socketId).emit('kitchen:status', status);
+  }
 }
 
 export interface GameLoop {
@@ -206,6 +219,8 @@ export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number):
   const lastStateAt = new Map<string, number>();
   const dirty = new Set<string>();
   const STATE_MIN_INTERVAL = 200;
+  const lastStatusAt = new Map<string, number>();
+  const STATUS_INTERVAL = 100;
 
   const tick = setInterval(() => {
     const now = Date.now();
@@ -225,6 +240,9 @@ export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number):
           round: room.round,
           leaderboard: rooms.finishRound(room),
         });
+        const results = room.engine.results();
+        if (results) io.to(channel.all(room.code)).emit('game:results', results);
+        sendPlayerStatuses(io, room, now);
         emitRoomState(io, rooms, room);
         dirty.delete(room.code);
         lastStateAt.set(room.code, now);
@@ -233,6 +251,12 @@ export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number):
 
       // High-frequency and droppable.
       hostChannel.volatile.emit('game:snapshot', snapshot);
+
+      // Phones: their own status ~10x per second (progress bars feel live).
+      if (now - (lastStatusAt.get(room.code) ?? 0) >= STATUS_INTERVAL) {
+        lastStatusAt.set(room.code, now);
+        sendPlayerStatuses(io, room, now);
+      }
 
       if (result.scoresChanged) dirty.add(room.code);
       const due = now - (lastStateAt.get(room.code) ?? 0) >= STATE_MIN_INTERVAL;
@@ -248,6 +272,7 @@ export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number):
     const { removed, changed } = rooms.sweep();
     for (const code of removed) {
       lastStateAt.delete(code);
+      lastStatusAt.delete(code);
       dirty.delete(code);
       io.in(channel.all(code)).socketsLeave(channel.all(code));
       io.in(channel.host(code)).socketsLeave(channel.host(code));

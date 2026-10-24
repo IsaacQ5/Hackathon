@@ -13,14 +13,14 @@ export const GAME_CONFIG = {
   maxCatchUpTicks: 5,
 
   /** Character movement. */
-  maxSpeed: 220,
-  playerRadius: 15,
+  maxSpeed: 260,
+  playerRadius: 22,
 
-  /** Round timing. */
+  /** Round timing: Sizzle Scramble rounds are 3 minutes. */
   countdownMs: 3000,
-  roundDurationMs: 60_000,
+  roundDurationMs: 180_000,
 
-  /** Collectibles. */
+  /** Collectibles (Tilt Mayhem; unused by Sizzle Scramble, kept for compatibility). */
   collectibleRadius: 12,
   collectibleCount: 6,
   /** Ticks before a collected item is replaced. */

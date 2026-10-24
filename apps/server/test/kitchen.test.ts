@@ -1,0 +1,327 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import {
+  KITCHEN,
+  RECIPES,
+  SCORING,
+  STATIONS,
+  createDetector,
+  recipeById,
+  stationById,
+  validateRecipes,
+  type MotionSample,
+  type StationId,
+} from '@tilt-mayhem/shared';
+import { GameEngine } from '../src/game/GameEngine.js';
+
+// ====================================================================== data
+
+describe('Sizzle Scramble data', () => {
+  it('has exactly six stations with five ingredients each', () => {
+    assert.equal(STATIONS.length, 6);
+    for (const s of STATIONS) assert.equal(s.ingredients.length, 5, s.id);
+    const allIngredients = STATIONS.flatMap((s) => s.ingredients.map((i) => i.id));
+    assert.equal(new Set(allIngredients).size, 30, 'ingredient ids are unique');
+  });
+
+  it('has 20 valid recipes, each 4 ingredients from 4 different stations', () => {
+    assert.equal(RECIPES.length, 20);
+    assert.deepEqual(validateRecipes(), []);
+  });
+
+  it('catches a bad recipe', () => {
+    const bad = validateRecipes([{ id: 'x', name: 'X', icon: '?', ingredients: ['lettuce', 'tomato', 'patty', 'water'] }]);
+    assert.ok(bad.some((p) => p.includes('same station')));
+  });
+});
+
+// ====================================================================== gestures
+
+const G = 9.81;
+type Gen = (t: number) => Partial<MotionSample>;
+
+/** Feed a synthetic motion (60 Hz) to a station's detector and count results. */
+function run(station: StationId, ms: number, gen: Gen) {
+  const d = createDetector(station);
+  let good = 0;
+  let bad = 0;
+  for (let t = 0; t <= ms; t += 1000 / 60) {
+    const s: MotionSample = { t, ax: 0, ay: 0, az: 0, gx: 0, gy: 0, gz: G, ra: 0, rb: 0, rg: 0, ...gen(t) };
+    const r = d.push(s);
+    if (r === 'good') good++;
+    if (r === 'bad') bad++;
+  }
+  return { good, bad };
+}
+
+const wave = (t: number, periodMs: number, amp: number) => amp * Math.sin((2 * Math.PI * t) / periodMs);
+
+describe('Gesture detectors', () => {
+  it('CHOP counts sharp vertical strokes, ignores side shaking and gentle motion', () => {
+    const chop = run('chop', 3000, (t) => ({ az: t % 300 < 30 ? -15 : t % 300 < 60 ? 13 : 0 }));
+    assert.ok(chop.good >= 9 && chop.good <= 11, `chops ${chop.good}`);
+    assert.equal(run('chop', 3000, (t) => ({ ax: wave(t, 250, 15) })).good, 0, 'side shake');
+    assert.equal(run('chop', 3000, (t) => ({ az: wave(t, 600, 3) })).good, 0, 'walking jiggle');
+  });
+
+  it('FLIP needs a flick and a return; holding it tipped is a mess-up; slow tilts do nothing', () => {
+    const flips = run('fry', 4000, (t) => {
+      const p = t % 800;
+      return { rb: p < 90 ? 380 : p < 180 ? -260 : 0 };
+    });
+    assert.ok(flips.good >= 4, `flips ${flips.good}`);
+    assert.equal(flips.bad, 0);
+    const tipped = run('fry', 2500, (t) => ({ rb: t < 90 ? 380 : 0 }));
+    assert.equal(tipped.good, 0);
+    assert.equal(tipped.bad, 1);
+    const slow = run('fry', 3000, (t) => ({ rb: wave(t, 2000, 60) }));
+    assert.deepEqual(slow, { good: 0, bad: 0 });
+    const twist = run('fry', 2000, (t) => ({ rb: t % 600 < 80 ? 300 : 0, rg: t % 600 < 80 ? 600 : 0 }));
+    assert.equal(twist.good, 0, 'twisting the phone is not a pan flip');
+  });
+
+  it('STIR counts full circles, not back-and-forth shaking', () => {
+    const circles = run('stir', 4000, (t) => ({ ax: 4 * Math.cos((2 * Math.PI * t) / 1000), ay: 4 * Math.sin((2 * Math.PI * t) / 1000) }));
+    assert.ok(circles.good >= 3 && circles.good <= 5, `circles ${circles.good}`);
+    assert.equal(run('stir', 4000, (t) => ({ ax: wave(t, 300, 6) })).good, 0, 'side shake');
+    assert.equal(run('stir', 4000, (t) => ({ ay: wave(t, 700, 6) })).good, 0, 'push-pull');
+  });
+
+  it('KNEAD rewards a steady forward/back rhythm, not frantic shaking or circles', () => {
+    const knead = run('knead', 6000, (t) => ({ ay: wave(t, 800, 5) }));
+    assert.ok(knead.good >= 5, `kneads ${knead.good}`);
+    assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 120, 8) })).good, 0, 'frantic');
+    const circle = run('knead', 4000, (t) => ({ ax: 5 * Math.cos((2 * Math.PI * t) / 900), ay: 5 * Math.sin((2 * Math.PI * t) / 900) }));
+    assert.equal(circle.good, 0, 'circles');
+  });
+
+  it('MIX counts gentle side-to-side shakes, not circles or wild flailing', () => {
+    const mix = run('mix', 3000, (t) => ({ ax: wave(t, 400, 6) }));
+    assert.ok(mix.good >= 12, `mixes ${mix.good}`);
+    const circle = run('mix', 3000, (t) => ({ ax: 6 * Math.cos((2 * Math.PI * t) / 600), ay: 6 * Math.sin((2 * Math.PI * t) / 600) }));
+    assert.equal(circle.good, 0, 'circles are stirring, not mixing');
+    assert.equal(run('mix', 3000, (t) => ({ ax: wave(t, 400, 35) })).good, 0, 'too violent');
+  });
+
+  it('POUR: tilt, hold steady, release on cue; holding too long spills', () => {
+    const tilt = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
+    const good = run('juice', 3000, (t) => tilt(t > 200 && t < 1900 ? 50 : 0));
+    assert.deepEqual(good, { good: 1, bad: 0 });
+    const spill = run('juice', 4500, (t) => tilt(t > 200 ? 50 : 0));
+    assert.deepEqual(spill, { good: 0, bad: 1 });
+    const early = run('juice', 2500, (t) => tilt(t > 200 && t < 800 ? 50 : 0));
+    assert.deepEqual(early, { good: 0, bad: 0 }, 'letting go early: no juice, no penalty');
+    const shaky = run('juice', 3000, (t) => ({ ...tilt(t > 200 && t < 1900 ? 50 : 0), ra: 200 }));
+    assert.equal(shaky.good, 0, 'must hold steady');
+  });
+});
+
+// ====================================================================== engine
+
+const TICK = 1000 / 30;
+
+function kitchen(ids = ['a', 'b'], cfg: { roundDurationMs?: number } = {}) {
+  const e = new GameEngine({ countdownMs: 100, roundDurationMs: cfg.roundDurationMs ?? 180_000 }, () => 0.3);
+  ids.forEach((id, i) => e.addPlayer(id, id.toUpperCase(), ['#ff3d7f', '#2de2e6', '#ffd23f'][i]!));
+  let now = 1000;
+  e.startCountdown(now);
+  now += 100;
+  e.update(now);
+  assert.equal(e.phase, 'playing');
+  const run = (ms: number) => {
+    const end = now + ms;
+    while (now < end) {
+      now += TICK;
+      e.update(now);
+    }
+  };
+  return { e, run, at: () => now };
+}
+
+const at = (e: GameEngine, id: string, station: StationId) => {
+  const s = KITCHEN.spots.find((x) => x.id === station)!;
+  e.setPlayerPosition(id, s.fx, s.fy);
+};
+
+/** Do every gesture for a station (respecting its rate limit). */
+function work(e: GameEngine, run: (ms: number) => void, id: string, station: StationId) {
+  const def = stationById(station);
+  assert.equal(e.interact(id), 'ok', `interact at ${station}`);
+  for (let i = 0; i < def.reps; i++) {
+    run(def.minRepMs + 10);
+    assert.equal(e.rep(id, true), true);
+  }
+}
+
+describe('Kitchen engine', () => {
+  it('runs a 3 minute round, then results', () => {
+    const { e, run } = kitchen();
+    assert.equal(e.config.roundDurationMs, 180_000);
+    run(150_500);
+    assert.equal(e.snapshot(0).rush, true, 'rush hour in the last 30 s');
+    run(30_000);
+    assert.equal(e.phase, 'results');
+  });
+
+  it('every chef starts with a random recipe', () => {
+    const { e } = kitchen(['a', 'b', 'c']);
+    for (const c of e.snapshot(0).chefs) assert.ok(recipeById(c.recipeId));
+  });
+
+  it('knows which station you are standing at', () => {
+    const { e } = kitchen();
+    at(e, 'a', 'stir');
+    assert.equal(e.peek('a')!.near, 'stir');
+    e.setPlayerPosition('a', KITCHEN.pass.x, KITCHEN.pass.y + 100);
+    assert.equal(e.peek('a')!.near, 'pass');
+  });
+
+  it('only lets you work a station your recipe needs', () => {
+    const { e } = kitchen();
+    e.setRecipe('a', 'burger'); // lettuce(chop) patty(fry) bun(knead) cheesesauce(stir)
+    at(e, 'a', 'juice');
+    assert.equal(e.interact('a'), 'not-needed');
+    assert.equal(e.status('a', 0)!.canInteract, false);
+    at(e, 'a', 'chop');
+    assert.equal(e.status('a', 0)!.canInteract, true);
+    assert.equal(e.interact('a'), 'ok');
+    assert.equal(e.peek('a')!.working!.ingredient, 'lettuce');
+  });
+
+  it('gestures fill the meter (rate-limited) and make the ingredient', () => {
+    const { e, run } = kitchen();
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'chop');
+    e.interact('a');
+    run(200);
+    assert.equal(e.rep('a', true), true);
+    assert.equal(e.rep('a', true), false, 'too fast: ignored');
+    for (let i = 1; i < stationById('chop').reps; i++) {
+      run(200);
+      e.rep('a', true);
+    }
+    assert.equal(e.peek('a')!.working, null);
+    assert.ok(e.peek('a')!.have.has('lettuce'));
+    at(e, 'a', 'chop');
+    assert.equal(e.interact('a'), 'already-have');
+  });
+
+  it('messed-up flips cost progress', () => {
+    const { e, run } = kitchen();
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'fry');
+    e.interact('a');
+    run(320);
+    e.rep('a', true);
+    run(320);
+    e.rep('a', true);
+    run(320);
+    e.rep('a', false);
+    assert.equal(e.peek('a')!.working!.reps, 1);
+  });
+
+  it('stepping away keeps partial progress', () => {
+    const { e, run } = kitchen();
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'knead');
+    e.interact('a');
+    for (let i = 0; i < 3; i++) {
+      run(220);
+      e.rep('a', true);
+    }
+    e.cancel('a');
+    assert.equal(e.peek('a')!.working, null);
+    e.interact('a');
+    assert.equal(e.peek('a')!.working!.reps, 3);
+  });
+
+  it('serving all four at the pass scores points and deals a new ticket', () => {
+    const { e, run } = kitchen();
+    e.setRecipe('a', 'burger');
+    for (const st of ['chop', 'fry', 'knead', 'stir'] as const) {
+      at(e, 'a', st);
+      work(e, run, 'a', st);
+    }
+    at(e, 'a', 'chop');
+    assert.equal(e.serve('a'), 0, 'must be at the pass');
+    e.setPlayerPosition('a', KITCHEN.pass.x, KITCHEN.pass.y + 100);
+    assert.equal(e.status('a', 0)!.canServe, true);
+    const pts = e.serve('a');
+    assert.equal(pts, SCORING.recipe + SCORING.fastBonus);
+    assert.equal(e.peek('a')!.served, 1);
+    assert.notEqual(e.peek('a')!.recipeId, 'burger', 'new ticket');
+    assert.equal(e.peek('a')!.have.size, 0);
+  });
+
+  it('cannot serve an incomplete dish', () => {
+    const { e, run } = kitchen();
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'chop');
+    work(e, run, 'a', 'chop');
+    e.setPlayerPosition('a', KITCHEN.pass.x, KITCHEN.pass.y + 100);
+    assert.equal(e.serve('a'), 0);
+  });
+
+  it('rush hour doubles points; highest score wins', () => {
+    const { e, run } = kitchen(['a', 'b'], { roundDurationMs: 40_000 });
+    run(12_000); // into the last 30 s
+    e.setRecipe('a', 'burger');
+    for (const st of ['chop', 'fry', 'knead', 'stir'] as const) {
+      at(e, 'a', st);
+      work(e, run, 'a', st);
+    }
+    e.setPlayerPosition('a', KITCHEN.pass.x, KITCHEN.pass.y + 100);
+    assert.equal(e.serve('a'), (SCORING.recipe + SCORING.fastBonus) * 2);
+    run(40_000);
+    assert.equal(e.phase, 'results');
+    const r = e.results()!;
+    assert.deepEqual(r.winnerIds, ['a']);
+    assert.equal(r.results[0]!.served, 1);
+    assert.equal(e.standings()[0]!.id, 'a');
+  });
+
+  it('chefs stay out of walls and the pass table, and freeze while working', () => {
+    const { e, run } = kitchen();
+    e.applyInput('a', { seq: 1, x: -1, y: -1 });
+    run(3000);
+    const a = e.peek('a')!;
+    assert.ok(a.x >= KITCHEN.floor.x0 + 22 - 0.01 && a.y >= KITCHEN.floor.y0 + 22 - 0.01);
+    e.setPlayerPosition('b', KITCHEN.pass.x, KITCHEN.pass.y);
+    run(TICK);
+    const b = e.peek('b')!;
+    assert.ok(Math.hypot(b.x - KITCHEN.pass.x, b.y - KITCHEN.pass.y) >= KITCHEN.pass.r + 21.9);
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'chop');
+    e.interact('a');
+    e.applyInput('a', { seq: 2, x: 1, y: 0 });
+    const x0 = e.peek('a')!.x;
+    run(500);
+    assert.ok(Math.abs(e.peek('a')!.x - x0) < 1, 'working chefs stay put');
+  });
+
+  it('rejects invalid, stale and out-of-phase input', () => {
+    const lobby = new GameEngine();
+    lobby.addPlayer('a', 'A', '#fff');
+    assert.equal(lobby.applyInput('a', { seq: 1, x: 0, y: 0 }), 'phase');
+    const { e } = kitchen();
+    assert.equal(e.applyInput('a', { seq: 1, x: Number.NaN, y: 0 }), 'invalid');
+    assert.equal(e.applyInput('a', { seq: 1, x: 2, y: 0 }), 'invalid');
+    assert.equal(e.applyInput('a', { seq: 3, x: 0.5, y: 0 }), 'ok');
+    assert.equal(e.applyInput('a', { seq: 3, x: 0.5, y: 0 }), 'stale');
+  });
+});
+
+describe('Kitchen engine: sharing', () => {
+  it('two chefs at one station stand side by side', () => {
+    const { e } = kitchen(['a', 'b']);
+    e.setRecipe('a', 'burger');
+    e.setRecipe('b', 'blt');
+    at(e, 'a', 'chop');
+    at(e, 'b', 'chop');
+    assert.equal(e.interact('a'), 'ok');
+    assert.equal(e.interact('b'), 'ok');
+    const ax = e.peek('a')!.x;
+    const bx = e.peek('b')!.x;
+    assert.ok(Math.abs(ax - bx) >= 50, `${ax} vs ${bx}`);
+  });
+});

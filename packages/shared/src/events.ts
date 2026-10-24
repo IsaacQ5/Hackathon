@@ -2,7 +2,9 @@ import type {
   Ack,
   GamePhase,
   GameSnapshot,
+  KitchenStatus,
   LeaderboardEntry,
+  MatchResults,
   PlayerInput,
   Role,
   RoomState,
@@ -85,6 +87,16 @@ export interface ClientToServerEvents {
   'player:recenter': (payload: EmptyPayload) => void;
   /** Connectivity test + clock sample. */
   'net:ping': (payload: EmptyPayload, ack: (result: PingResult) => void) => void;
+
+  // Sizzle Scramble
+  /** Start working at the station you're standing at. */
+  'kitchen:interact': (payload: EmptyPayload) => void;
+  /** One recognised gesture at your station (good, or a messed-up one). */
+  'kitchen:rep': (payload: { good: boolean }) => void;
+  /** Step away from the station (progress is kept). */
+  'kitchen:cancel': (payload: EmptyPayload) => void;
+  /** Send the finished dish at the pass. */
+  'kitchen:serve': (payload: EmptyPayload) => void;
 }
 
 export interface ServerToClientEvents {
@@ -94,6 +106,12 @@ export interface ServerToClientEvents {
   'game:snapshot': (snapshot: GameSnapshot) => void;
   'game:ended': (payload: GameEndedPayload) => void;
   'server:error': (error: ServerError) => void;
+
+  // Sizzle Scramble
+  /** Sent ~10x/s to each phone: its own chef's recipe, progress and score. */
+  'kitchen:status': (status: KitchenStatus) => void;
+  /** Sent with game:ended: rankings + stats. */
+  'game:results': (payload: MatchResults) => void;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface

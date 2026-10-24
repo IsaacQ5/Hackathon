@@ -6,6 +6,8 @@ import { storage } from '../network/session';
 import { api } from '../network/socket';
 import { navigate } from '../utils/router';
 import { sfx } from '../utils/sound';
+import { ChefPortrait } from '../components/ChefPortrait';
+import '../styles/sizzle.css';
 
 export function HomePage() {
   const connected = useConnection();
@@ -32,8 +34,8 @@ export function HomePage() {
   };
 
   const joinCard = (
-    <form className="card home__card" onSubmit={join}>
-      <h2>📱 Join a game</h2>
+    <form className="kcard home__card" onSubmit={join}>
+      <h2>📱 Join a kitchen</h2>
       <p className="muted">Enter the code shown on the big screen.</p>
       <input
         className="input input--code"
@@ -45,17 +47,17 @@ export function HomePage() {
         autoComplete="off"
         aria-label="Room code"
       />
-      <button className="btn btn--big btn--go" disabled={code.length !== ROOM_CODE_LENGTH}>
-        Join
+      <button className="kbtn kbtn--go" disabled={code.length !== ROOM_CODE_LENGTH}>
+        JOIN
       </button>
     </form>
   );
 
   const hostCard = (
-    <div className="card home__card">
-      <h2>📺 Host a game</h2>
+    <div className="kcard home__card">
+      <h2>📺 Host a kitchen</h2>
       <p className="muted">Open this on a laptop or TV. Players join with their phones.</p>
-      <button className="btn btn--big" onClick={create} disabled={creating || !connected}>
+      <button className="kbtn" onClick={create} disabled={creating || !connected}>
         {creating ? 'Creating…' : 'Create room'}
       </button>
       {error && <p className="error">{error.message}</p>}
@@ -65,10 +67,15 @@ export function HomePage() {
   return (
     <div className="home">
       <header className="home__hero">
-        <h1 className="logo">
-          TILT <span>MAYHEM</span>
+        <h1 className="klogo">
+          SIZZLE <span>SCRAMBLE</span>
         </h1>
-        <p className="tagline">Your phone is the controller. Tilt, roll, grab the gems.</p>
+        <div className="home__crew" aria-hidden>
+          {['#ff3d7f', '#2de2e6', '#ffd23f', '#7cff6b', '#b26bff'].map((c, i) => (
+            <ChefPortrait key={c} color={c} size={78} station={(['chop', 'fry', 'stir', 'knead', 'mix'] as const)[i]} />
+          ))}
+        </div>
+        <p className="tagline">Chop, flip, stir, knead, mix and pour with your phone. Most dishes in 3 minutes wins!</p>
         <ConnectionBadge connected={connected} label={connected ? 'Server online' : 'Connecting to server…'} />
       </header>
       <main className="home__cards">

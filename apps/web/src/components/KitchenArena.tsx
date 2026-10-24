@@ -1,0 +1,385 @@
+import { useEffect, useRef } from 'react';
+import {
+  INGREDIENTS,
+  KITCHEN,
+  STATIONS,
+  recipeById,
+  stationById,
+  type ChefSnap,
+  type KitchenEvent,
+  type StationId,
+} from '@tilt-mayhem/shared';
+import { Fx } from '../game/fx';
+import type { Frame, KitchenBuffer } from '../game/kbuffer';
+import { drawChef, drawKitchen, drawPass, drawStation, emoji, INK, roundRect, type ChefView, type StationActivity } from '../game/kitchenArt';
+import { sfx } from '../utils/sound';
+
+const W = 1000;
+const H = 600;
+const TOP = 70;
+const BOTTOM = 150;
+
+const STATION_WORDS: Record<StationId, string[]> = {
+  chop: ['CHOP!', 'SLICE!', 'DICE!'],
+  fry: ['FLIP!', 'SIZZLE!', 'TOSS!'],
+  stir: ['STIR!', 'SWIRL!', 'BLOOP!'],
+  knead: ['KNEAD!', 'SQUISH!', 'PUSH!'],
+  mix: ['MIX!', 'WHISK!', 'SHAKE!'],
+  juice: ['POUR!', 'SQUEEZE!', 'GLUG!'],
+};
+const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]!;
+
+/** Host-screen renderer for the kitchen. Own rAF loop; React never re-renders per frame. */
+export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let cw = 1;
+    let ch = 1;
+    const resize = () => {
+      const r = wrap.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cw = Math.max(1, r.width);
+      ch = Math.max(1, r.height);
+      canvas.width = Math.round(cw * dpr);
+      canvas.height = Math.round(ch * dpr);
+      canvas.style.width = `${cw}px`;
+      canvas.style.height = `${ch}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrap);
+    resize();
+
+    const fx = new Fx();
+    const seeds = new Map<string, { seed: number; bounce: number }>();
+    const chefPos = new Map<string, { x: number; y: number; color: string; name: string }>();
+    let banner: { text: string; color: string; at: number } | null = null;
+    let lastCount = -1;
+    let lastPhase = '';
+    let goUntil = 0;
+    let endShown = false;
+    let last = performance.now();
+    let raf = 0;
+
+    const juice = (id: string) => {
+      let j = seeds.get(id);
+      if (!j) {
+        j = { seed: Math.random() * 10, bounce: 0 };
+        seeds.set(id, j);
+      }
+      return j;
+    };
+
+    const handle = (e: KitchenEvent, now: number) => {
+      if (e.type === 'rush') {
+        banner = { text: 'RUSH HOUR! DOUBLE POINTS!', color: '#ff3d5a', at: now };
+        sfx.warn();
+        return;
+      }
+      const p = chefPos.get(e.chef);
+      if (!p) return;
+      if (e.type === 'rep') {
+        const st = stationById(e.station);
+        const spot = KITCHEN.spots.find((s) => s.id === e.station)!;
+        if (e.good) {
+          fx.sparks(spot.x, spot.y, st.color, 7);
+          if (e.station === 'knead' || e.station === 'mix') fx.dust(spot.x, spot.y, 3);
+          if (Math.random() < 0.45) fx.word(pick(STATION_WORDS[e.station]), spot.x + (Math.random() - 0.5) * 60, spot.y - 10, st.color, 26);
+          if (e.station === 'chop') sfx.chop();
+          else if (e.station === 'fry') sfx.sizzle();
+          else sfx.bloop();
+          juice(e.chef).bounce = 0.6;
+        } else {
+          fx.word('OOPS!', spot.x, spot.y - 20, '#ff3d5a', 32);
+          sfx.splat();
+          juice(e.chef).bounce = 1;
+        }
+      } else if (e.type === 'made') {
+        const icon = INGREDIENTS.get(e.ingredient)?.ingredient.icon ?? '';
+        fx.word(`+${icon}`, p.x, p.y - 100, '#2b1a12', 34);
+        fx.stars(p.x, p.y - 60, 6);
+        sfx.powerup();
+      } else if (e.type === 'served') {
+        const pass = KITCHEN.pass;
+        fx.word(`+${e.points}!`, pass.x, pass.y - 70, e.points > 150 ? '#ff3d5a' : '#2bb02b', 60);
+        if (e.fast) fx.word('SPEEDY!', pass.x, pass.y - 20, '#ff8a3d', 32);
+        fx.confetti(pass.x - 140, pass.x + 140, pass.y - 120, 50);
+        fx.shake(6, now);
+        sfx.ding();
+        banner = { text: `${p.name} served ${recipeById(e.recipeId)?.name ?? 'a dish'}!`, color: p.color, at: now };
+      }
+    };
+
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const t = now / 1000;
+      const frame = buffer.frame(now);
+      if (frame) for (const c of frame.chefs) chefPos.set(c.id, { x: c.x, y: c.y, color: c.color, name: c.nickname });
+      for (const e of buffer.drainEvents()) handle(e, now);
+      for (const j of seeds.values()) j.bounce *= Math.exp(-dt * 5);
+
+      if (frame) {
+        if (frame.snap.phase === 'countdown') {
+          const s = Math.ceil(frame.countdownMs / 1000);
+          if (s !== lastCount && s > 0) {
+            lastCount = s;
+            sfx.tick(false);
+          }
+          endShown = false;
+        }
+        if (frame.snap.phase === 'playing' && lastPhase === 'countdown') {
+          goUntil = now + 900;
+          sfx.tick(true);
+        }
+        if (frame.snap.phase === 'results' && !endShown) {
+          endShown = true;
+          fx.confetti(0, W, -20, 140);
+          sfx.fanfare();
+        }
+        lastPhase = frame.snap.phase;
+      }
+      fx.update(dt);
+      draw(frame, t, now);
+    };
+
+    const draw = (frame: Frame | null, t: number, now: number) => {
+      ctx.fillStyle = '#ff9f45';
+      ctx.fillRect(0, 0, cw, ch);
+      if (!frame) {
+        ctx.fillStyle = '#fff';
+        ctx.font = '600 24px Fredoka, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Heating up the kitchen…', cw / 2, ch / 2);
+        return;
+      }
+      const availH = Math.max(100, ch - TOP - BOTTOM);
+      const scale = Math.min((cw - 32) / W, availH / H);
+      const ox = (cw - W * scale) / 2;
+      const oy = TOP + (availH - H * scale) / 2;
+      const sh = fx.shakeOffset();
+
+      ctx.save();
+      ctx.translate(ox + sh.x, oy + sh.y);
+      ctx.scale(scale, scale);
+      drawKitchen(ctx, t);
+
+      // Station activity + highlight (someone standing there who needs it).
+      for (const st of STATIONS) {
+        const workers = frame.chefs.filter((c) => c.working?.station === st.id);
+        const lead = workers[0]?.working;
+        const act: StationActivity = {
+          progress: lead?.progress ?? 0,
+          sinceRep: lead?.sinceRep ?? 9999,
+          ingredient: lead?.ingredient ?? null,
+          workers: workers.length,
+        };
+        const waiting = frame.chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
+        drawStation(ctx, st.id, act, t, waiting ? waiting.color : null);
+      }
+      drawPass(ctx, t, frame.chefs.some((c) => complete(c)));
+      fx.drawBack(ctx);
+      for (const c of [...frame.chefs].sort((a, b) => a.y - b.y)) {
+        const j = juice(c.id);
+        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce };
+        drawChef(ctx, v, t, true);
+      }
+      fx.drawFront(ctx);
+      ctx.restore();
+
+      drawHud(frame, t, now);
+    };
+
+    const drawHud = (frame: Frame, t: number, now: number) => {
+      const phase = frame.snap.phase;
+      // timer
+      const secs = Math.max(0, Math.ceil(frame.timeLeftMs / 1000));
+      const label = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+      const urgent = secs <= 10 && phase === 'playing';
+      const rush = frame.snap.rush && phase === 'playing';
+      ctx.save();
+      ctx.translate(cw / 2, 36);
+      const pulse = urgent || rush ? 1 + Math.max(0, Math.sin(now / 150)) * 0.06 : 1;
+      ctx.scale(pulse, pulse);
+      ctx.font = '34px Bangers, "Arial Black", Impact, system-ui, sans-serif';
+      const tw = ctx.measureText(label).width + 50;
+      roundRect(ctx, -tw / 2, -27, tw, 54, 27);
+      ctx.fillStyle = rush ? '#ff3d5a' : '#fffaf2';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.fillStyle = rush ? '#fff' : INK;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 0, 2);
+      ctx.restore();
+      if (rush) comic(ctx, cw / 2 + 170, 38, 'x2 RUSH!', '#ffe14d', 28);
+
+      // top 3 mini leaderboard
+      const top3 = [...frame.chefs].sort((a, b) => b.score - a.score).slice(0, 3);
+      top3.forEach((c, i) => {
+        const x = cw - 16;
+        const y = 14 + i * 30;
+        ctx.font = '600 15px Fredoka, system-ui, sans-serif';
+        const txt = `${['🥇', '🥈', '🥉'][i]} ${c.nickname} ${c.score}`;
+        const w = ctx.measureText(txt).width + 20;
+        roundRect(ctx, x - w, y, w, 26, 13);
+        ctx.fillStyle = 'rgba(43,26,18,0.8)';
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(txt, x - 10, y + 14);
+      });
+
+      if (banner && now - banner.at < 2600) comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
+
+      if (phase === 'countdown') {
+        const s = Math.max(1, Math.ceil(frame.countdownMs / 1000));
+        const frac = (frame.countdownMs % 1000) / 1000;
+        comic(ctx, cw / 2, ch / 2, String(s), '#ffffff', Math.min(cw, ch) * 0.3 * (1 + frac * 0.3));
+      } else if (now < goUntil) {
+        comic(ctx, cw / 2, ch / 2, "LET'S COOK!", '#ffe14d', Math.min(cw, ch) * 0.13 * (1 + (goUntil - now) / 2000));
+      }
+      if (phase === 'results') {
+        const best = [...frame.chefs].sort((a, b) => b.score - a.score);
+        const winners = best.filter((c) => c.score === best[0]?.score && c.score > 0);
+        const text = winners.length === 1 ? `${winners[0]!.nickname} IS HEAD CHEF!` : winners.length > 1 ? "IT'S A TIE!" : "TIME'S UP!";
+        comic(ctx, cw / 2, ch * 0.42, text, winners[0]?.color ?? '#fff', Math.min(96, (cw / Math.max(10, text.length)) * 1.5) * (1 + Math.sin(t * 6) * 0.03));
+      }
+
+      drawTickets(ctx, frame.chefs, cw, ch);
+    };
+
+    raf = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [buffer]);
+
+  return (
+    <div className="karena" ref={wrapRef}>
+      <canvas ref={canvasRef} />
+    </div>
+  );
+}
+
+function needs(c: ChefSnap, station: StationId): boolean {
+  const r = recipeById(c.recipeId);
+  return !!r?.ingredients.some((i) => INGREDIENTS.get(i)?.station === station && !c.have.includes(i));
+}
+
+function complete(c: ChefSnap): boolean {
+  const r = recipeById(c.recipeId);
+  return !!r && r.ingredients.every((i) => c.have.includes(i));
+}
+
+function comic(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string, size: number) {
+  ctx.save();
+  ctx.font = `${Math.round(size)}px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(5, size / 7);
+  ctx.strokeStyle = INK;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+/** One order ticket per chef along the bottom: dish, 4 station symbols, what's done, score. */
+function drawTickets(ctx: CanvasRenderingContext2D, chefs: ChefSnap[], cw: number, ch: number) {
+  const n = chefs.length;
+  if (!n) return;
+  const gap = 10;
+  const w = Math.min(230, (cw - 32 - gap * (n - 1)) / n);
+  const h = 128;
+  const total = n * w + (n - 1) * gap;
+  let x = (cw - total) / 2;
+  const y = ch - h - 10;
+  for (const c of chefs) {
+    const r = recipeById(c.recipeId);
+    ctx.save();
+    roundRect(ctx, x, y, w, h, 14);
+    ctx.fillStyle = '#fffaf2';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = c.color;
+    ctx.stroke();
+    ctx.clip();
+    ctx.fillStyle = c.color;
+    ctx.fillRect(x, y, w, 26);
+    ctx.font = '700 14px Fredoka, system-ui, sans-serif';
+    ctx.fillStyle = INK;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fit(ctx, c.nickname, w - 70), x + 10, y + 14);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${c.score} pts`, x + w - 10, y + 14);
+    // dish
+    ctx.textAlign = 'left';
+    ctx.font = '600 13px Fredoka, system-ui, sans-serif';
+    emoji(ctx, r?.icon ?? '🍽️', x + 18, y + 44, 20);
+    ctx.fillStyle = INK;
+    ctx.textAlign = 'left';
+    ctx.font = '600 13px Fredoka, system-ui, sans-serif';
+    ctx.fillText(fit(ctx, r?.name ?? '', w - 44), x + 32, y + 45);
+    // four slots: station symbol on top, ingredient below
+    const slotW = (w - 16) / 4;
+    r?.ingredients.forEach((ing, i) => {
+      const info = INGREDIENTS.get(ing)!;
+      const st = stationById(info.station);
+      const sx = x + 8 + i * slotW;
+      const sy = y + 60;
+      const done = c.have.includes(ing);
+      const active = c.working?.ingredient === ing;
+      roundRect(ctx, sx + 2, sy, slotW - 4, 60, 10);
+      ctx.fillStyle = done ? '#c9f7c1' : active ? `${st.color}66` : '#f1e7d8';
+      ctx.fill();
+      ctx.lineWidth = active ? 3 : 1.5;
+      ctx.strokeStyle = active ? st.color : 'rgba(43,26,18,0.35)';
+      ctx.stroke();
+      emoji(ctx, st.icon, sx + slotW / 2, sy + 17, 18);
+      emoji(ctx, info.ingredient.icon, sx + slotW / 2, sy + 43, 15);
+      if (active && c.working) {
+        ctx.fillStyle = st.color;
+        ctx.fillRect(sx + 6, sy + 54, (slotW - 12) * c.working.progress, 4);
+      }
+      if (done) {
+        ctx.font = '700 14px Fredoka, system-ui, sans-serif';
+        ctx.fillStyle = '#2bb02b';
+        ctx.textAlign = 'right';
+        ctx.fillText('✔', sx + slotW - 6, sy + 10);
+      }
+    });
+    if (!c.connected) {
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = INK;
+      ctx.font = '600 13px Fredoka, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('reconnecting…', x + w / 2, y + h / 2);
+    }
+    ctx.restore();
+    x += w + gap;
+  }
+}
+
+function fit(ctx: CanvasRenderingContext2D, s: string, max: number) {
+  if (ctx.measureText(s).width <= max) return s;
+  let out = s;
+  while (out.length > 1 && ctx.measureText(out + '…').width > max) out = out.slice(0, -1);
+  return out + '…';
+}

@@ -1,3 +1,5 @@
+import type { StationId } from './kitchen.js';
+
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'results';
 
 export type Role = 'host' | 'player';
@@ -20,34 +22,94 @@ export interface PublicPlayer {
   connected: boolean;
 }
 
-export interface Collectible {
-  id: number;
-  x: number;
-  y: number;
-  value: number;
+// ------------------------------------------------------------------ Sizzle Scramble snapshot
+
+export interface ChefWork {
+  station: StationId;
+  ingredient: string;
+  /** 0..1 */
+  progress: number;
+  /** ms since the last counted gesture (drives the station animation). */
+  sinceRep: number;
 }
 
-/** One-off visual events (e.g. a pickup) carried in the snapshot of the tick they happened. */
-export interface PickupEvent {
-  type: 'pickup';
-  playerId: string;
+export interface ChefSnap {
+  id: string;
+  nickname: string;
+  color: string;
   x: number;
   y: number;
-  value: number;
+  vx: number;
+  vy: number;
+  facing: number;
+  connected: boolean;
+  score: number;
+  served: number;
+  recipeId: string;
+  /** Ingredient ids already made for the current recipe. */
+  have: string[];
+  working: ChefWork | null;
+  /** Station (or the pass) the chef is standing at. */
+  near: StationId | 'pass' | null;
 }
+
+export type KitchenEvent =
+  | { type: 'rep'; chef: string; station: StationId; good: boolean }
+  | { type: 'made'; chef: string; station: StationId; ingredient: string }
+  | { type: 'served'; chef: string; recipeId: string; points: number; fast: boolean }
+  | { type: 'rush' };
 
 export interface GameSnapshot {
   tick: number;
   phase: GamePhase;
   /** Server wall-clock time (ms) when the snapshot was produced. Used for interpolation. */
   serverTime: number;
-  players: PublicPlayer[];
-  collectibles: Collectible[];
   /** Remaining round time; equals the full duration during countdown. */
   timeLeftMs: number;
   /** Remaining countdown time; 0 outside the countdown phase. */
   countdownMs: number;
-  events: PickupEvent[];
+  /** Final stretch: double points. */
+  rush: boolean;
+  chefs: ChefSnap[];
+  events: KitchenEvent[];
+}
+
+/** Private per-phone status (sent only to that player's socket). */
+export interface KitchenStatus {
+  recipeId: string;
+  have: string[];
+  working: ChefWork | null;
+  near: StationId | 'pass' | null;
+  /** Can press INTERACT right now (standing at a station the recipe needs). */
+  canInteract: boolean;
+  /** Can press SEND right now (all four made and standing at the pass). */
+  canServe: boolean;
+  score: number;
+  served: number;
+  rank: number;
+  timeLeftMs: number;
+  rush: boolean;
+}
+
+export interface ChefResult {
+  id: string;
+  nickname: string;
+  color: string;
+  placement: number;
+  score: number;
+  served: number;
+  /** Fastest dish, ms from ticket to serve (null if none). */
+  fastestMs: number | null;
+  favoriteStation: StationId | null;
+  gestures: number;
+  oops: number;
+}
+
+export interface MatchResults {
+  round: number;
+  durationMs: number;
+  winnerIds: string[];
+  results: ChefResult[];
 }
 
 export interface LeaderboardEntry {

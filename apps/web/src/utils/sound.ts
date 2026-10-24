@@ -51,6 +51,97 @@ class Sfx {
     setTimeout(() => this.tone(659, 180, 'triangle', 0.15), 160);
     setTimeout(() => this.tone(784, 420, 'triangle', 0.15), 320);
   }
+
+  // ---- Wobble Warriors slapstick sounds (all synthesized)
+
+  private noise(durMs: number, gain = 0.2, lowpass = 1200): void {
+    const ctx = this.ctx;
+    if (!ctx || this.muted || ctx.state !== 'running') return;
+    const len = Math.floor((ctx.sampleRate * durMs) / 1000);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = lowpass;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(f).connect(g).connect(ctx.destination);
+    src.start();
+  }
+
+  bonk(power: number): void {
+    this.tone(220 + Math.min(300, power / 3), 120, 'square', 0.08, 90);
+    this.noise(70, 0.18, 900);
+  }
+
+  wham(): void {
+    this.tone(140, 220, 'sawtooth', 0.1, 50);
+    this.noise(140, 0.3, 700);
+  }
+
+  yeet(): void {
+    this.tone(300, 380, 'triangle', 0.14, 1400);
+  }
+
+  boing(): void {
+    this.tone(200, 260, 'sine', 0.16, 600);
+  }
+
+  slip(): void {
+    this.tone(900, 420, 'sine', 0.13, 160);
+  }
+
+  pop(): void {
+    this.tone(1200, 80, 'square', 0.06, 400);
+  }
+
+  fall(): void {
+    this.tone(700, 900, 'sine', 0.13, 80);
+  }
+
+  splat(): void {
+    this.noise(180, 0.32, 500);
+  }
+
+  powerup(): void {
+    this.tone(520, 90, 'triangle', 0.12);
+    setTimeout(() => this.tone(780, 90, 'triangle', 0.12), 80);
+    setTimeout(() => this.tone(1040, 140, 'triangle', 0.12), 160);
+  }
+
+  warn(): void {
+    this.tone(660, 140, 'square', 0.06);
+    setTimeout(() => this.tone(520, 160, 'square', 0.06), 160);
+  }
+
+  crumble(): void {
+    this.noise(260, 0.16, 400);
+  }
+
+  ding(): void {
+    this.tone(1568, 700, 'sine', 0.18);
+    setTimeout(() => this.tone(2093, 500, 'sine', 0.1), 60);
+  }
+
+  chop(): void {
+    this.noise(40, 0.22, 2500);
+    this.tone(320, 50, 'square', 0.05, 160);
+  }
+
+  sizzle(): void {
+    this.noise(220, 0.08, 6000);
+  }
+
+  bloop(): void {
+    this.tone(300 + Math.random() * 200, 90, 'sine', 0.1, 700);
+  }
+
+  fanfare(): void {
+    [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, i === 3 ? 600 : 160, 'triangle', 0.16), i * 140));
+  }
 }
 
 export const sfx = new Sfx();

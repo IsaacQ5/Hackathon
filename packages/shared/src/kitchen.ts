@@ -1,0 +1,254 @@
+/**
+ * Sizzle Scramble: data-driven kitchen.
+ *
+ * Exactly six permanent stations. Each station produces exactly five
+ * ingredient variants and has its own phone gesture. Recipes are plain data:
+ * four ingredients from four DIFFERENT stations. Add a recipe by adding a row
+ * to RECIPES; no station logic needs to change.
+ */
+
+export type StationId = 'chop' | 'fry' | 'stir' | 'knead' | 'mix' | 'juice';
+
+export interface IngredientDef {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+export interface StationDef {
+  id: StationId;
+  name: string;
+  /** Short verb shown as the station's symbol label. */
+  verb: string;
+  /** Symbol for the action (shown on phones + above the station). */
+  icon: string;
+  color: string;
+  /** What the player does with the phone. */
+  howTo: string;
+  /** Good gestures needed to fill the meter. */
+  reps: number;
+  /** Server-side minimum ms between counted gestures (anti-mash). */
+  minRepMs: number;
+  /** Progress lost on a messed-up gesture, in reps. */
+  badPenalty: number;
+  ingredients: readonly IngredientDef[];
+}
+
+export const STATIONS: readonly StationDef[] = [
+  {
+    id: 'chop',
+    name: 'Chopping Board',
+    verb: 'CHOP',
+    icon: '🔪',
+    color: '#7cd651',
+    howTo: 'Hold your phone sideways like a knife and chop straight down.',
+    reps: 8,
+    minRepMs: 140,
+    badPenalty: 0,
+    ingredients: [
+      { id: 'lettuce', name: 'Chopped lettuce', icon: '🥬' },
+      { id: 'tomato', name: 'Sliced tomato', icon: '🍅' },
+      { id: 'onion', name: 'Diced onion', icon: '🧅' },
+      { id: 'mushroom', name: 'Sliced mushroom', icon: '🍄' },
+      { id: 'carrot', name: 'Chopped carrot', icon: '🥕' },
+    ],
+  },
+  {
+    id: 'fry',
+    name: 'Frying Pan',
+    verb: 'FLIP',
+    icon: '🔥',
+    color: '#ff8a3d',
+    howTo: 'Flick your wrist up to toss the food, then bring the pan back level.',
+    reps: 5,
+    minRepMs: 300,
+    badPenalty: 1,
+    ingredients: [
+      { id: 'patty', name: 'Cooked burger patty', icon: '🥩' },
+      { id: 'egg', name: 'Fried egg', icon: '🍳' },
+      { id: 'bacon', name: 'Cooked bacon', icon: '🥓' },
+      { id: 'chicken', name: 'Grilled chicken', icon: '🍗' },
+      { id: 'fish', name: 'Cooked fish', icon: '🐟' },
+    ],
+  },
+  {
+    id: 'stir',
+    name: 'Stirring Pot',
+    verb: 'STIR',
+    icon: '🥄',
+    color: '#ff3d5a',
+    howTo: 'Hold your phone flat and move it in big, full circles.',
+    reps: 4,
+    minRepMs: 300,
+    badPenalty: 0,
+    ingredients: [
+      { id: 'tomatosauce', name: 'Tomato sauce', icon: '🥫' },
+      { id: 'cheesesauce', name: 'Cheese sauce', icon: '🧀' },
+      { id: 'chocosauce', name: 'Chocolate sauce', icon: '🍫' },
+      { id: 'soupbase', name: 'Soup base', icon: '🍲' },
+      { id: 'curry', name: 'Curry sauce', icon: '🍛' },
+    ],
+  },
+  {
+    id: 'knead',
+    name: 'Dough Bench',
+    verb: 'KNEAD',
+    icon: '🫓',
+    color: '#e0a458',
+    howTo: 'Push your phone forward and pull it back in a steady rhythm.',
+    reps: 6,
+    minRepMs: 200,
+    badPenalty: 0,
+    ingredients: [
+      { id: 'bread', name: 'Bread', icon: '🍞' },
+      { id: 'bun', name: 'Burger bun', icon: '🍔' },
+      { id: 'pizzadough', name: 'Pizza dough', icon: '🍕' },
+      { id: 'tortilla', name: 'Tortilla', icon: '🌯' },
+      { id: 'sandwichbread', name: 'Sandwich bread', icon: '🥪' },
+    ],
+  },
+  {
+    id: 'mix',
+    name: 'Mixing Bowl',
+    verb: 'MIX',
+    icon: '🥣',
+    color: '#b26bff',
+    howTo: 'Shake your phone gently side to side, left-right-left-right.',
+    reps: 12,
+    minRepMs: 90,
+    badPenalty: 0,
+    ingredients: [
+      { id: 'pancake', name: 'Pancake batter', icon: '🥞' },
+      { id: 'omelette', name: 'Omelette mixture', icon: '🥚' },
+      { id: 'cake', name: 'Cake batter', icon: '🎂' },
+      { id: 'cookie', name: 'Cookie mixture', icon: '🍪' },
+      { id: 'cream', name: 'Cream filling', icon: '🍦' },
+    ],
+  },
+  {
+    id: 'juice',
+    name: 'Juicer & Crusher',
+    verb: 'POUR',
+    icon: '🧃',
+    color: '#ffd23f',
+    howTo: 'Tilt your phone forward to pour and HOLD it steady. Level it when it says RELEASE.',
+    reps: 2,
+    minRepMs: 700,
+    badPenalty: 1,
+    ingredients: [
+      { id: 'orange', name: 'Orange juice', icon: '🍊' },
+      { id: 'lemon', name: 'Lemon juice', icon: '🍋' },
+      { id: 'puree', name: 'Fruit purée', icon: '🍓' },
+      { id: 'apple', name: 'Apple juice', icon: '🍎' },
+      { id: 'water', name: 'Water', icon: '💧' },
+    ],
+  },
+];
+
+export const STATION_IDS: readonly StationId[] = STATIONS.map((s) => s.id);
+
+export function stationById(id: StationId): StationDef {
+  return STATIONS.find((s) => s.id === id)!;
+}
+
+/** ingredient id -> { station, ingredient } */
+export const INGREDIENTS: ReadonlyMap<string, { station: StationId; ingredient: IngredientDef }> = new Map(
+  STATIONS.flatMap((s) => s.ingredients.map((i) => [i.id, { station: s.id, ingredient: i }] as const)),
+);
+
+export interface RecipeDef {
+  id: string;
+  name: string;
+  icon: string;
+  /** Exactly four ingredient ids, each from a different station. */
+  ingredients: readonly [string, string, string, string];
+}
+
+export const RECIPES: readonly RecipeDef[] = [
+  { id: 'burger', name: 'Classic Cheeseburger', icon: '🍔', ingredients: ['lettuce', 'patty', 'bun', 'cheesesauce'] },
+  { id: 'breakfast', name: 'Big Breakfast', icon: '🍳', ingredients: ['egg', 'bread', 'orange', 'pancake'] },
+  { id: 'blt', name: 'BLT Melt', icon: '🥪', ingredients: ['tomato', 'bacon', 'sandwichbread', 'cheesesauce'] },
+  { id: 'chickenpizza', name: 'Chicken Mushroom Pizza', icon: '🍕', ingredients: ['pizzadough', 'tomatosauce', 'mushroom', 'chicken'] },
+  { id: 'fishtacos', name: 'Fish Tacos', icon: '🌮', ingredients: ['tortilla', 'fish', 'onion', 'lemon'] },
+  { id: 'curry', name: 'Chicken Curry & Naan', icon: '🍛', ingredients: ['curry', 'chicken', 'onion', 'bread'] },
+  { id: 'pasta', name: 'Meatball Pasta', icon: '🍝', ingredients: ['tomatosauce', 'mushroom', 'patty', 'water'] },
+  { id: 'veggiesoup', name: 'Veggie Soup', icon: '🥣', ingredients: ['soupbase', 'carrot', 'bread', 'water'] },
+  { id: 'pancakes', name: 'Pancake Brunch', icon: '🥞', ingredients: ['pancake', 'puree', 'bacon', 'bread'] },
+  { id: 'omelette', name: 'Omelette Deluxe', icon: '🥚', ingredients: ['omelette', 'mushroom', 'cheesesauce', 'orange'] },
+  { id: 'carrotcake', name: 'Choco Carrot Cake', icon: '🎂', ingredients: ['cake', 'carrot', 'chocosauce', 'apple'] },
+  { id: 'cookiepizza', name: 'Cookie Pizza', icon: '🍪', ingredients: ['pizzadough', 'cookie', 'chocosauce', 'puree'] },
+  { id: 'creambuns', name: 'Choco Cream Buns', icon: '🧁', ingredients: ['bun', 'cream', 'chocosauce', 'puree'] },
+  { id: 'burrito', name: 'Breakfast Burrito', icon: '🌯', ingredients: ['tortilla', 'egg', 'onion', 'cheesesauce'] },
+  { id: 'chickensandwich', name: 'Zesty Chicken Sandwich', icon: '🥪', ingredients: ['sandwichbread', 'chicken', 'lettuce', 'lemon'] },
+  { id: 'chowder', name: 'Fish Chowder', icon: '🍲', ingredients: ['fish', 'soupbase', 'onion', 'bread'] },
+  { id: 'caesar', name: 'Chicken Caesar Salad', icon: '🥗', ingredients: ['lettuce', 'chicken', 'lemon', 'bread'] },
+  { id: 'tomatosoup', name: 'Tomato Soup & Toastie', icon: '🥫', ingredients: ['tomatosauce', 'tomato', 'sandwichbread', 'water'] },
+  { id: 'burgerpizza', name: 'Cheeseburger Pizza', icon: '🍕', ingredients: ['pizzadough', 'cheesesauce', 'patty', 'onion'] },
+  { id: 'currywrap', name: 'Veggie Curry Wrap', icon: '🌯', ingredients: ['tortilla', 'curry', 'carrot', 'puree'] },
+];
+
+export function recipeById(id: string): RecipeDef | undefined {
+  return RECIPES.find((r) => r.id === id);
+}
+
+/** The station each ingredient of a recipe comes from, in recipe order. */
+export function recipeSteps(r: RecipeDef): { station: StationId; ingredient: IngredientDef }[] {
+  return r.ingredients.map((id) => INGREDIENTS.get(id)!);
+}
+
+/** Returns a list of problems; empty = all recipes are valid. */
+export function validateRecipes(recipes: readonly RecipeDef[] = RECIPES): string[] {
+  const problems: string[] = [];
+  const ids = new Set<string>();
+  for (const r of recipes) {
+    if (ids.has(r.id)) problems.push(`${r.id}: duplicate id`);
+    ids.add(r.id);
+    if (r.ingredients.length !== 4) problems.push(`${r.id}: needs exactly 4 ingredients`);
+    const stations = new Set<StationId>();
+    for (const ing of r.ingredients) {
+      const found = INGREDIENTS.get(ing);
+      if (!found) problems.push(`${r.id}: unknown ingredient ${ing}`);
+      else stations.add(found.station);
+    }
+    if (stations.size !== r.ingredients.length) problems.push(`${r.id}: two ingredients from the same station`);
+  }
+  return problems;
+}
+
+// ------------------------------------------------------------------ map layout (world 1000 x 600)
+
+export interface StationSpot {
+  id: StationId;
+  /** Where the station is drawn (on the counter). */
+  x: number;
+  y: number;
+  /** Where a chef stands to use it. */
+  fx: number;
+  fy: number;
+}
+
+export const KITCHEN = {
+  floor: { x0: 60, x1: 940, y0: 132, y1: 468 },
+  pass: { x: 500, y: 300, r: 58, serveR: 125 },
+  interactR: 85,
+  chefR: 22,
+  spots: [
+    { id: 'chop', x: 200, y: 78, fx: 200, fy: 162 },
+    { id: 'fry', x: 500, y: 78, fx: 500, fy: 162 },
+    { id: 'stir', x: 800, y: 78, fx: 800, fy: 162 },
+    { id: 'knead', x: 200, y: 522, fx: 200, fy: 438 },
+    { id: 'mix', x: 500, y: 522, fx: 500, fy: 438 },
+    { id: 'juice', x: 800, y: 522, fx: 800, fy: 438 },
+  ] as readonly StationSpot[],
+} as const;
+
+export const SCORING = {
+  recipe: 100,
+  /** Bonus when a dish is served within these ms of getting the ticket. */
+  fastMs: 35_000,
+  fastBonus: 50,
+  quickMs: 60_000,
+  quickBonus: 25,
+  /** The last stretch of the round doubles points. */
+  rushMs: 30_000,
+} as const;

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { KITCHEN } from '@tilt-mayhem/shared';
 import { RoomManager } from '../src/rooms/RoomManager.js';
 
 function setup(opts: ConstructorParameters<typeof RoomManager>[0] = {}) {
@@ -135,23 +136,30 @@ describe('RoomManager', () => {
     const c = mustJoin(rm, room.code, 'C', 's3');
     rm.startGame(room, 'host-sock', 'start');
     const e = room.engine;
-    const t0 = 1_000_000 + 3000;
-    e.update(t0);
-    e.clearCollectibles();
-    let t = t0;
-    // Each player on their own row so nobody steals another's item.
-    for (const [p, n, row] of [[a, 2, 100], [b, 2, 300], [c, 1, 500]] as const) {
-      for (let i = 0; i < n; i++) {
-        e.setPlayerPosition(p.player.id, 100 + i * 200, row);
-        e.placeCollectible(100 + i * 200, row);
-        e.update((t += 40));
+    let t = 1_000_000 + 3000;
+    e.update(t);
+    // A and B each serve one burger, C serves nothing.
+    for (const p of [a, b]) {
+      e.setRecipe(p.player.id, 'burger');
+      for (const st of ['chop', 'fry', 'knead', 'stir'] as const) {
+        const spot = KITCHEN.spots.find((x) => x.id === st)!;
+        e.setPlayerPosition(p.player.id, spot.fx, spot.fy);
+        e.interact(p.player.id);
+        for (let i = 0; i < 20 && e.peek(p.player.id)!.working; i++) {
+          e.update((t += 400));
+          e.rep(p.player.id, true);
+        }
       }
+      e.setPlayerPosition(p.player.id, KITCHEN.pass.x, KITCHEN.pass.y + 100);
+      e.serve(p.player.id);
     }
     const board = rm.finishRound(room);
-    assert.deepEqual(board.map((x) => [x.nickname, x.score, x.rank]), [
-      ['A', 2, 1],
-      ['B', 2, 1],
-      ['C', 1, 3],
+    assert.deepEqual(board.map((x) => [x.nickname, x.rank]), [
+      ['A', 1],
+      ['B', 1],
+      ['C', 3],
     ]);
+    assert.ok(board[0]!.score > 0 && board[0]!.score === board[1]!.score);
+    void c;
   });
 });

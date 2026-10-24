@@ -48,3 +48,11 @@ export const api = {
   recenter: () => socket.emit('player:recenter', {}),
   ping: () => request<{ serverTime: number }>('net:ping', {}),
 };
+
+/** Sizzle Scramble gameplay calls (additive; room calls above are unchanged). */
+export const kitchenApi = {
+  interact: () => socket.emit('kitchen:interact', {}),
+  rep: (good: boolean) => socket.emit('kitchen:rep', { good }),
+  cancel: () => socket.emit('kitchen:cancel', {}),
+  serve: () => socket.emit('kitchen:serve', {}),
+};

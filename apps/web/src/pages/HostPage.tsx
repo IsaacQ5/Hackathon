@@ -1,31 +1,45 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { GameEndedPayload, GameSnapshot, LeaderboardEntry, RoomState, ServerError } from '@tilt-mayhem/shared';
-import { Arena } from '../components/Arena';
+import type { GameEndedPayload, GameSnapshot, MatchResults, RoomState, ServerError } from '@tilt-mayhem/shared';
 import { ConnectionBadge } from '../components/ConnectionBadge';
-import { Leaderboard } from '../components/Leaderboard';
-import { Lobby } from '../components/Lobby';
-import { Scoreboard } from '../components/Scoreboard';
+import { KitchenArena } from '../components/KitchenArena';
+import { KitchenLobby } from '../components/KitchenLobby';
+import { KitchenResults } from '../components/KitchenResults';
+import { KitchenBuffer } from '../game/kbuffer';
 import { useConnection } from '../hooks/useConnection';
 import { storage } from '../network/session';
 import { api, socket } from '../network/socket';
-import { SnapshotBuffer } from '../utils/interpolation';
 import { joinUrlFor, navigate } from '../utils/router';
 import { sfx } from '../utils/sound';
-import '../styles/host.css';
+import '../styles/sizzle.css';
 
 type Status = 'claiming' | 'ready' | 'lost';
 
-/** Fallback when the host reloads during results and missed game:ended. */
-function leaderboardFrom(room: RoomState): LeaderboardEntry[] {
-  const sorted = [...room.players].sort((a, b) => b.score - a.score);
-  let lastScore = Number.NaN;
-  let lastRank = 0;
-  return sorted.map((p, i) => {
-    const rank = p.score === lastScore ? lastRank : i + 1;
-    lastScore = p.score;
-    lastRank = rank;
-    return { rank, id: p.id, nickname: p.nickname, color: p.color, score: p.score };
-  });
+/** How long the kitchen shows the winner before the results table. */
+const WINNER_SPOTLIGHT_MS = 3500;
+
+/** Fallback when the host reloads during results and missed game:results. */
+function resultsFrom(room: RoomState, ended: GameEndedPayload | null): MatchResults {
+  const order = ended?.leaderboard ?? [...room.players].sort((a, b) => b.score - a.score).map((p, i) => ({ rank: i + 1, id: p.id }));
+  return {
+    round: room.round,
+    durationMs: 0,
+    winnerIds: order.filter((e) => e.rank === 1).map((e) => e.id),
+    results: order.map((e) => {
+      const p = room.players.find((x) => x.id === e.id);
+      return {
+        id: e.id,
+        nickname: p?.nickname ?? '?',
+        color: p?.color ?? '#fff',
+        placement: e.rank,
+        score: p?.score ?? 0,
+        served: 0,
+        fastestMs: null,
+        favoriteStation: null,
+        gestures: 0,
+        oops: 0,
+      };
+    }),
+  };
 }
 
 export function HostPage({ code }: { code: string }) {
@@ -34,10 +48,12 @@ export function HostPage({ code }: { code: string }) {
   const [fatal, setFatal] = useState<ServerError | null>(null);
   const [room, setRoom] = useState<RoomState | null>(null);
   const [results, setResults] = useState<GameEndedPayload | null>(null);
+  const [match, setMatch] = useState<MatchResults | null>(null);
+  const [showTable, setShowTable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<ServerError | null>(null);
   const [muted, setMuted] = useState(false);
-  const buffer = useMemo(() => new SnapshotBuffer(), []);
+  const buffer = useMemo(() => new KitchenBuffer(), []);
   const claimingRef = useRef(false);
   const joinUrl = joinUrlFor(code);
 
@@ -73,12 +89,15 @@ export function HostPage({ code }: { code: string }) {
     };
     const onStarted = () => {
       setResults(null);
+      setMatch(null);
       setActionError(null);
       buffer.reset();
     };
-    const onEnded = (p: GameEndedPayload) => {
-      setResults(p);
-      sfx.end();
+    const onEnded = (p: GameEndedPayload) => setResults(p);
+    const onMatch = (m: MatchResults) => {
+      setMatch(m);
+      setShowTable(false);
+      window.setTimeout(() => setShowTable(true), WINNER_SPOTLIGHT_MS);
     };
     const onError = (e: ServerError) => {
       if (e.code === 'INVALID_SESSION') {
@@ -91,6 +110,7 @@ export function HostPage({ code }: { code: string }) {
     socket.on('game:started', onStarted);
     socket.on('game:snapshot', onSnapshot);
     socket.on('game:ended', onEnded);
+    socket.on('game:results', onMatch);
     socket.on('server:error', onError);
     socket.on('connect', claim);
     if (socket.connected) void claim();
@@ -99,6 +119,7 @@ export function HostPage({ code }: { code: string }) {
       socket.off('game:started', onStarted);
       socket.off('game:snapshot', onSnapshot);
       socket.off('game:ended', onEnded);
+      socket.off('game:results', onMatch);
       socket.off('server:error', onError);
       socket.off('connect', claim);
     };
@@ -122,11 +143,11 @@ export function HostPage({ code }: { code: string }) {
   if (status === 'lost') {
     return (
       <div className="center-screen">
-        <div className="card narrow">
-          <h2>Can't host this room</h2>
+        <div className="kcard narrow">
+          <h2>Can't host this kitchen</h2>
           <p className="muted">{fatal?.message ?? 'The room is no longer available.'}</p>
-          <button className="btn btn--big" onClick={() => navigate('/')}>
-            Create a new room
+          <button className="kbtn" onClick={() => navigate('/')}>
+            Open a new kitchen
           </button>
         </div>
       </div>
@@ -135,48 +156,44 @@ export function HostPage({ code }: { code: string }) {
 
   const phase = room?.phase ?? 'lobby';
   const connectedPlayers = room?.players.filter((p) => p.connected).length ?? 0;
+  const showKitchen = phase === 'countdown' || phase === 'playing' || (phase === 'results' && !showTable && match);
 
   return (
-    <div className="host">
-      <header className="host__bar">
-        <h1 className="logo logo--sm">
-          TILT <span>MAYHEM</span>
+    <div className="khost">
+      <header className="khost__bar">
+        <h1 className="klogo klogo--sm">
+          SIZZLE <span>SCRAMBLE</span>
         </h1>
-        <div className="host__join">
-          Join at <b>{joinUrl.replace(/^https?:\/\//, '').replace(/\/play\/.*/, '')}</b> · code{' '}
-          <b className="host__code">{code}</b>
+        <div className="khost__join">
+          Join at <b>{joinUrl.replace(/^https?:\/\//, '').replace(/\/play\/.*/, '')}</b> · code <b className="khost__code">{code}</b>
         </div>
-        <div className="host__right">
-          {room && room.round > 0 && <span className="pill">Round {room.round}</span>}
-          <button className="icon-btn" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'}>
+        <div className="khost__right">
+          {room && room.round > 0 && <span className="kpill">Shift {room.round}</span>}
+          <button className="kicon" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'}>
             {muted ? '🔇' : '🔊'}
           </button>
           <ConnectionBadge connected={connected && status === 'ready'} />
         </div>
       </header>
 
-      <main className="host__main">
+      <main className="khost__main">
         {!room ? (
           <div className="center-screen">
-            <p className="muted">Connecting to room {code}…</p>
+            <p className="muted">Connecting to kitchen {code}…</p>
           </div>
+        ) : showKitchen ? (
+          <KitchenArena buffer={buffer} />
         ) : phase === 'lobby' ? (
-          <Lobby room={room} joinUrl={joinUrl} onStart={() => void start('start')} starting={busy} error={actionError} />
-        ) : phase === 'results' ? (
-          <Leaderboard
-            entries={results?.leaderboard ?? leaderboardFrom(room)}
-            round={results?.round ?? room.round}
+          <KitchenLobby room={room} joinUrl={joinUrl} onStart={() => void start('start')} starting={busy} error={actionError} />
+        ) : (
+          <KitchenResults
+            results={match ?? resultsFrom(room, results)}
             code={code}
             onRematch={() => void start('rematch')}
             busy={busy}
-            error={actionError}
             canRematch={connectedPlayers >= room.minPlayers}
+            error={actionError}
           />
-        ) : (
-          <div className="host__game">
-            <Arena buffer={buffer} />
-            <Scoreboard players={room.players} />
-          </div>
         )}
       </main>
     </div>
