@@ -55,6 +55,8 @@ export interface Chef extends EnginePlayer {
   pushReadyAt: number;
   /** > 0 while sliding from a shove (ms left; steering is ignored). */
   knockMs: number;
+  /** Who last shoved this chef, when (playMs) and whether it knocked them off a station. */
+  pushedBy: { name: string; at: number; offStation: boolean } | null;
   served: number;
   stats: { gestures: number; oops: number; perStation: Partial<Record<StationId, number>>; fastestMs: number | null };
 }

@@ -1522,3 +1522,51 @@ html body {
 .kpush.is-ready .kpush__label {
   letter-spacing: 0.06em;
 }
+
+/* "X pushed you off the station!" toast on the phone */
+.kpushed {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 420px);
+  z-index: 50;
+  padding: 0.6rem 0.9rem;
+  border: 4px solid var(--ink);
+  border-radius: 16px;
+  background: #ffe0e5;
+  box-shadow: 0 5px 0 var(--ink);
+  color: var(--ink);
+  font-weight: 700;
+  text-align: center;
+  animation: kboing 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+
+/* "This game runs on phone motion" popup after tapping Deny */
+.kmodal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(43, 26, 18, 0.6);
+}
+.kmodal__card {
+  width: min(100%, 380px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  text-align: center;
+  animation: kboing 0.35s cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+.kmodal__card h2 {
+  margin: 0;
+}
+.kmodal__card p {
+  margin: 0;
+}
+.kmodal__icon {
+  font-size: 3rem;
+  align-self: center;
+}

@@ -138,6 +138,8 @@ export interface KitchenStatus {
   stuck: ChefStuck | null;
   /** ms until you can push again (0 = ready). */
   pushReadyInMs: number;
+  /** Someone just shoved you (shown for a few seconds): who, and whether it knocked you off your station. */
+  pushedBy: { name: string; offStation: boolean } | null;
   score: number;
   served: number;
   rank: number;

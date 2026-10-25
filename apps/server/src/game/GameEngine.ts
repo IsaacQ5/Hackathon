@@ -328,6 +328,7 @@ export class GameEngine {
     // Straight away from the pusher (if they're exactly on top of each other, the way the pusher faces).
     const ux = bestD > 0.5 ? (target.x - c.x) / bestD : Math.cos(c.facing);
     const uy = bestD > 0.5 ? (target.y - c.y) / bestD : Math.sin(c.facing);
+    target.pushedBy = { name: c.nickname, at: this.playMs, offStation: !!target.working };
     if (target.working) this.cancel(target.id);
     target.vx = ux * PUSH.speed;
     target.vy = uy * PUSH.speed;
@@ -764,6 +765,7 @@ export class GameEngine {
       immuneUntil: 0,
       pushReadyAt: 0,
       knockMs: 0,
+      pushedBy: null,
       served: 0,
       stats: { gestures: 0, oops: 0, perStation: {}, fastestMs: null },
     };
@@ -854,6 +856,9 @@ export class GameEngine {
       fireHere,
       stuck: this.stuckSnap(c),
       pushReadyInMs: Math.max(0, Math.round(c.pushReadyAt - this.playMs)),
+      // the phone shows "X pushed you" for a few seconds after a shove
+      pushedBy:
+        c.pushedBy && this.playMs - c.pushedBy.at < 3000 ? { name: c.pushedBy.name, offStation: c.pushedBy.offStation } : null,
       score: c.score,
       served: c.served,
       rank,

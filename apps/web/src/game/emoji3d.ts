@@ -70,6 +70,7 @@ const NAMES: Record<string, string> = {
   '✔': 'Check mark',
   '🧯': 'Fire extinguisher',
   '🧽': 'Sponge',
+  '😠': 'Angry face',
 };
 
 const BASE = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets';

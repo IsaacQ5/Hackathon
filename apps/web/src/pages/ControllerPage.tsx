@@ -211,6 +211,20 @@ export function ControllerPage({ code }: { code: string }) {
   useEffect(() => {
     if (canServe) vibrate([40, 40, 80]);
   }, [canServe]);
+  // Buzz when someone shoves you.
+  const pushedName = status?.pushedBy?.name ?? null;
+  useEffect(() => {
+    if (pushedName) vibrate([80, 40, 80]);
+  }, [pushedName]);
+
+  // Tapped Deny on the motion popup: our popup offers to ask again (from a tap, as iOS requires).
+  // If the phone refuses to show its popup a second time, we offer a reload instead.
+  const [motionRetried, setMotionRetried] = useState(false);
+  const retryMotion = () => {
+    setMotionRetried(true);
+    void tilt.enable();
+  };
+
   const lastScore = useRef(0);
   useEffect(() => {
     const s = status?.score ?? 0;
@@ -317,6 +331,35 @@ export function ControllerPage({ code }: { code: string }) {
         </span>
       )}
       <span className="kctrl__score">{status?.score ?? me?.score ?? 0}</span>
+      {status?.pushedBy && (
+        <div className="kpushed" role="status">
+          <Emoji ch="😠" />{' '}
+          <b>{status.pushedBy.name}</b>{' '}
+          {status.pushedBy.offStation ? 'pushed you off the station! Tap the station again to keep cooking.' : 'pushed you!'}
+        </div>
+      )}
+      {tilt.status === 'denied' && (
+        <div className="kmodal" role="dialog" aria-modal="true" aria-labelledby="motion-title">
+          <div className="kcard kmodal__card">
+            <Emoji ch="📱" className="kmodal__icon" />
+            <h2 id="motion-title">This game runs on phone motion</h2>
+            <p>Please press <b>Allow</b> so you can tilt, chop, flip and pour with your phone.</p>
+            {motionRetried && (
+              <p className="note small">
+                Your phone didn't ask again. Tap <b>Reload</b>, then press Allow when it asks. You'll stay in the game.
+              </p>
+            )}
+            <button className="kbtn kbtn--go" onClick={retryMotion}>
+              Allow motion
+            </button>
+            {motionRetried && (
+              <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => window.location.reload()}>
+                Reload
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 

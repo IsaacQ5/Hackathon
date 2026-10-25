@@ -368,6 +368,7 @@ describe('Kitchen engine: pushing', () => {
     e.setPlayerPosition('a', bx - 40, e.peek('b')!.y);
     assert.equal(e.push('a'), true);
     assert.equal(e.peek('b')!.working, null, 'pushed off the station');
+    assert.deepEqual(e.status('b', 0)!.pushedBy, { name: 'A', offStation: true }, 'their phone says who did it');
     run(500);
     assert.ok(e.peek('b')!.x > bx + 30, 'slid away from the pusher');
     assert.equal(e.status('b', 0)!.working, null, 'has to start the station again');
