@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ROUND_MINUTE_OPTIONS, type GamePhase, type RoomState } from '@tilt-mayhem/shared';
 import { api } from '../network/socket';
+import { roundMinutesOf } from '../utils/room';
 import { sfx } from '../utils/sound';
 
 interface Props {
@@ -14,7 +15,7 @@ export function HeadChefCard({ room, phase }: Props) {
   const [error, setError] = useState<string | null>(null);
   const connected = room.players.filter((p) => p.connected).length;
   const need = Math.max(0, room.minPlayers - connected);
-  const minutes = Math.round(room.roundDurationMs / 60_000);
+  const minutes = roundMinutesOf(room);
 
   const setLength = async (m: number) => {
     setError(null);

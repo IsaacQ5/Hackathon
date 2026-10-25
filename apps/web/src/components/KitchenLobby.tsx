@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { STATIONS, type RoomState } from '@tilt-mayhem/shared';
+import { captainIdOf, roundMinutesOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
 
@@ -26,8 +27,9 @@ export function KitchenLobby({ room, joinUrl }: Props) {
   const need = Math.max(0, room.minPlayers - connected);
   const isLocal = /\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(joinUrl);
   const slots = Array.from({ length: room.maxPlayers }, (_, i) => room.players[i] ?? null);
-  const captain = room.players.find((p) => p.id === room.captainId);
-  const minutes = Math.round(room.roundDurationMs / 60_000);
+  const captainId = captainIdOf(room);
+  const captain = room.players.find((p) => p.id === captainId);
+  const minutes = roundMinutesOf(room);
 
   return (
     <div className="klobby">
@@ -57,7 +59,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
               <li key={p.id} className="kslot kslot--on" style={colorVar(p.color)}>
                 <ChefPortrait color={p.color} face={p.face} size={78} dim={!p.connected} />
                 <span className="kslot__name">{p.nickname}</span>
-                {p.id === room.captainId && <span className="kslot__boss">HEAD CHEF</span>}
+                {p.id === captainId && <span className="kslot__boss">HEAD CHEF</span>}
                 {!p.connected && <span className="kslot__away">away</span>}
               </li>
             ) : (

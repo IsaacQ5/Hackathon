@@ -209,7 +209,7 @@ export class RoomManager {
       id: randomUUID(),
       nickname: this.uniqueNickname(room, nickname),
       color: this.freeColor(room),
-      face: 'stache',
+      face: 'plain',
       token: newToken(),
       socketId,
       disconnectedAt: null,

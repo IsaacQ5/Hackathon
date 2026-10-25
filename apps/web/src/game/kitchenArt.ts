@@ -604,8 +604,18 @@ export interface ChefView extends ChefSnap {
  */
 function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy: number, fx: number, fy: number, busy: boolean) {
   const HAIR = '#5a3a26';
-  const stache = face === 'stache' || face === 'beard' || face === 'handlebar';
+  const stache = face === 'beard' || face === 'handlebar';
   const mouthY = stache ? cy + 10 : cy + 6;
+
+  if (face === 'goatee') {
+    // pointy little chin tuft under the mouth
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy + 12);
+    ctx.quadraticCurveTo(cx, cy + 15, cx + 6, cy + 12);
+    ctx.quadraticCurveTo(cx + 3, cy + 20, cx, cy + 23);
+    ctx.quadraticCurveTo(cx - 3, cy + 20, cx - 6, cy + 12);
+    outlined(ctx, HAIR, 1.5);
+  }
 
   if (face === 'beard') {
     // big bushy beard around the chin, leaving the mouth uncovered
@@ -650,6 +660,19 @@ function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy:
     ctx.stroke();
   } else {
     for (const s of [-1, 1]) {
+      if (face === 'eyepatch' && s > 0) {
+        // pirate patch over one eye, strap running up to the hat
+        ctx.beginPath();
+        ctx.moveTo(cx - 12, cy - 8);
+        ctx.lineTo(cx + 14, cy + 3);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = INK;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(cx + 7, cy + 0.5, 6, 5.5, 0.2, 0, Math.PI * 2);
+        outlined(ctx, '#1d1d24', 2);
+        continue;
+      }
       ctx.beginPath();
       ctx.arc(cx + s * 7, cy, 5, 0, Math.PI * 2);
       outlined(ctx, '#fff', 2);
@@ -696,7 +719,7 @@ function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy:
   } else ctx.stroke();
 
   // moustache sits between the eyes and the mouth
-  if (face === 'stache' || face === 'beard') {
+  if (face === 'beard') {
     ctx.fillStyle = HAIR;
     for (const s of [-1, 1]) {
       ctx.beginPath();

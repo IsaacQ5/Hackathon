@@ -76,7 +76,7 @@ export class GameEngine {
     return this.chefs.has(id);
   }
 
-  addPlayer(id: string, nickname: string, color: string, face: ChefFace = 'stache'): void {
+  addPlayer(id: string, nickname: string, color: string, face: ChefFace = 'plain'): void {
     if (this.chefs.has(id)) return;
     this.chefs.set(id, this.blankChef(id, nickname, color, face));
     this.layout();

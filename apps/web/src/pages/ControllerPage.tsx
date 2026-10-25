@@ -27,6 +27,7 @@ import { useTilt, type TiltStatus, type Vec2 } from '../hooks/useTilt';
 import { storage, type AxisSettings } from '../network/session';
 import { api, kitchenApi, socket } from '../network/socket';
 import { prefs, type ControllerPrefs } from '../utils/prefs';
+import { captainIdOf } from '../utils/room';
 import { navigate } from '../utils/router';
 import { colorVar } from '../utils/style';
 import '../styles/controller.css';
@@ -80,9 +81,10 @@ export function ControllerPage({ code }: { code: string }) {
   const phase: GamePhase = room?.phase ?? session?.phase ?? 'lobby';
   const me = room?.players.find((p) => p.id === session?.playerId) ?? null;
   const color = me?.color ?? session?.color ?? '#ffffff';
-  const face: ChefFace = me?.face ?? 'stache';
-  const isCaptain = !!room && !!session && room.captainId === session.playerId;
-  const captainName = room?.players.find((p) => p.id === room.captainId)?.nickname ?? null;
+  const face: ChefFace = me?.face ?? 'plain';
+  const captainId = room ? captainIdOf(room) : null;
+  const isCaptain = !!session && captainId === session.playerId;
+  const captainName = room?.players.find((p) => p.id === captainId)?.nickname ?? null;
   const tiltReady = tilt.status === 'active';
   const tiltBroken = ['denied', 'no-data', 'unsupported', 'insecure'].includes(tilt.status);
   // Tilt to walk; the joystick only appears when this phone can't do motion.
@@ -370,6 +372,7 @@ export function ControllerPage({ code }: { code: string }) {
     return (
       <div className="kctrl" style={colorVar(color)}>
         {header}
+        {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
         {phase === 'results' && (
           <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 ? 'kplace--win' : ''}`}>
             <h2>{title}</h2>
@@ -395,7 +398,6 @@ export function ControllerPage({ code }: { code: string }) {
               : `Waiting for ${captainName ?? 'the head chef'} to start…`}
           </p>
         </section>
-        {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
         <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} />
         {motionSetup}
         <section className="kcard khowto-card">

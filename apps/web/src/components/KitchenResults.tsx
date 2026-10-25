@@ -1,4 +1,5 @@
 import { stationById, type MatchResults, type RoomState } from '@tilt-mayhem/shared';
+import { captainIdOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
 import { awardsFor, fmtSecs, ordinal } from '../game/kawards';
@@ -12,7 +13,8 @@ interface Props {
 const MEDAL = ['🥇', '🥈', '🥉'];
 
 export function KitchenResults({ results, room, code }: Props) {
-  const captain = room.players.find((p) => p.id === room.captainId);
+  const captainId = captainIdOf(room);
+  const captain = room.players.find((p) => p.id === captainId);
   const need = Math.max(0, room.minPlayers - room.players.filter((p) => p.connected).length);
   const winners = results.results.filter((r) => results.winnerIds.includes(r.id));
   const awards = awardsFor(results.results);

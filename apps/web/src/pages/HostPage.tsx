@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { GameEndedPayload, GameSnapshot, MatchResults, RoomState, ServerError } from '@tilt-mayhem/shared';
+import type { ChefFace, GameEndedPayload, GameSnapshot, MatchResults, RoomState, ServerError } from '@tilt-mayhem/shared';
 import { KitchenArena } from '../components/KitchenArena';
 import { KitchenLobby } from '../components/KitchenLobby';
 import { KitchenResults } from '../components/KitchenResults';
@@ -11,6 +11,8 @@ import { sfx } from '../utils/sound';
 import '../styles/sizzle.css';
 
 type Status = 'claiming' | 'ready' | 'lost';
+
+const PLAIN_FACE: ChefFace = 'plain';
 
 /** How long the kitchen shows the winner before the results table. */
 const WINNER_SPOTLIGHT_MS = 3500;
@@ -28,7 +30,7 @@ function resultsFrom(room: RoomState, ended: GameEndedPayload | null): MatchResu
         id: e.id,
         nickname: p?.nickname ?? '?',
         color: p?.color ?? '#fff',
-        face: p?.face ?? 'stache',
+        face: p?.face ?? PLAIN_FACE,
         placement: e.rank,
         score: p?.score ?? 0,
         served: 0,

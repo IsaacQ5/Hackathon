@@ -217,16 +217,18 @@ export function validateRecipes(recipes: readonly RecipeDef[] = RECIPES): string
 
 // ------------------------------------------------------------------ chef looks
 
-/** Face cosmetics a chef can pick in the lobby. The hat always stays on. */
-export const CHEF_FACES = ['stache', 'handlebar', 'beard', 'shades', 'glasses', 'blush'] as const;
+/** Face cosmetics a chef can pick in the lobby. 'plain' (no extras) is the default. The hat always stays on. */
+export const CHEF_FACES = ['plain', 'handlebar', 'beard', 'goatee', 'shades', 'glasses', 'eyepatch', 'blush'] as const;
 export type ChefFace = (typeof CHEF_FACES)[number];
 
 export const FACE_NAMES: Record<ChefFace, string> = {
-  stache: 'Moustache',
+  plain: 'Plain',
   handlebar: 'Handlebar',
   beard: 'Big Beard',
+  goatee: 'Goatee',
   shades: 'Shades',
   glasses: 'Specs',
+  eyepatch: 'Pirate',
   blush: 'Rosy',
 };
 

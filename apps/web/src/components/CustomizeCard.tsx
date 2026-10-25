@@ -47,7 +47,7 @@ export function CustomizeCard({ color, face, players, myId }: Props) {
       <div className="kcustom__faces">
         {CHEF_FACES.map((f) => (
           <button key={f} className={`kcustom__face ${f === face ? 'is-on' : ''}`} onClick={() => void change({ face: f })}>
-            <ChefPortrait color={color} face={f} size={56} />
+            <ChefPortrait color={color} face={f} size={50} />
             <span>{FACE_NAMES[f]}</span>
           </button>
         ))}

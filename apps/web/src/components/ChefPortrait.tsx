@@ -12,7 +12,7 @@ interface Props {
 }
 
 /** Small animated chef for lobby slots, results and the phone header. */
-export function ChefPortrait({ color, face = 'stache', size = 80, station = null, dim = false }: Props) {
+export function ChefPortrait({ color, face = 'plain', size = 80, station = null, dim = false }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
