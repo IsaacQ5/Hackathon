@@ -331,10 +331,10 @@ export const STUCK: Record<StuckKind, StuckDef> = {
 /** Shoving: shake your phone hard next to another chef. */
 export const PUSH = {
   /** Max distance between chef centres ("right next to" each other). */
-  range: 66,
+  range: 78,
   cooldownMs: 5_000,
   /** Starting speed of the shove; it bleeds off quickly so they slide ~2 chef widths and stop. */
-  speed: 540,
+  speed: 640,
   /** How long the shoved chef can't steer. */
   knockMs: 260,
 } as const;

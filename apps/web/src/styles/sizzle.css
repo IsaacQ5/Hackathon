@@ -1505,7 +1505,8 @@ html body {
 .kpush__fill {
   position: absolute;
   inset: 0 auto 0 0;
-  background: #ffb02e;
+  /* your chef's colour, a little paler while recharging */
+  background: color-mix(in srgb, var(--c, #ffb02e) 60%, #fff);
   transition: width 0.12s linear;
 }
 .kpush__label {
@@ -1516,9 +1517,8 @@ html body {
   animation: kpulse 1.2s ease-in-out infinite;
 }
 .kpush.is-ready .kpush__fill {
-  background: #ff5a2a;
+  background: var(--c, #ff5a2a);
 }
 .kpush.is-ready .kpush__label {
-  color: #fff;
-  text-shadow: 0 1px 0 var(--ink);
+  letter-spacing: 0.06em;
 }

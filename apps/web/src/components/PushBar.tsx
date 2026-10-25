@@ -1,5 +1,4 @@
 import { PUSH } from '@tilt-mayhem/shared';
-import { EmojiText } from './Emoji';
 
 interface Props {
   /** ms until the push is ready again (0 = ready). */
@@ -13,17 +12,12 @@ interface Props {
 export function PushBar({ readyInMs, tapToPush, onPush }: Props) {
   const ready = readyInMs <= 0;
   const fill = ready ? 1 : 1 - readyInMs / PUSH.cooldownMs;
-  const label = ready
-    ? tapToPush
-      ? '💥 TAP TO PUSH (next to a chef)'
-      : '💥 SHAKE TO PUSH (next to a chef)'
-    : `Push recharging… ${Math.ceil(readyInMs / 1000)}s`;
+  const label = ready ? (tapToPush ? 'TAP TO PUSH' : 'SHAKE TO PUSH') : `Push recharging… ${Math.ceil(readyInMs / 1000)}s`;
+  // The fill is your chef's colour (the phone screen sets it as --c).
   return (
     <button className={`kpush ${ready ? 'is-ready' : ''}`} disabled={!tapToPush || !ready} onClick={onPush}>
       <span className="kpush__fill" style={{ width: `${Math.max(0, Math.min(1, fill)) * 100}%` }} />
-      <span className="kpush__label">
-        <EmojiText text={label} />
-      </span>
+      <span className="kpush__label">{label}</span>
     </button>
   );
 }

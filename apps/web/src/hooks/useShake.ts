@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 
 /** A "shake" = this many hard jolts close together. */
 const JOLTS = 3;
-const JOLT_ACCEL = 14; // m/s^2, gravity removed
-const WINDOW_MS = 700;
+const JOLT_ACCEL = 12; // m/s^2, gravity removed
+const WINDOW_MS = 800;
 /** Jolts closer together than this are the same jolt. */
 const MIN_GAP_MS = 70;
 /** Don't report another shake for a moment (the server has the real 5 s cooldown). */
