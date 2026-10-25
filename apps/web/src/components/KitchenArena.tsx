@@ -151,6 +151,17 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         juice(e.chef).bounce = 1;
         return;
       }
+      if (e.type === 'push') {
+        const tp = chefPos.get(e.target);
+        if (tp) {
+          fx.word('SHOVE!', (p.x + tp.x) / 2, Math.min(p.y, tp.y) - 70, '#ff5a2a', 34);
+          fx.dust(tp.x, tp.y, 6);
+          juice(e.target).bounce = 1;
+        }
+        juice(e.chef).bounce = 0.5;
+        sfx.boing();
+        return;
+      }
       if (e.type === 'recovered') {
         fx.word(e.kind === 'slip' ? 'CLEAN!' : e.kind === 'fire' ? 'FIRE OUT!' : 'BACK UP!', p.x, p.y - 90, '#2bb02b', 32);
         fx.stars(p.x, p.y - 50, 6);

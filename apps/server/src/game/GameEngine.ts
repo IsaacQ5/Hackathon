@@ -3,6 +3,7 @@ import {
   HAZARDS,
   INGREDIENTS,
   KITCHEN,
+  PUSH,
   RECIPES,
   SCORING,
   STATION_IDS,
@@ -305,6 +306,37 @@ export class GameEngine {
     return true;
   }
 
+  /**
+   * Shove the chef standing right next to you away from you. Needs someone within PUSH.range
+   * (if nobody is close, nothing happens and the cooldown isn't used). A chef who was cooking is
+   * knocked off the station (progress kept) and has to start it again. 5 s cooldown per pusher.
+   */
+  push(id: string): boolean {
+    const c = this.chefs.get(id);
+    if (!c || this._phase !== 'playing' || c.stuck || c.working || this.playMs < c.pushReadyAt) return false;
+    let target: Chef | null = null;
+    let bestD: number = PUSH.range;
+    for (const o of this.chefs.values()) {
+      if (o === c || !o.connected || o.stuck) continue;
+      const d = Math.hypot(o.x - c.x, o.y - c.y);
+      if (d <= bestD) {
+        bestD = d;
+        target = o;
+      }
+    }
+    if (!target) return false;
+    // Straight away from the pusher (if they're exactly on top of each other, the way the pusher faces).
+    const ux = bestD > 0.5 ? (target.x - c.x) / bestD : Math.cos(c.facing);
+    const uy = bestD > 0.5 ? (target.y - c.y) / bestD : Math.sin(c.facing);
+    if (target.working) this.cancel(target.id);
+    target.vx = ux * PUSH.speed;
+    target.vy = uy * PUSH.speed;
+    target.knockMs = PUSH.knockMs;
+    c.pushReadyAt = this.playMs + PUSH.cooldownMs;
+    this.pendingEvents.push({ type: 'push', chef: c.id, target: target.id });
+    return true;
+  }
+
   /** Send the finished dish. Returns points scored (0 if not possible). */
   serve(id: string): number {
     const c = this.chefs.get(id);
@@ -362,7 +394,16 @@ export class GameEngine {
     const pass = KITCHEN.pass;
 
     for (const c of list) {
-      if (c.working || c.stuck || !c.connected) {
+      if (c.knockMs > 0) {
+        // Sliding from a shove: no steering, and the slide bleeds off fast so they stop after ~2 chef widths.
+        c.knockMs -= dt * 1000;
+        c.vx *= 0.82;
+        c.vy *= 0.82;
+        if (c.knockMs <= 0) {
+          c.vx = 0;
+          c.vy = 0;
+        }
+      } else if (c.working || c.stuck || !c.connected) {
         c.vx *= 0.5;
         c.vy *= 0.5;
       } else {
@@ -721,6 +762,8 @@ export class GameEngine {
       near: null,
       stuck: null,
       immuneUntil: 0,
+      pushReadyAt: 0,
+      knockMs: 0,
       served: 0,
       stats: { gestures: 0, oops: 0, perStation: {}, fastestMs: null },
     };
@@ -810,6 +853,7 @@ export class GameEngine {
       canServe,
       fireHere,
       stuck: this.stuckSnap(c),
+      pushReadyInMs: Math.max(0, Math.round(c.pushReadyAt - this.playMs)),
       score: c.score,
       served: c.served,
       rank,

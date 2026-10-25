@@ -39,6 +39,12 @@ export function registerKitchenHandlers(io: IOServer, rooms: RoomManager): void 
       if (found) found.room.engine.recover(found.binding.playerId, payload.good === true);
     });
 
+    socket.on('kitchen:push', () => {
+      if (!control.take()) return;
+      const found = me();
+      if (found) found.room.engine.push(found.binding.playerId);
+    });
+
     socket.on('kitchen:cancel', () => {
       if (!control.take()) return;
       const found = me();

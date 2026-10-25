@@ -94,7 +94,7 @@ export function KitchenResults({ results, room, code }: Props) {
 
       <div className="kresults__next">
         <p className="klobby__start">
-          <EmojiText text={need > 0 ? 'Need more chefs for another shift' : `📱 ${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`} />
+          <EmojiText text={need > 0 ? 'Need more chefs for another shift' : `${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`} />
         </p>
         <p className="klobby__hint">
           New chefs can join now with code <b>{code}</b>.

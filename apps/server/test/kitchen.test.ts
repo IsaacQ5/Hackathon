@@ -330,6 +330,50 @@ describe('Kitchen engine: sharing', () => {
   });
 });
 
+describe('Kitchen engine: pushing', () => {
+  it('shoves the chef right next to you away from you, a controlled distance, with a 5 s cooldown', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.setPlayerPosition('b', 350, 300);
+    assert.equal(e.push('a'), true);
+    run(1000);
+    const b = e.peek('b')!;
+    assert.ok(b.x > 380, `pushed away from the pusher: ${b.x}`);
+    assert.ok(b.x < 480, `but not flung across the kitchen: ${b.x}`);
+    assert.ok(Math.abs(b.y - 300) < 2, 'straight away from the pusher');
+    assert.equal(Math.round(b.vx), 0, 'and then stops');
+    // cooldown
+    e.setPlayerPosition('b', 350, 300);
+    assert.equal(e.push('a'), false, 'cooling down');
+    assert.ok(e.status('a', 0)!.pushReadyInMs > 3000);
+    run(4100);
+    assert.equal(e.push('a'), true, 'ready again after 5 s');
+  });
+
+  it('needs someone right next to you (and a miss does not use the cooldown)', () => {
+    const { e } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.setPlayerPosition('b', 600, 300);
+    assert.equal(e.push('a'), false);
+    assert.equal(e.status('a', 0)!.pushReadyInMs, 0);
+  });
+
+  it('knocks a cooking chef off their station; they have to start it again', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setRecipe('b', 'burger');
+    at(e, 'b', 'chop');
+    assert.equal(e.interact('b'), 'ok');
+    const bx = e.peek('b')!.x;
+    // pusher just to the left, so the shove is sideways along the counter
+    e.setPlayerPosition('a', bx - 40, e.peek('b')!.y);
+    assert.equal(e.push('a'), true);
+    assert.equal(e.peek('b')!.working, null, 'pushed off the station');
+    run(500);
+    assert.ok(e.peek('b')!.x > bx + 30, 'slid away from the pusher');
+    assert.equal(e.status('b', 0)!.working, null, 'has to start the station again');
+  });
+});
+
 describe('Kitchen engine: chaos', () => {
   it('a spill makes you slip; mopping (stir circles) cleans it and frees you', () => {
     const { e, run } = kitchen(['a', 'b']);

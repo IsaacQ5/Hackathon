@@ -58,6 +58,7 @@ export const kitchenApi = {
   interact: () => socket.emit('kitchen:interact', {}),
   rep: (good: boolean) => socket.emit('kitchen:rep', { good }),
   recover: (good: boolean) => socket.emit('kitchen:recover', { good }),
+  push: () => socket.emit('kitchen:push', {}),
   cancel: () => socket.emit('kitchen:cancel', {}),
   serve: () => socket.emit('kitchen:serve', {}),
 };

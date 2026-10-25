@@ -108,6 +108,8 @@ export interface ClientToServerEvents {
   'kitchen:cancel': (payload: EmptyPayload) => void;
   /** One recovery motion while stuck (mop / get up / shake off feathers / fan the fire). */
   'kitchen:recover': (payload: { good: boolean }) => void;
+  /** Shook the phone hard: shove the chef standing right next to you. */
+  'kitchen:push': (payload: EmptyPayload) => void;
   /** Send the finished dish at the pass. */
   'kitchen:serve': (payload: EmptyPayload) => void;
 }

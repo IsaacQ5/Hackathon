@@ -88,12 +88,13 @@ export function KitchenLobby({ room, joinUrl }: Props) {
           <li>Bring all 4 to the SERVE table in the middle and hit SERVE. Most points in {minutes}:00 wins.</li>
           <li>The last 30 seconds are RUSH HOUR: double points!</li>
           <li>Watch out! Spills, fires, a loose chicken, meatball meteors and runaway cheese get wilder as the shift goes on. If one gets you, your phone shows the move to get back up.</li>
+          <li>Get in someone's way? Shake your phone hard right next to them to PUSH them (5 second recharge).</li>
         </ol>
 
         <p className="klobby__start">
           {need > 0
             ? `Need ${need} more chef${need === 1 ? '' : 's'}`
-            : <EmojiText text={`📱 ${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`} />}
+            : <EmojiText text={`${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`} />}
           <span className="kpill">{minutes} min shift</span>
         </p>
       </section>

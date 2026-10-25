@@ -18,6 +18,7 @@ import { CustomizeCard } from '../components/CustomizeCard';
 import { Emoji, EmojiText } from '../components/Emoji';
 import { HeadChefCard } from '../components/HeadChefCard';
 import { JoinForm } from '../components/JoinForm';
+import { PushBar } from '../components/PushBar';
 import { RecipeBar } from '../components/RecipeBar';
 import { RecoveryPanel } from '../components/RecoveryPanel';
 import { StationPanel } from '../components/StationPanel';
@@ -25,6 +26,7 @@ import { TiltIndicator } from '../components/TiltIndicator';
 import { TouchPad } from '../components/TouchPad';
 import { awardsFor, fmtSecs, ordinal } from '../game/kawards';
 import { useConnection } from '../hooks/useConnection';
+import { useShake } from '../hooks/useShake';
 import { useTilt, type TiltStatus, type Vec2 } from '../hooks/useTilt';
 import { storage, type AxisSettings } from '../network/session';
 import { api, kitchenApi, socket } from '../network/socket';
@@ -215,6 +217,13 @@ export function ControllerPage({ code }: { code: string }) {
     if (s > lastScore.current) vibrate([60, 30, 60, 30, 120]);
     lastScore.current = s;
   }, [status?.score]);
+
+  // Shake the phone hard while walking to shove the chef next to you (the server checks range + cooldown).
+  const canPush = joinState === 'joined' && phase === 'playing' && motionAllowed && !status?.working && !status?.stuck;
+  useShake(canPush, () => {
+    kitchenApi.push();
+    vibrate(40);
+  });
 
   // Keep the screen awake while joined.
   useEffect(() => {
@@ -416,6 +425,7 @@ export function ControllerPage({ code }: { code: string }) {
             <li>Tap the button under the circle, then do the motion shown on screen.</li>
             <li>Got all 4? Walk to the SERVE table in the middle and hit SERVE!</li>
             <li>Kitchen chaos! If a spill, chicken, meteor or fire gets you, your phone takes over: do the move it shows to get back up.</li>
+            <li>Standing right next to another chef? Shake your phone hard to PUSH them away (knocks them off their station). Recharges in 5 seconds.</li>
           </ol>
         </section>
         <footer className="kctrl__foot">{settingsPanel}</footer>
@@ -487,6 +497,7 @@ export function ControllerPage({ code }: { code: string }) {
     <div className={`kctrl kctrl--play ${status?.rush ? 'is-rush' : ''}`} style={colorVar(color)}>
       {header}
       {status && <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={null} />}
+      {status && <PushBar readyInMs={status.pushReadyInMs} tapToPush={!motionAllowed} onPush={() => kitchenApi.push()} />}
       <div className="kctrl__move">
         {mode === 'tilt' && tiltReady ? (
           <TiltIndicator read={() => tilt.inputRef.current} color={color} />

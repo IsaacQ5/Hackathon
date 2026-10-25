@@ -102,7 +102,9 @@ export type KitchenEvent =
   /** Meteor landed / cheese started rolling. */
   | { type: 'impact'; kind: HazardKind; x: number; y: number }
   | { type: 'stuck'; chef: string; kind: StuckKind }
-  | { type: 'recovered'; chef: string; kind: StuckKind };
+  | { type: 'recovered'; chef: string; kind: StuckKind }
+  /** One chef shoved another (they slide away from the pusher). */
+  | { type: 'push'; chef: string; target: string };
 
 export interface GameSnapshot {
   tick: number;
@@ -134,6 +136,8 @@ export interface KitchenStatus {
   fireHere: boolean;
   /** Your phone is taken over until you do the recovery motion. */
   stuck: ChefStuck | null;
+  /** ms until you can push again (0 = ready). */
+  pushReadyInMs: number;
   score: number;
   served: number;
   rank: number;
