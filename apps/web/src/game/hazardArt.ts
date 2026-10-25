@@ -1,4 +1,5 @@
 import { HAZARDS, KITCHEN, type ChefStuck, type HazardSnap } from '@tilt-mayhem/shared';
+import { emojiImage } from './emoji3d';
 import { emoji, INK, outlined, roundRect } from './kitchenArt';
 
 /**
@@ -267,6 +268,33 @@ function drawChicken(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number) {
   drawChickenAt(ctx, h.x, h.y, h.dir, t, h.id);
 }
 
+/** Size (world units) of the cached chicken sprite, model plus outline. */
+const CHICKEN_BOX = 80;
+let chickenCache: HTMLCanvasElement | null = null;
+
+/**
+ * The chicken model with its dark outline, drawn ONCE into a small offscreen canvas.
+ * Canvas `filter` (the drop-shadow outline) is very slow, so it must never run per frame;
+ * every frame just copies this sprite. Null until the 3D model has loaded.
+ */
+function chickenSprite(): HTMLCanvasElement | null {
+  if (chickenCache) return chickenCache;
+  const img = emojiImage('🐔');
+  if (!img) return null;
+  const res = 2; // extra resolution so it stays crisp when the kitchen is scaled up
+  const c = document.createElement('canvas');
+  c.width = CHICKEN_BOX * res;
+  c.height = CHICKEN_BOX * res;
+  const g = c.getContext('2d');
+  if (!g) return null;
+  g.scale(res, res);
+  g.filter = 'drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 3px 2px rgba(0,0,0,0.35))';
+  const s = 59;
+  g.drawImage(img, (CHICKEN_BOX - s) / 2, (CHICKEN_BOX - s) / 2, s, s);
+  chickenCache = c;
+  return c;
+}
+
 /** A running chicken at (x, y) facing `dir` (-1 left, 1 right). */
 export function drawChickenAt(ctx: CanvasRenderingContext2D, x: number, y: number, dir: number, t: number, seed = 0) {
   const hop = Math.abs(Math.sin(t * 14 + seed)) * 6;
@@ -283,10 +311,9 @@ export function drawChickenAt(ctx: CanvasRenderingContext2D, x: number, y: numbe
   ctx.translate(0, -22 - hop);
   // The emoji faces left; mirror it when running right.
   ctx.scale(dir > 0 ? -1 : 1, 1);
-  // dark outline around the model (ignored on browsers without canvas filters)
-  ctx.filter = 'drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 3px 2px rgba(0,0,0,0.35))';
-  emoji(ctx, '🐔', 0, 0, 50);
-  ctx.filter = 'none';
+  const sprite = chickenSprite();
+  if (sprite) ctx.drawImage(sprite, -CHICKEN_BOX / 2, -CHICKEN_BOX / 2, CHICKEN_BOX, CHICKEN_BOX);
+  else emoji(ctx, '🐔', 0, 0, 50);
   ctx.restore();
   // loose feathers trailing behind
   for (let i = 0; i < 2; i++) {
