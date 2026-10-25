@@ -277,8 +277,8 @@ export const HAZARDS = {
   /** Nothing happens before this fraction of the shift. */
   startAt: 0.12,
   /** Time between hazards at the start / end of the shift (ms). */
-  intervalStartMs: 15_000,
-  intervalEndMs: 6_000,
+  intervalStartMs: 20_000,
+  intervalEndMs: 9_000,
   warnMs: 2_500,
   spill: { r: 34, unlockAt: 0, weight: 3 },
   chicken: { r: 20, unlockAt: 0.3, weight: 2, speed: 170, lifeMs: 12_000 },

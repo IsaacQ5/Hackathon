@@ -79,7 +79,13 @@ describe('Gesture detectors', () => {
     assert.deepEqual(wild, { good: 0, bad: 1 }, 'way too wild spills');
     const slow = run('fry', 3000, (t) => ({ rb: wave(t, 2000, 60) }));
     assert.deepEqual(slow, { good: 0, bad: 0 });
-    const twist = run('fry', 2000, (t) => ({ rb: t % 600 < 80 ? 300 : 0, rg: t % 600 < 80 ? 600 : 0 }));
+    // Flicking a side or a corner up counts too (rotation about y, or x and y together).
+    const side = run('fry', 4000, (t) => ({ rg: t % 800 < 90 ? 380 : 0 }));
+    assert.equal(side.good, 5, `side flicks ${side.good}`);
+    const corner = run('fry', 4000, (t) => ({ rb: t % 800 < 90 ? 200 : 0, rg: t % 800 < 90 ? 200 : 0 }));
+    assert.equal(corner.good, 5, `corner flicks ${corner.good}`);
+    // Spinning the phone flat like a steering wheel (rotation about z) is not a flip.
+    const twist = run('fry', 2000, (t) => ({ ra: t % 600 < 80 ? 600 : 0, rb: t % 600 < 80 ? 100 : 0 }));
     assert.equal(twist.good, 0, 'twisting the phone is not a pan flip');
   });
 

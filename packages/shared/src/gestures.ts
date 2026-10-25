@@ -122,9 +122,11 @@ export class FlipDetector implements GestureDetector {
 
   push(s: MotionSample): RepResult {
     const gyro = s.ra !== 0 || s.rb !== 0 || s.rg !== 0;
-    // Pitch rate (front edge up/down). Phones without a gyro fall back to a vertical jolt.
-    const mag = gyro ? Math.abs(s.rb) : Math.abs(decompose(s).v) * 25;
-    const other = gyro ? Math.max(Math.abs(s.ra), Math.abs(s.rg)) : 0;
+    // A flick tips the phone about a horizontal axis: the front, a side or a corner coming up all
+    // count (rotation about the phone's x and y axes combined). Spinning it flat like a steering
+    // wheel is rotation about z (alpha) and doesn't. Phones without a gyro fall back to a vertical jolt.
+    const mag = gyro ? Math.hypot(s.rb, s.rg) : Math.abs(decompose(s).v) * 25;
+    const other = gyro ? Math.abs(s.ra) : 0;
     this.e = Math.max(this.e * 0.9, Math.min(1, mag / 300));
 
     if (this.phase === 'cool') {
