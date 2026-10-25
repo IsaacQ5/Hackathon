@@ -95,7 +95,7 @@ export function drawKitchen(ctx: CanvasRenderingContext2D, t: number) {
   drawDecor(ctx, t);
 }
 
-/** Small set dressing: wall shelves, pans, a clock, station mats, a drain, counter bits. */
+/** Small set dressing: station mats, a drain, counter bits. */
 function drawDecor(ctx: CanvasRenderingContext2D, t: number) {
   const f = KITCHEN.floor;
   // non-slip mats where chefs stand at each station
@@ -121,57 +121,6 @@ function drawDecor(ctx: CanvasRenderingContext2D, t: number) {
     ctx.beginPath();
     ctx.moveTo(f.x1 - 48, f.y1 - 34 + d);
     ctx.lineTo(f.x1 - 32, f.y1 - 34 + d);
-    ctx.stroke();
-  }
-
-  // left wall: two spice shelves
-  for (const sy of [210, 330]) {
-    roundRect(ctx, -22, sy, 56, 8, 3);
-    outlined(ctx, '#8d5a2b', 2.5);
-    ['#ff5a2a', '#ffd23f', '#7cd651'].forEach((col, i) => {
-      roundRect(ctx, -16 + i * 17, sy - 22, 13, 22, 3);
-      outlined(ctx, 'rgba(255,255,255,0.85)', 2);
-      ctx.fillStyle = col;
-      ctx.fillRect(-14 + i * 17, sy - 12, 9, 10);
-      roundRect(ctx, -16 + i * 17, sy - 26, 13, 5, 2);
-      outlined(ctx, '#6b3e1f', 1.5);
-    });
-  }
-  // right wall: hanging pans + a ticking clock
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(962, 196);
-  ctx.lineTo(1022, 196);
-  ctx.stroke();
-  for (const [px, pr] of [
-    [976, 13],
-    [1006, 10],
-  ] as const) {
-    const swing = Math.sin(t * 1.3 + px) * 0.06;
-    ctx.save();
-    ctx.translate(px, 196);
-    ctx.rotate(swing);
-    roundRect(ctx, -3, 0, 6, 22, 3);
-    outlined(ctx, '#2a2a30', 2);
-    ctx.beginPath();
-    ctx.arc(0, 22 + pr, pr, 0, Math.PI * 2);
-    outlined(ctx, '#55555f', 2.5);
-    ctx.restore();
-  }
-  ctx.beginPath();
-  ctx.arc(992, 340, 22, 0, Math.PI * 2);
-  outlined(ctx, '#fffaf2', 3);
-  for (const [len, turns, w] of [
-    [10, t / 60, 3],
-    [16, t / 5, 2],
-  ] as const) {
-    ctx.beginPath();
-    ctx.moveTo(992, 340);
-    ctx.lineTo(992 + Math.sin(turns * Math.PI * 2) * len, 340 - Math.cos(turns * Math.PI * 2) * len);
-    ctx.lineWidth = w;
-    ctx.strokeStyle = INK;
-    ctx.lineCap = 'round';
     ctx.stroke();
   }
 
@@ -275,14 +224,14 @@ export function drawStation(ctx: CanvasRenderingContext2D, id: StationId, act: S
   ctx.save();
   ctx.translate(x, y);
 
-  // glowing ring when a chef can use it
+  // glowing ring in the station's own colour when a chef standing there can use it
   if (highlight) {
     ctx.beginPath();
     ctx.ellipse(0, top ? 70 : -70, 70, 22, 0, 0, Math.PI * 2);
-    ctx.fillStyle = `${highlight}55`;
+    ctx.fillStyle = `${def.color}55`;
     ctx.fill();
     ctx.lineWidth = 4;
-    ctx.strokeStyle = highlight;
+    ctx.strokeStyle = def.color;
     ctx.stroke();
   }
 
@@ -790,8 +739,11 @@ export interface ChefView extends ChefSnap {
   bounce: number;
   /** In first place right now. */
   crown?: boolean;
-  /** End of the game: the winner dances, the rest look sad. */
-  mood?: 'dance' | 'sad';
+  /**
+   * dance: winner at the end. sad: everyone else. shrug: tied for first ("eh, whatever").
+   * panic: running for their life (home-screen gags).
+   */
+  mood?: 'dance' | 'sad' | 'shrug' | 'panic';
 }
 
 /**
@@ -806,8 +758,10 @@ function drawFace(
   fx: number,
   fy: number,
   busy: boolean,
-  sad = false,
+  mood?: ChefView['mood'],
 ) {
+  const sad = mood === 'sad';
+  const panic = mood === 'panic';
   const HAIR = '#5a3a26';
   const stache = face === 'beard' || face === 'handlebar';
   const mouthY = stache ? cy + 10 : cy + 6;
@@ -878,13 +832,24 @@ function drawFace(
         outlined(ctx, '#1d1d24', 2);
         continue;
       }
+      // panic: huge eyes with tiny pupils; shrug: lazy half-closed lids
       ctx.beginPath();
-      ctx.arc(cx + s * 7, cy, 5, 0, Math.PI * 2);
+      ctx.arc(cx + s * 7, cy, panic ? 6.5 : 5, 0, Math.PI * 2);
       outlined(ctx, '#fff', 2);
       ctx.beginPath();
-      ctx.arc(cx + s * 7 + fx * 2, cy + fy * 2, 2.4, 0, Math.PI * 2);
+      ctx.arc(cx + s * 7 + fx * 2, cy + fy * 2, panic ? 1.6 : 2.4, 0, Math.PI * 2);
       ctx.fillStyle = INK;
       ctx.fill();
+      if (mood === 'shrug') {
+        ctx.beginPath();
+        ctx.arc(cx + s * 7, cy, 5, Math.PI, Math.PI * 2);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = INK;
+        ctx.stroke();
+      }
       if (face === 'blush') {
         // lashes
         ctx.strokeStyle = INK;
@@ -912,14 +877,20 @@ function drawFace(
     ctx.stroke();
   }
 
-  // mouth: concentrating "o" while working, frown when sad, smile otherwise
+  // mouth: "o" while working, big scream when panicking, flat line for a shrug,
+  // frown when sad, smile otherwise
   ctx.beginPath();
-  if (busy) ctx.ellipse(cx, mouthY + 2, 3.5, 3, 0, 0, Math.PI * 2);
-  else if (sad) ctx.arc(cx, mouthY + 5, 4.5, 1.15 * Math.PI, 1.85 * Math.PI);
+  const open = busy || panic;
+  if (panic) ctx.ellipse(cx, mouthY + 3, 4.5, 4 + Math.abs(Math.sin(Date.now() / 90)) * 1.5, 0, 0, Math.PI * 2);
+  else if (busy) ctx.ellipse(cx, mouthY + 2, 3.5, 3, 0, 0, Math.PI * 2);
+  else if (mood === 'shrug') {
+    ctx.moveTo(cx - 4.5, mouthY + 2);
+    ctx.lineTo(cx + 4.5, mouthY + 1);
+  } else if (sad) ctx.arc(cx, mouthY + 5, 4.5, 1.15 * Math.PI, 1.85 * Math.PI);
   else ctx.arc(cx, mouthY - 1, 4.5, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.lineWidth = 2.5;
   ctx.strokeStyle = INK;
-  if (busy) {
+  if (open) {
     ctx.fillStyle = INK;
     ctx.fill();
   } else ctx.stroke();
@@ -1129,6 +1100,7 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     ctx.translate(0, -Math.abs(Math.sin(t * 7)) * 8);
     ctx.rotate(Math.sin(t * 7) * 0.18);
   } else if (c.mood === 'sad') ctx.translate(0, 2);
+  else if (c.mood === 'shrug') ctx.translate(0, -Math.max(0, Math.sin(t * 2.5)) * 3);
 
   // feet
   for (const s of [-1, 1]) {
@@ -1151,7 +1123,7 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
 
   // face first, so hands held up in front of it (stirring, chopping) stay on top
   const sad = c.mood === 'sad';
-  if (fy > -0.7) drawFace(ctx, c.face, fx * 7, bodyY - 8, fx, sad ? 1.2 : fy, !!work || !!stuck, sad);
+  if (fy > -0.7) drawFace(ctx, c.face, fx * 7, bodyY - 8, fx, sad ? 1.2 : fy, !!work || !!stuck, c.mood);
 
   // arms: animated by station gesture
   const since = work ? work.sinceRep : 9999;
@@ -1235,6 +1207,15 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     } else if (sad) {
       hx = shX + s * 2;
       hy = shY + 18;
+    } else if (c.mood === 'shrug') {
+      // palms up, out to the sides, shoulders bobbing: "eh, whatever"
+      const lift = Math.max(0, Math.sin(t * 2.5)) * 6;
+      hx = shX + s * 16;
+      hy = shY - 2 - lift;
+    } else if (c.mood === 'panic') {
+      // arms straight up, flailing
+      hx = shX + s * 8 + Math.sin(t * 22 + s) * 5;
+      hy = shY - 22 + Math.cos(t * 22 + s) * 5;
     }
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -1287,6 +1268,13 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.restore();
 
   if (stuck) drawStuckBadge(ctx, c.x, c.y - bob - (c.crown ? 132 : 110), stuck, t);
+  // panicking: sweat flying off
+  if (c.mood === 'panic') {
+    for (const s of [-1, 1]) {
+      const p = (t * 2.5 + (s > 0 ? 0.5 : 0)) % 1;
+      emoji(ctx, '💦', c.x + s * (22 + p * 14), c.y - bob - 62 - p * 10, 14);
+    }
+  }
   // feathers flying off as they shake (fewer left the closer they are to done)
   if (stuck?.kind === 'feathers') {
     const left = Math.max(1, Math.round((1 - prog) * 6));

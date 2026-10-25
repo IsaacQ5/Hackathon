@@ -86,7 +86,7 @@ export function StationPanel({ work, motionAllowed }: Props) {
       </header>
 
       {work.station === 'juice' ? (
-        // A real 3D phone: facing you, turn sideways, tip the top forward, juice pours.
+        // A real 3D phone: tilt it sideways (juice pours), then back upright.
         <div className="kpour3d" aria-hidden>
           <div className="kpour3d__shadow" />
           <div className="kpour3d__phone">

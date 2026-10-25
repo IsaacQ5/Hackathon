@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { POUR, type StationId } from '@tilt-mayhem/shared';
+import type { StationId } from '@tilt-mayhem/shared';
 import { Emoji, EmojiText } from './Emoji';
 
 interface Props {
@@ -29,7 +29,7 @@ export function TouchStation({ station, onRep }: Props) {
     case 'mix':
       return <Alternate onRep={onRep} a="⬅️ LEFT" b="RIGHT ➡️" />;
     case 'juice':
-      return <HoldPour onRep={onRep} />;
+      return <Alternate onRep={onRep} a="↪ SIDEWAYS" b="↩ BACK UP" />;
   }
 }
 
@@ -135,63 +135,3 @@ function StirPad({ onRep }: { onRep: (g: boolean) => void }) {
   );
 }
 
-/** Press and hold to pour; let go when it says RELEASE. Holding too long spills. */
-function HoldPour({ onRep }: { onRep: (g: boolean) => void }) {
-  const fillRef = useRef<HTMLDivElement>(null);
-  const [stage, setStage] = useState<'ready' | 'pouring' | 'release' | 'spilled'>('ready');
-  const downAt = useRef<number | null>(null);
-  const stageRef = useRef(stage);
-  stageRef.current = stage;
-
-  useEffect(() => {
-    let raf = 0;
-    const loop = (now: number) => {
-      raf = requestAnimationFrame(loop);
-      const held = downAt.current === null ? 0 : now - downAt.current;
-      if (fillRef.current) fillRef.current.style.height = `${Math.min(100, (held / POUR.holdMs) * 100)}%`;
-      if (downAt.current !== null) {
-        if (held >= POUR.holdMs + POUR.releaseWindowMs && stageRef.current !== 'spilled') {
-          setStage('spilled');
-          onRep(false);
-        } else if (held >= POUR.holdMs && stageRef.current === 'pouring') {
-          setStage('release');
-        }
-      }
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [onRep]);
-
-  const down = (e: PointerEvent<HTMLButtonElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    downAt.current = performance.now();
-    setStage('pouring');
-  };
-  const up = () => {
-    if (downAt.current === null) return;
-    const held = performance.now() - downAt.current;
-    downAt.current = null;
-    if (stageRef.current === 'release' && held >= POUR.holdMs) onRep(true);
-    setStage('ready');
-  };
-
-  const label =
-    stage === 'ready' ? 'HOLD TO POUR' : stage === 'pouring' ? 'Keep holding…' : stage === 'release' ? 'RELEASE!' : 'Spilled! Let go';
-  return (
-    <div className="kpour">
-      <button
-        className={`ktouch ktouch--big kpour__btn is-${stage}`}
-        onPointerDown={down}
-        onPointerUp={up}
-        onPointerCancel={up}
-        onLostPointerCapture={up}
-      >
-        <span className="kpour__fill" ref={fillRef} />
-        <span className="kpour__label">
-          <Emoji ch="🧃" /> {label}
-        </span>
-      </button>
-      <p className="khint">Hold until it says RELEASE, then let go. Hold too long and it spills.</p>
-    </div>
-  );
-}

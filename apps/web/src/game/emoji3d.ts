@@ -77,7 +77,10 @@ const BASE = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/as
 /** URL of the 3D model for an emoji, or null if there isn't one. */
 export function emojiUrl(ch: string): string | null {
   if (ch === '🧑‍🍳') return `${BASE}/Cook/Default/3D/cook_3d_default.png`;
-  const name = NAMES[ch] ?? NAMES[ch.replace(/️/g, '')] ?? NAMES[`${ch}️`];
+  if (ch === '🤷') return `${BASE}/Person%20shrugging/Default/3D/person_shrugging_3d_default.png`;
+  // Match with or without the "emoji style" variation selector (U+FE0F).
+  const VS16 = String.fromCodePoint(0xfe0f);
+  const name = NAMES[ch] ?? NAMES[ch.split(VS16).join('')] ?? NAMES[ch + VS16];
   if (!name) return null;
   return `${BASE}/${encodeURIComponent(name)}/3D/${name.toLowerCase().replace(/ /g, '_')}_3d.png`;
 }
@@ -113,7 +116,7 @@ export function preloadEmoji(chars: Iterable<string>) {
 }
 
 /** Split text into plain runs and emoji (so DOM labels can swap emoji for models). */
-const SPLIT_RE = /(\u{1F9D1}‍\u{1F373}|[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]️?)/u;
+const SPLIT_RE = /(\u{1F9D1}\u{200D}\u{1F373}|[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]\u{FE0F}?)/u;
 export function splitEmoji(text: string): { text: string; emoji: boolean }[] {
   // With a capture group, split() puts the separators (the emoji) at the odd indexes.
   return text

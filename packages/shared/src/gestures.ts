@@ -335,113 +335,47 @@ export class MixDetector implements GestureDetector {
   }
 }
 
-// ------------------------------------------------------------------ 6. POUR: hold sideways, tip forward, hold steady, release on cue
+// ------------------------------------------------------------------ 6. POUR: tilt sideways, then back
 
-export type PourStage = 'setup' | 'ready' | 'pouring' | 'release' | 'spilled';
+export type PourStage = 'upright' | 'sideways';
 
-export const POUR = { tiltDeg: 22, backDeg: 10, holdMs: 1500, releaseWindowMs: 1300, sidewaysMs: 250 } as const;
+/**
+ * How far gravity must swing onto the phone's short (x) axis: past `sideways` counts as
+ * tipped over, back under `upright` counts as returned. One tilt over + back = one pour.
+ */
+export const POUR = { sideways: 0.75, upright: 0.4 } as const;
 
 export class PourDetector implements GestureDetector {
-  private base: V3 | null = null;
-  private stage: PourStage = 'setup';
-  private sideSince = 0;
-  private holdStart = 0;
-  private held = 0;
-  private releaseAt = 0;
-  private lastT = 0;
-
-  /** Current tilt away from the starting pose, degrees. */
+  private stage: PourStage = 'upright';
+  /** 0..1 how far the phone is tipped sideways right now. */
   tilt = 0;
 
   push(s: MotionSample): RepResult {
     const g = norm([s.gx, s.gy, s.gz]);
-    const spin = Math.hypot(s.ra, s.rb, s.rg);
-    const dt = this.lastT ? s.t - this.lastT : 0;
-    this.lastT = s.t;
-
-    if (this.stage === 'setup' || !this.base) {
-      // Start facing the player, then turn the phone sideways (landscape, like the knife
-      // at CHOP): gravity runs along the phone's short x axis.
-      this.tilt = 0;
-      if (Math.abs(g[0]) > 0.8) {
-        if (!this.sideSince) this.sideSince = s.t;
-        if (s.t - this.sideSince >= POUR.sidewaysMs) {
-          this.base = g;
-          this.stage = 'ready';
-        }
-      } else this.sideSince = 0;
+    this.tilt = Math.min(1, Math.abs(g[0]) / POUR.sideways);
+    if (this.stage === 'upright' && Math.abs(g[0]) > POUR.sideways) {
+      this.stage = 'sideways';
       return null;
     }
-    // Only a FORWARD tip counts (the top edge leaning away, so gravity moves onto the
-    // screen axis). Turning back toward upright, in the screen's own plane, doesn't pour.
-    const lean = (v: V3) => (Math.asin(Math.min(1, Math.abs(v[2]))) * 180) / Math.PI;
-    this.tilt = Math.max(0, lean(g) - lean(this.base));
-
-    switch (this.stage) {
-      case 'ready':
-        // Slowly re-centre while held sideways, so drift doesn't matter.
-        if (this.tilt < 6 && Math.abs(g[0]) > 0.7) this.base = norm([...scale(this.base, 0.97).map((x, i) => x + g[i]! * 0.03)] as V3);
-        if (this.tilt > POUR.tiltDeg) {
-          this.stage = 'pouring';
-          this.held = 0;
-          this.holdStart = s.t;
-        }
-        return null;
-      case 'pouring':
-        if (this.tilt < POUR.backDeg) {
-          this.stage = 'ready'; // let go too early: no juice, no penalty
-          return null;
-        }
-        if (spin < 90) this.held += dt; // only steady holding counts
-        if (this.held >= POUR.holdMs) {
-          this.stage = 'release';
-          this.releaseAt = s.t;
-        }
-        return null;
-      case 'release':
-        if (this.tilt < POUR.backDeg) {
-          this.stage = 'ready';
-          return 'good';
-        }
-        if (s.t - this.releaseAt > POUR.releaseWindowMs) {
-          this.stage = 'spilled';
-          return 'bad';
-        }
-        return null;
-      case 'spilled':
-        if (this.tilt < POUR.backDeg) this.stage = 'ready';
-        return null;
-      default:
-        return null;
+    if (this.stage === 'sideways' && Math.abs(g[0]) < POUR.upright) {
+      this.stage = 'upright';
+      return 'good';
     }
+    return null;
   }
 
   getStage(): PourStage {
     return this.stage;
   }
   energy() {
-    return this.stage === 'pouring' ? Math.min(1, this.held / POUR.holdMs) : this.stage === 'release' ? 1 : 0;
+    return this.tilt;
   }
   prompt() {
-    switch (this.stage) {
-      case 'setup':
-        return 'Face the phone at you, then turn it SIDEWAYS…';
-      case 'ready':
-        return 'Now tip the top slightly FORWARD…';
-      case 'pouring':
-        return 'HOLD it steady…';
-      case 'release':
-        return 'RELEASE! Tip it back sideways!';
-      case 'spilled':
-        return 'Spilled! Tip it back sideways to try again.';
-    }
+    return this.stage === 'upright' ? 'Tilt it SIDEWAYS…' : '…and back UP!';
   }
   reset() {
-    this.base = null;
-    this.stage = 'setup';
-    this.sideSince = 0;
-    this.held = 0;
-    this.lastT = 0;
+    this.stage = 'upright';
+    this.tilt = 0;
   }
 }
 

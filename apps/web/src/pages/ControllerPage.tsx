@@ -365,8 +365,11 @@ export function ControllerPage({ code }: { code: string }) {
     const mine = match?.results.find((r) => r.id === session.playerId);
     const myAwards = mine && match ? awardsFor(match.results).get(mine.id) ?? [] : [];
     const fallbackRank = result?.leaderboard.find((e) => e.id === session.playerId)?.rank;
+    const tiedFirst = !!match && match.winnerIds.length > 1 && match.winnerIds.includes(session.playerId);
     const title = mine
-      ? mine.placement === 1 && mine.score > 0
+      ? tiedFirst
+        ? "🤷 IT'S A TIE!"
+        : mine.placement === 1 && mine.score > 0
         ? '👑 HEAD CHEF!'
         : `${ordinal(mine.placement)} place`
       : fallbackRank
@@ -377,7 +380,7 @@ export function ControllerPage({ code }: { code: string }) {
         {header}
         {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
         {phase === 'results' && (
-          <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 ? 'kplace--win' : ''}`}>
+          <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 && !tiedFirst ? 'kplace--win' : ''}`}>
             <h2>
               <EmojiText text={title} />
             </h2>

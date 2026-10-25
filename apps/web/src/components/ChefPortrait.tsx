@@ -11,8 +11,8 @@ interface Props {
   dim?: boolean;
   /** Winner's crown on top of the hat. */
   crown?: boolean;
-  /** End-of-game mood: the winner dances, the rest look sad. */
-  mood?: 'dance' | 'sad';
+  /** End-of-game mood: the winner dances, tied winners shrug, the rest look sad. */
+  mood?: ChefView['mood'];
 }
 
 /** Small animated chef for lobby slots, results and the phone header. */

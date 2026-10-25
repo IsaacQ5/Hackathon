@@ -282,12 +282,14 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       fx.drawBack(ctx);
       const best = Math.max(0, ...chefs.map((c) => c.score));
       const over = frame.snap.phase === 'results';
+      const tied = best > 0 && chefs.filter((c) => c.score === best).length > 1;
       for (const c of [...chefs].sort((a, b) => a.y - b.y)) {
         const j = juice(c.id);
         const top = best > 0 && c.score === best;
         // When time's up the winner dances and everyone else droops.
-        const mood = over ? (top ? 'dance' : 'sad') : undefined;
-        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: top, mood };
+        // (a tie: the tied chefs just shrug, and nobody gets the crown)
+        const mood = over ? (top ? (tied ? 'shrug' : 'dance') : 'sad') : undefined;
+        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: top && !(over && tied), mood };
         drawChef(ctx, v, t, true);
       }
       drawHazardsFront(ctx, hazards, t);

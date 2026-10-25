@@ -109,22 +109,14 @@ describe('Gesture detectors', () => {
     assert.equal(run('mix', 3000, (t) => ({ ax: wave(t, 400, 35) })).good, 0, 'too violent');
   });
 
-  it('POUR: turn sideways, tip forward, hold steady, release on cue; holding too long spills', () => {
-    // Sideways = landscape (gravity along the phone's x axis), then tip the top forward (onto z).
-    const tilt = (deg: number) => ({ gx: G * Math.cos((deg * Math.PI) / 180), gy: 0, gz: G * Math.sin((deg * Math.PI) / 180) });
-    const upright = (deg: number) => ({ gx: G * Math.cos((deg * Math.PI) / 180), gy: G * Math.sin((deg * Math.PI) / 180), gz: 0 });
-    assert.deepEqual(run('juice', 3000, (t) => upright(t > 400 && t < 2100 ? 60 : 0)), { good: 0, bad: 0 }, 'turning back upright is not a pour');
-    assert.deepEqual(run('juice', 3000, (t) => tilt(t > 400 && t < 2100 ? 28 : 0)), { good: 1, bad: 0 }, 'a slight forward tip pours');
-    const flat = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
-    assert.deepEqual(run('juice', 3000, (t) => flat(t > 400 && t < 2100 ? 50 : 0)), { good: 0, bad: 0 }, 'must start sideways');
-    const good = run('juice', 3000, (t) => tilt(t > 400 && t < 2100 ? 50 : 0));
-    assert.deepEqual(good, { good: 1, bad: 0 });
-    const spill = run('juice', 4500, (t) => tilt(t > 400 ? 50 : 0));
-    assert.deepEqual(spill, { good: 0, bad: 1 });
-    const early = run('juice', 2500, (t) => tilt(t > 400 && t < 1000 ? 50 : 0));
-    assert.deepEqual(early, { good: 0, bad: 0 }, 'letting go early: no juice, no penalty');
-    const shaky = run('juice', 3000, (t) => ({ ...tilt(t > 400 && t < 2100 ? 50 : 0), ra: 200 }));
-    assert.equal(shaky.good, 0, 'must hold steady');
+  it('POUR: tilt sideways then back upright = one pour; small wobbles or staying sideways do nothing', () => {
+    // Rolled from upright (gravity down the long y axis) towards sideways (onto the short x axis).
+    const roll = (deg: number) => ({ gx: G * Math.sin((deg * Math.PI) / 180), gy: G * Math.cos((deg * Math.PI) / 180), gz: 0 });
+    const pours = run('juice', 4000, (t) => roll(t % 1000 < 500 ? 85 : 0));
+    assert.equal(pours.good, 4, `pours ${pours.good}`);
+    assert.equal(pours.bad, 0);
+    assert.equal(run('juice', 3000, (t) => roll(t % 1000 < 500 ? 30 : 0)).good, 0, 'a small wobble is not a pour');
+    assert.equal(run('juice', 3000, (t) => roll(t > 300 ? 85 : 0)).good, 0, 'must come back upright');
   });
 });
 

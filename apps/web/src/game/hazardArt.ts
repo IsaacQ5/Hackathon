@@ -1,4 +1,4 @@
-import { HAZARDS, KITCHEN, STUCK, type ChefStuck, type HazardSnap } from '@tilt-mayhem/shared';
+import { HAZARDS, KITCHEN, type ChefStuck, type HazardSnap } from '@tilt-mayhem/shared';
 import { emoji, INK, outlined, roundRect } from './kitchenArt';
 
 /**
@@ -264,9 +264,14 @@ export function drawCheeseWheel(ctx: CanvasRenderingContext2D, x: number, y: num
 }
 
 function drawChicken(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number) {
-  const hop = Math.abs(Math.sin(t * 14 + h.id)) * 6;
+  drawChickenAt(ctx, h.x, h.y, h.dir, t, h.id);
+}
+
+/** A running chicken at (x, y) facing `dir` (-1 left, 1 right). */
+export function drawChickenAt(ctx: CanvasRenderingContext2D, x: number, y: number, dir: number, t: number, seed = 0) {
+  const hop = Math.abs(Math.sin(t * 14 + seed)) * 6;
   ctx.save();
-  ctx.translate(h.x, h.y);
+  ctx.translate(x, y);
   // bright danger ring on the floor so it's easy to spot on the light tiles
   ctx.beginPath();
   ctx.ellipse(0, 4, 26, 9, 0, 0, Math.PI * 2);
@@ -277,7 +282,7 @@ function drawChicken(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number) {
   ctx.stroke();
   ctx.translate(0, -22 - hop);
   // The emoji faces left; mirror it when running right.
-  ctx.scale(h.dir > 0 ? -1 : 1, 1);
+  ctx.scale(dir > 0 ? -1 : 1, 1);
   // dark outline around the model (ignored on browsers without canvas filters)
   ctx.filter = 'drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 3px 2px rgba(0,0,0,0.35))';
   emoji(ctx, '🐔', 0, 0, 50);
@@ -286,31 +291,14 @@ function drawChicken(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number) {
   // loose feathers trailing behind
   for (let i = 0; i < 2; i++) {
     const p = (t * 1.3 + i * 0.5) % 1;
-    emoji(ctx, '🪶', h.x - h.dir * (20 + p * 30), h.y - 30 + p * 24, 12);
+    emoji(ctx, '🪶', x - dir * (20 + p * 30), y - 30 + p * 24, 12);
   }
 }
 
 // ====================================================================== helpers
 
-/** Badge over a chef who's been taken out: what happened + how far they are through recovering. */
+/** Over a chef who's been knocked down: just the dizzy stars circling their head. */
 export function drawStuckBadge(ctx: CanvasRenderingContext2D, x: number, y: number, stuck: ChefStuck, t: number) {
-  const def = STUCK[stuck.kind];
-  ctx.save();
-  ctx.translate(x, y + Math.sin(t * 6) * 2);
-  ctx.beginPath();
-  ctx.arc(0, 0, 18, 0, Math.PI * 2);
-  ctx.fillStyle = '#fffaf2';
-  ctx.fill();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = INK;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, 0, 18, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * stuck.progress);
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = '#3fbf2f';
-  ctx.stroke();
-  emoji(ctx, def.icon, 0, 1, 20);
-  ctx.restore();
   // dizzy stars for a knock-down
   if (stuck.kind === 'bonk') {
     for (let i = 0; i < 3; i++) {

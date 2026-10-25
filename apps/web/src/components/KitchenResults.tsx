@@ -19,10 +19,11 @@ export function KitchenResults({ results, room, code }: Props) {
   const need = Math.max(0, room.minPlayers - room.players.filter((p) => p.connected).length);
   const winners = results.results.filter((r) => results.winnerIds.includes(r.id));
   const losers = results.results.filter((r) => !results.winnerIds.includes(r.id));
+  const tie = winners.length > 1;
   const awards = awardsFor(results.results);
   const dishes = results.results.reduce((n, r) => n + r.served, 0);
   const headline =
-    winners.length === 1 ? `${winners[0]!.nickname} IS HEAD CHEF!` : winners.length > 1 ? "IT'S A TIE!" : 'KITCHEN CLOSED!';
+    winners.length === 1 ? `${winners[0]!.nickname} IS HEAD CHEF!` : tie ? "IT'S A TIE!" : 'KITCHEN CLOSED!';
 
   return (
     <div className="kresults">
@@ -38,7 +39,8 @@ export function KitchenResults({ results, room, code }: Props) {
           )}
           <div className="kresults__winners">
             {winners.map((w) => (
-              <ChefPortrait key={w.id} color={w.color} face={w.face} size={170} crown mood="dance" />
+              // A tie: the tied chefs shrug like they don't care (no crown). Otherwise: crowned and dancing.
+              <ChefPortrait key={w.id} color={w.color} face={w.face} size={170} crown={!tie} mood={tie ? 'shrug' : 'dance'} />
             ))}
           </div>
         </div>
