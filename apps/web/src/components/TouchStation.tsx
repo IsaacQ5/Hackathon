@@ -29,8 +29,7 @@ export function TouchStation({ station, onRep }: Props) {
     case 'mix':
       return <Alternate onRep={onRep} a="⬅️ LEFT" b="RIGHT ➡️" />;
     case 'juice':
-      // A pour is the full there-and-back, same as with motion: only coming back up counts.
-      return <Alternate onRep={onRep} a="↪ SIDEWAYS" b="↩ BACK UP" pairs />;
+      return <HoldToPour onRep={onRep} />;
   }
 }
 
@@ -65,6 +64,40 @@ function Alternate({
         {b}
       </button>
       <p className="khint">Alternate the two buttons in a steady rhythm</p>
+    </div>
+  );
+}
+
+/** Press and hold to pour: one long pour, a step every ~0.8 s while held (4 steps = full). */
+function HoldToPour({ onRep }: { onRep: (g: boolean) => void }) {
+  const [pouring, setPouring] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  const stop = () => {
+    window.clearInterval(timer.current);
+    timer.current = undefined;
+    setPouring(false);
+  };
+  const start = (e: PointerEvent<HTMLButtonElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (timer.current !== undefined) return;
+    setPouring(true);
+    timer.current = window.setInterval(() => onRep(true), 800);
+  };
+  useEffect(() => stop, []);
+  return (
+    <div className="kpour">
+      <button
+        className={`ktouch ktouch--big kpour__btn ${pouring ? 'is-release' : ''}`}
+        onPointerDown={start}
+        onPointerUp={stop}
+        onPointerCancel={stop}
+        onLostPointerCapture={stop}
+      >
+        <span className="kpour__label">
+          <Emoji ch="🧃" /> {pouring ? 'Pouring… keep holding!' : 'HOLD TO POUR'}
+        </span>
+      </button>
+      <p className="khint">Press and hold until the glass is full</p>
     </div>
   );
 }

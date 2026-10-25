@@ -364,41 +364,32 @@ export class MixDetector implements GestureDetector {
   }
 }
 
-// ------------------------------------------------------------------ 6. POUR: tilt sideways, then back
+// ------------------------------------------------------------------ 6. POUR: tilt sideways and hold it there
 
 export type PourStage = 'upright' | 'sideways';
 
 /**
- * How far gravity must swing onto the phone's short (x) axis: past `sideways` counts as
- * tipped over, back under `upright` counts as returned. One tilt over + back = one pour.
+ * How far gravity has swung onto the phone's short (x) axis: at `sideways` the phone is fully
+ * tipped over and pouring at full speed; from `partial` up it pours slower; under `upright`
+ * it counts as upright again.
  */
-export const POUR = { sideways: 0.75, upright: 0.4 } as const;
+export const POUR = { sideways: 0.75, partial: 0.4, upright: 0.3 } as const;
 
+/**
+ * One long pour: tilt the phone sideways and keep it there. The match meter (energy) is how
+ * far over it's tipped, so the bar fills the whole time it's held sideways (no reps needed).
+ */
 export class PourDetector implements GestureDetector {
   private stage: PourStage = 'upright';
   /** 0..1 how far the phone is tipped sideways right now. */
   tilt = 0;
-  private e = 0;
-  private prevT = 0;
 
   push(s: MotionSample): RepResult {
     const g = norm([s.gx, s.gy, s.gz]);
-    const tilt = Math.min(1, Math.abs(g[0]) / POUR.sideways);
-    // Match meter: high while tipping over or coming back (about one tilt per half second = full),
-    // fading while held still, so just holding it sideways doesn't count as pouring.
-    const dt = this.prevT ? (s.t - this.prevT) / 1000 : 0;
-    this.prevT = s.t;
-    const rate = dt > 0 ? Math.abs(tilt - this.tilt) / dt : 0;
-    this.e = Math.max(this.e * 0.93, Math.min(1, rate / 2));
-    this.tilt = tilt;
-    if (this.stage === 'upright' && Math.abs(g[0]) > POUR.sideways) {
-      this.stage = 'sideways';
-      return null;
-    }
-    if (this.stage === 'sideways' && Math.abs(g[0]) < POUR.upright) {
-      this.stage = 'upright';
-      return 'good';
-    }
+    const side = Math.abs(g[0]);
+    this.tilt = Math.min(1, side / POUR.sideways);
+    if (side >= POUR.sideways) this.stage = 'sideways';
+    else if (side < POUR.upright) this.stage = 'upright';
     return null;
   }
 
@@ -406,16 +397,16 @@ export class PourDetector implements GestureDetector {
     return this.stage;
   }
   energy() {
-    return this.e;
+    const side = this.tilt * POUR.sideways;
+    if (side <= POUR.partial) return 0;
+    return Math.min(1, (side - POUR.partial) / (POUR.sideways - POUR.partial));
   }
   prompt() {
-    return this.stage === 'upright' ? 'Tilt it SIDEWAYS…' : '…and back UP!';
+    return this.stage === 'sideways' ? 'Keep pouring! Hold it there…' : 'Tilt it SIDEWAYS to pour…';
   }
   reset() {
     this.stage = 'upright';
     this.tilt = 0;
-    this.e = 0;
-    this.prevT = 0;
   }
 }
 

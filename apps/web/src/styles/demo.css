@@ -339,7 +339,7 @@
 /* --- POUR: tilt sideways (juice pours into the glass), then back upright */
 .kdemo--juice .kdemo__phone {
   margin-left: -44px;
-  animation: kpour-phone 3.2s ease-in-out infinite;
+  animation: kpour-phone 4.5s ease-in-out infinite;
 }
 .kdemo__glass {
   bottom: 6px;
@@ -353,7 +353,7 @@
   height: 0;
   border-radius: 4px;
   background: linear-gradient(#ffb02e, #ff8a3d);
-  animation: kpour-stream 3.2s ease-in-out infinite;
+  animation: kpour-stream 4.5s ease-in-out infinite;
 }
 
 /* --- hazards: wipe the puddle (circles), get up (lift), shake off feathers, spray the fire */

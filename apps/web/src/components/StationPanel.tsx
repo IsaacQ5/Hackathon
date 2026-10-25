@@ -37,7 +37,6 @@ export function StationPanel({ work, motionAllowed }: Props) {
   const [flash, setFlash] = useState<{ good: boolean; at: number } | null>(null);
   /** Our own running estimate (0..1), so the bar moves instantly; the server's value wins if ahead. */
   const [localProgress, setLocalProgress] = useState(work.progress);
-  const meterRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLParagraphElement>(null);
   const lastSent = useRef(0);
   const lastFlash = useRef(0);
@@ -89,13 +88,12 @@ export function StationPanel({ work, motionAllowed }: Props) {
     return () => window.clearInterval(id);
   }, [showButtons, liveRef, def.fillMs]);
 
-  // Live accuracy meter + coaching text without re-rendering at 60 Hz.
+  // Live coaching text without re-rendering at 60 Hz.
   useEffect(() => {
     let raf = 0;
     const loop = () => {
       raf = requestAnimationFrame(loop);
       const live = liveRef.current;
-      if (meterRef.current) meterRef.current.style.transform = `scaleX(${Math.max(0.02, live.accuracy)})`;
       if (promptRef.current && !showButtons && live.prompt) promptRef.current.textContent = live.prompt;
     };
     raf = requestAnimationFrame(loop);
@@ -134,10 +132,6 @@ export function StationPanel({ work, motionAllowed }: Props) {
         </>
       ) : (
         <div className="kmotion">
-          {/* how accurate your motion is right now: the fuller this is, the faster the bar fills */}
-          <div className="kmeter">
-            <div className="kmeter__fill" ref={meterRef} />
-          </div>
           <p className="kpanel__prompt" ref={promptRef}>
             {def.verb}!
           </p>

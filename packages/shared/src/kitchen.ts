@@ -143,9 +143,10 @@ export const STATIONS: readonly StationDef[] = [
     verb: 'POUR',
     icon: '🧃',
     color: '#ffd23f',
-    howTo: 'Tilt your phone sideways, then back upright. Repeat!',
+    howTo: 'Tilt your phone sideways and HOLD it there to pour. Keep pouring until the glass is full!',
     reps: 4,
-    fillMs: 4000,
+    // One steady pour: held fully sideways it reads 80% (no "clean motion" bonus), so ~4 s to fill.
+    fillMs: 3200,
     minRepMs: 350,
     badPenalty: 0,
     ingredients: [

@@ -138,14 +138,20 @@ describe('Gesture detectors', () => {
     assert.equal(run('mix', 3000, (t) => ({ ax: wave(t, 400, 35) })).good, 0, 'too violent');
   });
 
-  it('POUR: tilt sideways then back upright = one pour; small wobbles or staying sideways do nothing', () => {
+  it('POUR: one long pour, held sideways pours at full speed, a partial tilt slower, upright not at all', () => {
     // Rolled from upright (gravity down the long y axis) towards sideways (onto the short x axis).
     const roll = (deg: number) => ({ gx: G * Math.sin((deg * Math.PI) / 180), gy: G * Math.cos((deg * Math.PI) / 180), gz: 0 });
-    const pours = run('juice', 4000, (t) => roll(t % 1000 < 500 ? 85 : 0));
-    assert.equal(pours.good, 4, `pours ${pours.good}`);
-    assert.equal(pours.bad, 0);
-    assert.equal(run('juice', 3000, (t) => roll(t % 1000 < 500 ? 30 : 0)).good, 0, 'a small wobble is not a pour');
-    assert.equal(run('juice', 3000, (t) => roll(t > 300 ? 85 : 0)).good, 0, 'must come back upright');
+    const matchAt = (deg: number) => {
+      const d = createDetector('juice');
+      for (let t = 0; t <= 500; t += 1000 / 60) d.push({ t, ax: 0, ay: 0, az: 0, gx: 0, gy: 0, gz: G, ra: 0, rb: 0, rg: 0, ...roll(deg) });
+      return d.energy();
+    };
+    assert.equal(matchAt(85), 1, 'held fully sideways: pouring at full speed');
+    const partial = matchAt(38);
+    assert.ok(partial > 0.2 && partial < 0.9, `half tipped: pours slower (${partial})`);
+    assert.equal(matchAt(10), 0, 'upright: not pouring');
+    // No separate reps: it's one continuous pour that fills the meter while held.
+    assert.deepEqual(run('juice', 3000, () => roll(85)), { good: 0, bad: 0 });
   });
 });
 

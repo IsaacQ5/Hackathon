@@ -30,7 +30,6 @@ export function RecoveryPanel({ stuck, motionAllowed }: Props) {
   const def = STUCK[stuck.kind];
   const gesture = stationById(def.gesture);
   const lastSent = useRef(0);
-  const meterRef = useRef<HTMLDivElement>(null);
 
   // Big buzz when it first hits.
   useEffect(() => {
@@ -49,19 +48,8 @@ export function RecoveryPanel({ stuck, motionAllowed }: Props) {
     [gesture.minRepMs],
   );
 
-  const { sensorOk, liveRef } = useMotionGesture(def.gesture, motionAllowed, onRep);
+  const { sensorOk } = useMotionGesture(def.gesture, motionAllowed, onRep);
   const showButtons = !motionAllowed || sensorOk === false;
-
-  useEffect(() => {
-    let raf = 0;
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
-      const live = liveRef.current;
-      if (meterRef.current) meterRef.current.style.transform = `scaleX(${Math.max(0.02, live.energy)})`;
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [liveRef]);
 
   return (
     <div className={`krecover krecover--${stuck.kind}`}>
@@ -78,9 +66,6 @@ export function RecoveryPanel({ stuck, motionAllowed }: Props) {
         <TouchStation station={def.gesture} onRep={onRep} />
       ) : (
         <div className="kmotion">
-          <div className="kmeter">
-            <div className="kmeter__fill" ref={meterRef} />
-          </div>
           <p className="kpanel__prompt">Keep going!</p>
         </div>
       )}
