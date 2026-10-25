@@ -2,9 +2,11 @@ import {
   INGREDIENTS,
   KITCHEN,
   STATIONS,
+  STUCK,
   stationById,
   type ChefFace,
   type ChefSnap,
+  type ChefStuck,
   type ChefWork,
   type StationId,
 } from '@tilt-mayhem/shared';
@@ -1305,6 +1307,7 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   // name tag
   if (!c.nickname) {
     if (work && showCard) drawWorkCard(ctx, c, work, t);
+    else if (stuck && showCard) drawStuckCard(ctx, c, stuck, t);
     return;
   }
   ctx.save();
@@ -1321,20 +1324,49 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.restore();
 
   if (work && showCard) drawWorkCard(ctx, c, work, t);
+  else if (stuck && showCard) drawStuckCard(ctx, c, stuck, t);
 }
 
 /** Progress card by the working chef's profile: who, which station, the meter. */
 function drawWorkCard(ctx: CanvasRenderingContext2D, c: ChefView, w: ChefWork, t: number) {
   const def = stationById(w.station);
   const ing = INGREDIENTS.get(w.ingredient)?.ingredient;
+  const pop = 1 + Math.max(0, 1 - w.sinceRep / 200) * 0.06;
+  drawProgressCard(ctx, c, def.icon, `${def.verb}!`, ing?.icon ?? '?', w.progress, def.color, pop);
+  void t;
+}
+
+/** What a chef taken out by a hazard is doing about it, for their recovery card on the TV. */
+const STUCK_LABEL: Record<ChefStuck['kind'], string> = {
+  slip: 'WIPE!',
+  bonk: 'GET UP!',
+  feathers: 'SHAKE!',
+  fire: 'SPRAY!',
+};
+
+/** Same card as a station's, for a chef recovering from a hazard; the meter is their recovery progress. */
+function drawStuckCard(ctx: CanvasRenderingContext2D, c: ChefView, s: ChefStuck, t: number) {
+  const def = STUCK[s.kind];
+  const pulse = 1 + Math.max(0, Math.sin(t * 8)) * 0.03;
+  drawProgressCard(ctx, c, def.icon, STUCK_LABEL[s.kind], def.icon, s.progress, stationById(def.gesture).color, pulse);
+}
+
+/** The progress card itself: icon, label, icon, and a filling meter, above or below the chef. */
+function drawProgressCard(
+  ctx: CanvasRenderingContext2D,
+  c: ChefView,
+  leftIcon: string,
+  label: string,
+  rightIcon: string,
+  progress: number,
+  color: string,
+  pop: number,
+) {
   const top = c.y < 300;
-  const cx = c.x;
-  const cy = top ? c.y + 66 : c.y - 118;
   const W = 150;
   const H = 48;
   ctx.save();
-  const pop = 1 + Math.max(0, 1 - w.sinceRep / 200) * 0.06;
-  ctx.translate(cx, cy);
+  ctx.translate(c.x, top ? c.y + 66 : c.y - 118);
   ctx.scale(pop, pop);
   roundRect(ctx, -W / 2, -H / 2, W, H, 12);
   ctx.fillStyle = '#fffaf2';
@@ -1342,25 +1374,25 @@ function drawWorkCard(ctx: CanvasRenderingContext2D, c: ChefView, w: ChefWork, t
   ctx.lineWidth = 3;
   ctx.strokeStyle = c.color;
   ctx.stroke();
-  emoji(ctx, def.icon, -W / 2 + 18, -6, 18);
-  emoji(ctx, ing?.icon ?? '?', W / 2 - 18, -6, 18);
+  emoji(ctx, leftIcon, -W / 2 + 18, -6, 18);
+  emoji(ctx, rightIcon, W / 2 - 18, -6, 18);
   ctx.font = '700 13px Fredoka, system-ui, sans-serif';
   ctx.fillStyle = INK;
   ctx.textAlign = 'center';
-  ctx.fillText(`${def.verb}!`, 0, -6);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 0, -6);
   // meter
   roundRect(ctx, -W / 2 + 10, 8, W - 20, 10, 5);
   ctx.fillStyle = '#e6dccd';
   ctx.fill();
-  roundRect(ctx, -W / 2 + 10, 8, Math.max(10, (W - 20) * w.progress), 10, 5);
-  ctx.fillStyle = def.color;
+  roundRect(ctx, -W / 2 + 10, 8, Math.max(10, (W - 20) * Math.min(1, progress)), 10, 5);
+  ctx.fillStyle = color;
   ctx.fill();
   ctx.lineWidth = 2;
   ctx.strokeStyle = INK;
   roundRect(ctx, -W / 2 + 10, 8, W - 20, 10, 5);
   ctx.stroke();
   ctx.restore();
-  void t;
 }
 
 export function stationColor(id: StationId): string {
