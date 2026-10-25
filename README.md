@@ -32,7 +32,7 @@ apps/web          React + Vite; / (home), /host/:code (big screen), /play/:code 
 
 Phones that can't do motion (no sensor, permission denied, or plain http) automatically get **on-screen controls** instead: a joystick to walk, and per station: tap CHOP; tap FLIP in the timing zone; drag circles round the pot; alternate PUSH/PULL; alternate LEFT/RIGHT; SIDEWAYS then BACK UP (only the round trip counts). Partly made ingredients are remembered if you step away. Two chefs can share a station.
 
-If someone taps **Deny** on the motion permission popup, the phone shows "This game runs on phone motion" with an **Allow motion** button that asks again. iPhones often won't show their popup a second time until the page reloads, so a **Reload** button appears too; reloading keeps you in the game.
+If someone taps **Deny** on the phone's motion permission popup, the game shows "This game runs on phone motion" with an **Allow motion** button, which brings back the phone's own grey **Allow / Deny** box. iPhones won't show that box twice on the same page, so if it's blocked the page reloads by itself first (you stay in the game) and the next tap on **Allow motion** opens the box. If an iPhone still blocks it after that, the popup explains how to reset it (close the tab and reopen the link).
 
 ### Pushing
 
@@ -166,7 +166,7 @@ Motion sensors can't be fully emulated, so before the demo check on at least one
 
 - [ ] QR code opens `/play/CODE` over https
 - [ ] iPhone shows the motion permission prompt on **Join**; Allow → tilt indicator moves
-- [ ] Deny → the "This game runs on phone motion" popup appears; **Allow motion** (or **Reload**) gets you back in with motion working
+- [ ] Deny → the "This game runs on phone motion" popup appears; **Allow motion** brings back the iPhone's grey Allow/Deny box (after an automatic reload if needed) and Allow gets motion working
 - [ ] Phone held still → indicator stays centered; tilt left / right / forward / back → chef moves the **same** way on the big screen
 - [ ] First phone to join shows the head chef card; changing the shift length updates the TV; another phone can't start
 - [ ] Colour and face changes show on the TV; a taken colour can't be picked

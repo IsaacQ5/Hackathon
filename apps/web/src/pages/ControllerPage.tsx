@@ -39,6 +39,25 @@ import '../styles/sizzle.css';
 
 type JoinState = 'form' | 'joining' | 'joined';
 
+/** How many times we've reloaded to get the phone's motion popup back (per tab). */
+const MOTION_RELOADS_KEY = 'ss:motionReloads';
+const MAX_MOTION_RELOADS = 2;
+function readMotionReloads(): number {
+  try {
+    return Number(sessionStorage.getItem(MOTION_RELOADS_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+function writeMotionReloads(n: number) {
+  try {
+    if (n > 0) sessionStorage.setItem(MOTION_RELOADS_KEY, String(n));
+    else sessionStorage.removeItem(MOTION_RELOADS_KEY);
+  } catch {
+    /* storage blocked: we just won't remember */
+  }
+}
+
 const round3 = (v: number) => Math.round(v * 1000) / 1000;
 const vibrate = (pattern: number | number[]) => {
   try {
@@ -217,13 +236,30 @@ export function ControllerPage({ code }: { code: string }) {
     if (pushedName) vibrate([80, 40, 80]);
   }, [pushedName]);
 
-  // Tapped Deny on the motion popup: our popup offers to ask again (from a tap, as iOS requires).
-  // If the phone refuses to show its popup a second time, we offer a reload instead.
-  const [motionRetried, setMotionRetried] = useState(false);
-  const retryMotion = () => {
-    setMotionRetried(true);
-    void tilt.enable();
+  // Tapped Deny on the phone's motion popup: our popup asks them to allow it, and its button
+  // re-opens the phone's own grey Allow/Deny box. iOS won't show that box again on the same page
+  // after a Deny (it silently says "denied"), so in that case we reload (they stay in the game,
+  // the session resumes) and the popup comes straight back: on that page the button opens the box.
+  const [askAfterReload] = useState(() => readMotionReloads() > 0);
+  const [motionStuck, setMotionStuck] = useState(false);
+  const retryMotion = async () => {
+    const result = await tilt.enable();
+    if (result === 'blocked') {
+      const reloads = readMotionReloads();
+      if (reloads >= MAX_MOTION_RELOADS) {
+        // This iPhone keeps the Deny even across reloads: tell them how to reset it.
+        setMotionStuck(true);
+        return;
+      }
+      writeMotionReloads(reloads + 1);
+      window.location.reload();
+    }
+    // 'denied': they saw the box and pressed Deny again; the popup stays so they can try again.
   };
+  useEffect(() => {
+    if (tilt.status === 'waiting' || tilt.status === 'active') writeMotionReloads(0);
+  }, [tilt.status]);
+  const showMotionPopup = tilt.status === 'denied' || (askAfterReload && tilt.status === 'idle');
 
   const lastScore = useRef(0);
   useEffect(() => {
@@ -338,23 +374,22 @@ export function ControllerPage({ code }: { code: string }) {
           {status.pushedBy.offStation ? 'pushed you off the station! Tap the station again to keep cooking.' : 'pushed you!'}
         </div>
       )}
-      {tilt.status === 'denied' && (
+      {showMotionPopup && (
         <div className="kmodal" role="dialog" aria-modal="true" aria-labelledby="motion-title">
           <div className="kcard kmodal__card">
             <Emoji ch="📱" className="kmodal__icon" />
             <h2 id="motion-title">This game runs on phone motion</h2>
-            <p>Please press <b>Allow</b> so you can tilt, chop, flip and pour with your phone.</p>
-            {motionRetried && (
+            <p>
+              Please press <b>Allow</b> so you can tilt, chop, flip and pour with your phone.
+            </p>
+            {motionStuck ? (
               <p className="note small">
-                Your phone didn't ask again. Tap <b>Reload</b>, then press Allow when it asks. You'll stay in the game.
+                Your phone is still blocking motion for this page. Close this browser tab, open the game link again,
+                and press <b>Allow</b> when your phone asks. You&apos;ll rejoin as the same chef.
               </p>
-            )}
-            <button className="kbtn kbtn--go" onClick={retryMotion}>
-              Allow motion
-            </button>
-            {motionRetried && (
-              <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => window.location.reload()}>
-                Reload
+            ) : (
+              <button className="kbtn kbtn--go" onClick={() => void retryMotion()} disabled={tilt.status === 'requesting'}>
+                Allow motion
               </button>
             )}
           </div>

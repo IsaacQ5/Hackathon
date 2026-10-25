@@ -50,11 +50,19 @@ export interface TiltController {
   /** Latest smoothed input. Read it; don't render from it. */
   inputRef: MutableRefObject<Vec2>;
   debugRef: MutableRefObject<TiltDebug>;
-  /** Must be called from a user gesture (tap) for iOS. */
-  enable: () => Promise<void>;
+  /**
+   * Must be called from a user gesture (tap) for iOS. Resolves 'blocked' when the phone refused
+   * without even showing its Allow/Deny box (iOS does this after a Deny until the page reloads).
+   */
+  enable: () => Promise<EnableResult>;
   /** Use the current pose as neutral. */
   recenter: () => void;
 }
+
+export type EnableResult = 'ok' | 'denied' | 'blocked' | 'unavailable';
+
+/** A "denied" faster than this can't have been a person tapping Deny: no box was shown. */
+const SILENT_DENY_MS = 450;
 
 const DEFAULTS = { fullTiltDeg: 25, deadZoneDeg: 3, smoothing: 0.25 };
 const NO_DATA_TIMEOUT_MS = 2000;
@@ -167,9 +175,10 @@ export function useTilt(options: TiltOptions = {}): TiltController {
     window.clearTimeout(timerRef.current);
   }, [onOrientation]);
 
-  const enable = useCallback(async () => {
+  const enable = useCallback(async (): Promise<EnableResult> => {
     const s = statusRef.current;
-    if (s === 'insecure' || s === 'unsupported' || s === 'active' || s === 'requesting') return;
+    if (s === 'insecure' || s === 'unsupported') return 'unavailable';
+    if (s === 'active' || s === 'requesting') return 'ok';
 
     // iOS 13+: must be called directly inside the tap handler.
     // Ask for motion (shake gestures) in the same tap, before any await.
@@ -181,18 +190,19 @@ export function useTilt(options: TiltOptions = {}): TiltController {
     if (typeof api.requestPermission === 'function') {
       setStatus('requesting');
       statusRef.current = 'requesting';
+      const askedAt = performance.now();
       try {
         const result = await api.requestPermission();
         if (result !== 'granted') {
           setStatus('denied');
           statusRef.current = 'denied';
-          return;
+          return performance.now() - askedAt < SILENT_DENY_MS ? 'blocked' : 'denied';
         }
       } catch {
         // Thrown when not called from a gesture, or blocked by settings.
         setStatus('denied');
         statusRef.current = 'denied';
-        return;
+        return 'blocked';
       }
     }
 
@@ -212,6 +222,7 @@ export function useTilt(options: TiltOptions = {}): TiltController {
         }
       }, NO_DATA_TIMEOUT_MS);
     }
+    return 'ok';
   }, [onOrientation]);
 
   const recenter = useCallback(() => {
