@@ -305,7 +305,10 @@ export interface StuckDef {
   howTo: string;
   /** The station gesture used to recover (reuses that station's motion detector). */
   gesture: StationId;
+  /** On-screen button taps needed to recover (phones without motion). */
   reps: number;
+  /** With motion, recovery fills by accuracy like a station: this many ms at 100% accuracy. */
+  fillMs: number;
   icon: string;
 }
 
@@ -315,6 +318,7 @@ export const STUCK: Record<StuckKind, StuckDef> = {
     howTo: 'WIPE IT UP: hold your phone flat and scrub in big circles. Your chef rubs the puddle away with a cloth.',
     gesture: 'stir',
     reps: 3,
+    fillMs: 4500,
     icon: '💦',
   },
   bonk: {
@@ -322,6 +326,7 @@ export const STUCK: Record<StuckKind, StuckDef> = {
     howTo: 'GET UP: lift your phone up and down, like pushing yourself off the floor.',
     gesture: 'chop',
     reps: 5,
+    fillMs: 3500,
     icon: '💫',
   },
   feathers: {
@@ -329,6 +334,7 @@ export const STUCK: Record<StuckKind, StuckDef> = {
     howTo: 'SHAKE THEM OFF: push your phone forward and pull it back, fast.',
     gesture: 'knead',
     reps: 6,
+    fillMs: 3500,
     icon: '🪶',
   },
   fire: {
@@ -336,6 +342,7 @@ export const STUCK: Record<StuckKind, StuckDef> = {
     howTo: 'PUT IT OUT: sweep your phone side to side to spray the fire extinguisher back and forth.',
     gesture: 'mix',
     reps: 10,
+    fillMs: 5000,
     icon: '🧯',
   },
 };

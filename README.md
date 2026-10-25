@@ -54,7 +54,7 @@ Nothing happens for the first 12% of the shift. After that, hazards appear every
 | ☄️ Meatball meteor | 50% | A red target flashes for 2.5 s, then it lands and knocks down anyone under it. Up to 2 at once late in the shift | get up: lift the phone up and down (5) |
 | 🧀 Cheese wheel | 60% | A lane flashes for 2.5 s, then a giant cheese rolls across it, flattening anyone in the way | get up: lift the phone up and down (5) |
 
-After recovering you can't be hit again for 2 seconds. On the TV, chefs act it out: rubbing the puddle with a cloth, spraying foam on the fire, pushing themselves up with dizzy stars, or shaking off feathers.
+Recovery fills **by accuracy**, just like the stations: the more accurately you do the recovery motion, the faster the bar fills (3.5–5 s at full accuracy, `fillMs` in `STUCK`); below 20% it doesn't move. The numbers in brackets above are taps for the on-screen buttons only. After recovering you can't be hit again for 2 seconds. On the TV, chefs act it out: rubbing the puddle with a cloth, spraying foam on the fire, pushing themselves up with dizzy stars, or shaking off feathers.
 
 ### Adding recipes
 

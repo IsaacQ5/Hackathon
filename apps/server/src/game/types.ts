@@ -49,7 +49,8 @@ export interface Chef extends EnginePlayer {
   working: { station: StationId; ingredient: string; reps: number; lastRepAt: number; lastEffortAt: number } | null;
   near: StationId | 'pass' | null;
   /** Taken out by a hazard until the phone does the recovery motion. */
-  stuck: { kind: StuckKind; reps: number; hazardId: number | null; lastRepAt: number } | null;
+  /** `reps` is in rep units; motion fills it fractionally (see GameEngine.effort). */
+  stuck: { kind: StuckKind; reps: number; hazardId: number | null; lastRepAt: number; lastEffortAt: number } | null;
   /** playMs until which hazards can't knock this chef down again (just got up). */
   immuneUntil: number;
   /** playMs when this chef can push again. */

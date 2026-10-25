@@ -286,10 +286,13 @@ export class GameEngine {
    * Accuracy-based cooking (motion): fill the meter by accuracy x elapsed time / fillMs. The time
    * is measured here (capped per message), so sending messages faster can't fill it faster, and
    * sloppy-but-trying motion still fills slowly. Below EFFORT.minAccuracy nothing happens.
+   * While a hazard has the chef, the same accuracy fills their recovery instead.
    */
   effort(id: string, accuracy: number): boolean {
     const c = this.chefs.get(id);
-    if (!c || !c.working || this._phase !== 'playing') return false;
+    if (!c || this._phase !== 'playing') return false;
+    if (c.stuck) return this.recoverEffort(c, Number.isFinite(accuracy) ? Math.min(1, accuracy) : 0);
+    if (!c.working) return false;
     const w = c.working;
     const def = stationById(w.station);
     const dt = Math.min(EFFORT.maxGapMs, Math.max(0, this.playMs - w.lastEffortAt));
@@ -328,7 +331,7 @@ export class GameEngine {
     c.working = null;
   }
 
-  /** One recovery motion from a stuck chef's phone. Returns true if it counted. */
+  /** One on-screen-button recovery step from a stuck chef's phone. Returns true if it counted. */
   recover(id: string, good: boolean): boolean {
     const c = this.chefs.get(id);
     if (!c || !c.stuck || this._phase !== 'playing' || !good) return false;
@@ -336,7 +339,30 @@ export class GameEngine {
     const def = STUCK[s.kind];
     if (this.playMs - s.lastRepAt < stationById(def.gesture).minRepMs) return false;
     s.lastRepAt = this.playMs;
-    s.reps++;
+    this.addRecovery(c, 1);
+    return true;
+  }
+
+  /**
+   * Accuracy-based recovery (motion), same as cooking: fill by accuracy x time / the hazard's
+   * fillMs, timed here so sending faster can't speed it up; below EFFORT.minAccuracy nothing.
+   */
+  private recoverEffort(c: Chef, a: number): boolean {
+    const s = c.stuck!;
+    const def = STUCK[s.kind];
+    const dt = Math.min(EFFORT.maxGapMs, Math.max(0, this.playMs - s.lastEffortAt));
+    s.lastEffortAt = this.playMs;
+    if (a < EFFORT.minAccuracy || dt === 0) return false;
+    this.addRecovery(c, ((a * dt) / def.fillMs) * def.reps);
+    return true;
+  }
+
+  /** Move a stuck chef's recovery on (in rep units); free them (and clean up the hazard) when done. */
+  private addRecovery(c: Chef, amount: number) {
+    const s = c.stuck;
+    if (!s) return;
+    const def = STUCK[s.kind];
+    s.reps = Math.min(def.reps, s.reps + amount);
     const h = s.hazardId === null ? undefined : this.hazards.find((x) => x.id === s.hazardId);
     const cleans = s.kind === 'slip' || s.kind === 'fire';
     if (h && cleans) h.progress = Math.max(h.progress, s.reps / def.reps);
@@ -348,7 +374,6 @@ export class GameEngine {
       }
       this.free(c);
     }
-    return true;
   }
 
   /**
@@ -522,7 +547,7 @@ export class GameEngine {
 
   private setStuck(c: Chef, kind: StuckKind, hazardId: number | null) {
     if (c.working) this.cancel(c.id);
-    c.stuck = { kind, reps: 0, hazardId, lastRepAt: -1e9 };
+    c.stuck = { kind, reps: 0, hazardId, lastRepAt: -1e9, lastEffortAt: this.playMs };
     c.vx = 0;
     c.vy = 0;
     c.input = { x: 0, y: 0 };

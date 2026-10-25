@@ -464,6 +464,31 @@ describe('Kitchen engine: chaos', () => {
     assert.equal(e.snapshot(0).hazards.length, 0, 'spill cleaned up');
   });
 
+  it('recovery fills by accuracy too: sloppy does nothing, accurate wiping cleans the spill', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.spawnHazard('spill', { x: 300, y: 300 });
+    run(100);
+    assert.equal(e.peek('a')!.stuck?.kind, 'slip');
+    for (let t = 0; t < 2000; t += 100) {
+      run(100);
+      e.effort('a', 0.1);
+    }
+    assert.equal(e.status('a', 0)!.stuck!.progress, 0, 'too inaccurate: no free progress');
+    for (let t = 0; t < STUCK.slip.fillMs / 2; t += 100) {
+      run(100);
+      e.effort('a', 1);
+    }
+    const half = e.status('a', 0)!.stuck!.progress;
+    assert.ok(Math.abs(half - 0.5) < 0.06, `half the fill time at full accuracy = half way: ${half}`);
+    for (let t = 0; t < STUCK.slip.fillMs && e.peek('a')!.stuck; t += 100) {
+      run(100);
+      e.effort('a', 1);
+    }
+    assert.equal(e.peek('a')!.stuck, null, 'back on their feet');
+    assert.equal(e.snapshot(0).hazards.length, 0, 'spill wiped up');
+  });
+
   it('a meatball meteor warns first, then knocks down whoever is under it', () => {
     const { e, run } = kitchen(['a', 'b']);
     e.setPlayerPosition('a', 300, 300);
