@@ -8,8 +8,6 @@ apps/server       Node + Express + Socket.IO; RoomManager, GameEngine (server-au
 apps/web          React + Vite; / (home), /host/:code (big screen), /play/:code (phone controller)
 ```
 
-> **Branch note:** Sizzle Scramble lives on the `kitchen_game` branch. If your live Render site deploys `main`, pushing this branch does **not** change it. To try it online, point a Render web service at this branch (see [Deploying](#deploying-https--websockets)).
-
 ## How to play
 
 1. **Open a kitchen** on the laptop or TV (home page → **Create room**). Players scan the QR code or type the 4-letter code on their phones and enter a name (15 characters max).

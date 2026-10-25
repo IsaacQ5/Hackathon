@@ -24,7 +24,7 @@ const server = createAppServer({
 });
 
 server.httpServer.listen(port, '0.0.0.0', () => {
-  console.log(`\n  Tilt Mayhem server on http://localhost:${port}`);
+  console.log(`\n  Sizzle Scramble server on http://localhost:${port}`);
   for (const list of Object.values(networkInterfaces())) {
     for (const net of list ?? []) {
       if (net.family === 'IPv4' && !net.internal) console.log(`  LAN:  http://${net.address}:${port}`);

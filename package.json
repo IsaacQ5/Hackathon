@@ -2,7 +2,7 @@
   "name": "tilt-mayhem",
   "version": "0.1.0",
   "private": true,
-  "description": "Jackbox-style party game: phones are tilt controllers, one screen is the arena.",
+  "description": "Sizzle Scramble: an Overcooked-style party game. Phones are the controllers (tilt to walk, real cooking motions), one screen is the kitchen.",
   "type": "module",
   "workspaces": [
     "packages/shared",

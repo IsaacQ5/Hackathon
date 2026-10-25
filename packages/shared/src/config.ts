@@ -20,15 +20,6 @@ export const GAME_CONFIG = {
   countdownMs: 3000,
   roundDurationMs: 180_000,
 
-  /** Collectibles (Tilt Mayhem; unused by Sizzle Scramble, kept for compatibility). */
-  collectibleRadius: 12,
-  collectibleCount: 6,
-  /** Ticks before a collected item is replaced. */
-  collectibleRespawnTicks: 12,
-  goldenChance: 0.12,
-  normalValue: 1,
-  goldenValue: 3,
-
   /** Kitchen chaos (spills, fires, meteors...): 1 = on, 0 = off (tests turn it off). */
   hazards: 1,
 

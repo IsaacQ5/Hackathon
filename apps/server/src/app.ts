@@ -50,7 +50,7 @@ export function createAppServer(options: AppOptions = {}): AppHandle {
     app.get('/', (_req, res) => {
       res
         .type('text')
-        .send('Tilt Mayhem server is running. Build the web app (npm run build) or use the Vite dev server.');
+        .send('Sizzle Scramble server is running. Build the web app (npm run build) or use the Vite dev server.');
     });
   }
 
