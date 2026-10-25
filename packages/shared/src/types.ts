@@ -189,6 +189,8 @@ export interface RoomState {
   captainId: string | null;
   /** Length of the next shift. */
   roundDurationMs: number;
+  /** Shake-to-push is on (the head chef chooses before a shift). */
+  pushEnabled: boolean;
 }
 
 export type ErrorCode =

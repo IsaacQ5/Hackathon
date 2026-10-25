@@ -269,7 +269,9 @@ export function ControllerPage({ code }: { code: string }) {
   }, [status?.score]);
 
   // Shake the phone hard while walking to shove the chef next to you (the server checks range + cooldown).
-  const canPush = joinState === 'joined' && phase === 'playing' && motionAllowed && !status?.working && !status?.stuck;
+  // (the head chef can turn pushing off for the shift; older servers don't say, so treat that as on)
+  const pushOn = room?.pushEnabled !== false;
+  const canPush = pushOn && joinState === 'joined' && phase === 'playing' && motionAllowed && !status?.working && !status?.stuck;
   useShake(canPush, () => {
     kitchenApi.push();
     vibrate(40);
@@ -503,7 +505,9 @@ export function ControllerPage({ code }: { code: string }) {
             <li>Tap the button under the circle, then do the motion shown on screen.</li>
             <li>Got all 4? Walk to the SERVE table in the middle and hit SERVE!</li>
             <li>Kitchen chaos! If a spill, chicken, meteor or fire gets you, your phone takes over: do the move it shows to get back up.</li>
-            <li>Standing right next to another chef? Shake your phone hard to PUSH them away (knocks them off their station). Recharges in 5 seconds.</li>
+            {pushOn && (
+              <li>Standing right next to another chef? Shake your phone hard to PUSH them away (knocks them off their station). Recharges in 5 seconds.</li>
+            )}
           </ol>
         </section>
         <footer className="kctrl__foot">{settingsPanel}</footer>
@@ -575,7 +579,7 @@ export function ControllerPage({ code }: { code: string }) {
     <div className={`kctrl kctrl--play ${status?.rush ? 'is-rush' : ''}`} style={colorVar(color)}>
       {header}
       {status && <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={null} />}
-      {status && <PushBar readyInMs={status.pushReadyInMs} tapToPush={!motionAllowed} onPush={() => kitchenApi.push()} />}
+      {status && pushOn && <PushBar readyInMs={status.pushReadyInMs} tapToPush={!motionAllowed} onPush={() => kitchenApi.push()} />}
       <div className="kctrl__move">
         {mode === 'tilt' && tiltReady ? (
           <TiltIndicator read={() => tilt.inputRef.current} color={color} />

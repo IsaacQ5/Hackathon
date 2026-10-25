@@ -313,6 +313,17 @@ export class RoomManager {
     return { ok: true, value: undefined };
   }
 
+  /** Turn shake-to-push on or off for the next shift (head chef or host, between shifts). */
+  setPushing(room: Room, socketId: string, rawOn: unknown): Result<void> {
+    if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef can change pushing.');
+    const phase = room.engine.phase;
+    if (phase !== 'lobby' && phase !== 'results') return fail('INVALID_PHASE', 'Change pushing between rounds.');
+    if (typeof rawOn !== 'boolean') return fail('INVALID_INPUT', 'Pushing must be on or off.');
+    room.engine.setPushEnabled(rawOn);
+    room.lastActivityAt = this.now();
+    return { ok: true, value: undefined };
+  }
+
   startGame(room: Room, socketId: string, kind: 'start' | 'rematch'): Result<void> {
     if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef can start the game.');
     const phase = room.engine.phase;
@@ -398,6 +409,7 @@ export class RoomManager {
       players: room.engine.publicPlayers(),
       captainId: this.captainId(room),
       roundDurationMs: room.engine.config.roundDurationMs,
+      pushEnabled: room.engine.pushEnabled,
     };
   }
 

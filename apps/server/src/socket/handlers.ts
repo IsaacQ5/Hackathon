@@ -163,8 +163,15 @@ export function registerSocketHandlers(io: IOServer, rooms: RoomManager): void {
       if (!isPlainObject(payload)) return ack(err('INVALID_INPUT', 'Bad request.'));
       const found = rooms.bySocket(socket.id);
       if (!found) return ack(err('ROOM_NOT_FOUND', 'You are not in a room.'));
-      const res = rooms.setRoundLength(found.room, socket.id, payload.roundMinutes);
-      if (!res.ok) return ack(res);
+      // Either setting (or both) can be sent: shift length and/or pushing on/off.
+      if (payload.roundMinutes !== undefined) {
+        const res = rooms.setRoundLength(found.room, socket.id, payload.roundMinutes);
+        if (!res.ok) return ack(res);
+      }
+      if (payload.pushing !== undefined) {
+        const res = rooms.setPushing(found.room, socket.id, payload.pushing);
+        if (!res.ok) return ack(res);
+      }
       ack({ ok: true });
       emitRoomState(io, rooms, found.room);
     });

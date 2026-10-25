@@ -100,7 +100,7 @@ describe('Gesture detectors', () => {
     const knead = run('knead', 6000, (t) => ({ ay: wave(t, 800, 5) }));
     assert.ok(knead.good >= 12, `kneads ${knead.good}`);
     const gentle = run('knead', 4000, (t) => ({ ay: wave(t, 700, 3.5) }));
-    assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 700, 1.8) })).good, 0, 'barely moving');
+    assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 700, 2.5) })).good, 0, 'too gentle to count');
     assert.ok(gentle.good >= 8, `gentle kneads ${gentle.good}`);
     assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 120, 8) })).good, 0, 'frantic');
     const circle = run('knead', 4000, (t) => ({ ax: 5 * Math.cos((2 * Math.PI * t) / 900), ay: 5 * Math.sin((2 * Math.PI * t) / 900) }));

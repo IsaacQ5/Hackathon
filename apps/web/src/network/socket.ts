@@ -48,6 +48,7 @@ export const api = {
   startGame: () => request<object>('game:start', {}),
   rematch: () => request<object>('game:rematch', {}),
   setRoundMinutes: (roundMinutes: number) => request<object>('room:settings', { roundMinutes }),
+  setPushing: (pushing: boolean) => request<object>('room:settings', { pushing }),
   customize: (look: CustomizePayload) => request<{ color: string; face: ChefFace }>('player:customize', look),
   recenter: () => socket.emit('player:recenter', {}),
   ping: () => request<{ serverTime: number }>('net:ping', {}),

@@ -12,7 +12,7 @@ apps/web          React + Vite; / (home), /host/:code (big screen), /play/:code 
 
 1. **Open a kitchen** on the laptop or TV (home page → **Create room**). Players scan the QR code or type the 4-letter code on their phones and enter a name (15 characters max).
 2. **Customize** while you wait: pick a colour (each colour can only be used by one chef) and a face (Plain, Handlebar, Big Beard, Goatee, Shades, Specs, Pirate, Rosy). The chef hat always stays on.
-3. **The first phone to join is the head chef.** Their phone has the shift-length picker (2, 3, 5, 7 or 10 minutes) and the **OPEN THE KITCHEN!** button, and after a round, **NEXT SHIFT!**. If the head chef disconnects, the next connected phone takes over (and the first joiner gets it back when they reconnect). The TV has no buttons.
+3. **The first phone to join is the head chef.** Their phone has the shift-length picker (2, 3, 5, 7 or 10 minutes), a **Pushing On / Off** switch, and the **OPEN THE KITCHEN!** button, and after a round, **NEXT SHIFT!**. If the head chef disconnects, the next connected phone takes over (and the first joiner gets it back when they reconnect). The TV has no buttons.
 4. Every chef gets a random recipe: **4 ingredients from 4 different stations**. The top of your phone shows the 4 station symbols, with the food you need under each.
 5. **Tilt to walk.** When you reach a station you need, your phone buzzes and the big button lights up. Tap it, then **do the motion** to fill the bar (the phone shows a 3D demo of exactly what to do).
 6. With all 4 made, walk to the **SERVE** table in the middle (a hungry diner sits there; he's solid, like the table) and tap **SERVE!**. +100 points (+50 if served within 35 s, +25 within 60 s), then you get a new ticket. The diner eats your dish and leaves the empty plate.
@@ -37,6 +37,8 @@ If someone taps **Deny** on the phone's motion permission popup, the game shows 
 ### Pushing
 
 Standing right next to another chef? **Shake your phone hard** (three strong jolts in under a second) to shove them. They slide a short, controlled distance straight away from you and stop. A chef who was cooking gets knocked off the station (their progress is kept, but they have to tap the station again), and their phone says who pushed them. Each chef's push recharges for **5 seconds**; the bar above the movement circle (in your chef's colour) shows when it's ready. Missing (nobody close enough) doesn't use up the cooldown. Phones without motion get a **TAP TO PUSH** button instead.
+
+Pushing is **on by default**. The head chef can switch it **off** on their phone before a shift (or between shifts); then nobody can push, the push bar disappears and the TV lobby shows "Pushing off".
 
 ### Kitchen chaos
 
@@ -134,7 +136,7 @@ If you host the frontend separately (e.g. Vercel), set `VITE_SERVER_URL` at web 
 | `room:create {nickname?}` | `{code, playerId, role:'host', token}` | |
 | `room:resume-host {code, token}` | same | host reload / reconnect |
 | `room:join {code, nickname, token?}` | `{code, playerId, token, nickname, color, phase, resumed}` | |
-| `room:settings {roundMinutes}` | `{ok}` | head chef (or host), between shifts; 2/3/5/7/10 |
+| `room:settings {roundMinutes?, pushing?}` | `{ok}` | head chef (or host), between shifts; shift length 2/3/5/7/10 and/or pushing on/off |
 | `player:customize {color?, face?}` | `{color, face}` | between shifts; taken colours are refused |
 | `game:start {}` / `game:rematch {}` | `{ok}` | head chef phone (or host) |
 | `player:input {seq, x, y}` | — | volatile |

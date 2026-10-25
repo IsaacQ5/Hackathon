@@ -65,6 +65,25 @@ describe('RoomManager', () => {
     assert.ok(!rm.customize(room, b.player.id, undefined, 'crown').ok, 'only known faces');
   });
 
+  it('lets the head chef turn pushing off for the shift (and nobody else)', () => {
+    const { rm, room, clock } = setup();
+    const a = mustJoin(rm, room.code, 'A', 's1');
+    const b = mustJoin(rm, room.code, 'B', 's2');
+    assert.equal(rm.roomState(room).pushEnabled, true, 'on by default');
+    assert.ok(!rm.setPushing(room, 's2', false).ok, 'only the head chef');
+    assert.ok(!rm.setPushing(room, 's1', 'off').ok, 'must be true/false');
+    assert.ok(rm.setPushing(room, 's1', false).ok);
+    assert.equal(rm.roomState(room).pushEnabled, false);
+    // with pushing off, a shove next to someone does nothing
+    assert.ok(rm.startGame(room, 's1', 'start').ok);
+    clock.advance(10_000);
+    room.engine.update(clock.now());
+    room.engine.setPlayerPosition(a.player.id, 300, 300);
+    room.engine.setPlayerPosition(b.player.id, 340, 300);
+    assert.equal(room.engine.push(a.player.id), false);
+    assert.ok(!rm.setPushing(room, 's1', true).ok, 'can only change it between shifts');
+  });
+
   it('reconnects with a token without creating a duplicate, and rotates the token', () => {
     const { rm, room } = setup();
     const first = mustJoin(rm, room.code, 'Alice', 's1');

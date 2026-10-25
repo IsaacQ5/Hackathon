@@ -65,6 +65,8 @@ export class GameEngine {
   private nextHazardAt = 0;
   /** Kinds that have appeared this shift (each one is guaranteed to appear once). */
   private seenHazards = new Set<HazardKind>();
+  /** Shake-to-push on/off for the room (head chef's choice). */
+  private _pushEnabled = true;
 
   constructor(config: Partial<GameConfig> = {}, random: () => number = Math.random) {
     this.config = { ...GAME_CONFIG, ...config };
@@ -171,6 +173,15 @@ export class GameEngine {
   /** Length of the next round (takes effect at the next countdown). */
   setRoundDuration(ms: number): void {
     if (this._phase === 'lobby' || this._phase === 'results') this.config.roundDurationMs = ms;
+  }
+
+  /** Whether chefs can shove each other this shift (chosen between shifts). */
+  get pushEnabled(): boolean {
+    return this._pushEnabled;
+  }
+
+  setPushEnabled(on: boolean): void {
+    if (this._phase === 'lobby' || this._phase === 'results') this._pushEnabled = on;
   }
 
   get playStartsAt(): number {
@@ -313,6 +324,7 @@ export class GameEngine {
    */
   push(id: string): boolean {
     const c = this.chefs.get(id);
+    if (!this._pushEnabled) return false;
     if (!c || this._phase !== 'playing' || c.stuck || c.working || this.playMs < c.pushReadyAt) return false;
     let target: Chef | null = null;
     let bestD: number = PUSH.range;

@@ -267,7 +267,7 @@ class AlternationTracker {
 // ------------------------------------------------------------------ 4. KNEAD: forward/back strokes
 
 export class KneadDetector implements GestureDetector {
-  private tr = new AlternationTracker(2.4, 30, 0.7);
+  private tr = new AlternationTracker(2.9, 30, 0.65);
   private push_ = true;
   private e = 0;
   private msg = 'Push... and pull...';
@@ -277,7 +277,7 @@ export class KneadDetector implements GestureDetector {
     this.e = Math.max(this.e * 0.93, Math.min(1, Math.abs(hy) / 4));
     const r = this.tr.push(s.t, hy, hx);
     if (r.kind !== 'stroke') return null;
-    if (r.dt < 150) {
+    if (r.dt < 170) {
       // Frantic shaking does not knead dough.
       this.msg = 'Slow down! Bigger pushes.';
       return null;

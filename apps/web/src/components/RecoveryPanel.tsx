@@ -73,7 +73,6 @@ export function RecoveryPanel({ stuck, motionAllowed }: Props) {
       <GestureDemo scene={stuck.kind} />
       <div className="kprog">
         <div className="kprog__fill" style={{ width: `${stuck.progress * 100}%` }} />
-        <span className="kprog__label">{Math.round(stuck.progress * 100)}%</span>
       </div>
       {showButtons ? (
         <TouchStation station={def.gesture} onRep={onRep} />

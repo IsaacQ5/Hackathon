@@ -91,11 +91,9 @@ export function StationPanel({ work, motionAllowed }: Props) {
       <GestureDemo scene={work.station} />
       <p className="kpanel__how">{def.howTo}</p>
 
-      <div className="kprog">
+      {/* just the meter filling up: no "3 / 8" counter */}
+      <div className="kprog" role="progressbar" aria-label={def.verb} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
         <div className="kprog__fill" style={{ width: `${progress * 100}%` }} />
-        <span className="kprog__label">
-          {def.verb} {Math.min(reps, Math.round(progress * reps))} / {reps}
-        </span>
       </div>
 
       {recent && <div className={`kflash ${flash!.good ? 'is-good' : 'is-bad'}`}>{flash!.good ? `${def.verb}!` : 'OOPS!'}</div>}

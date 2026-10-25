@@ -9,7 +9,7 @@ interface Props {
   phase: GamePhase;
 }
 
-/** On the head chef's phone between shifts: shift length + the big start / next shift button. */
+/** On the head chef's phone between shifts: shift length, pushing on/off, and the big start / next shift button. */
 export function HeadChefCard({ room, phase }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,9 +17,18 @@ export function HeadChefCard({ room, phase }: Props) {
   const need = Math.max(0, room.minPlayers - connected);
   const minutes = roundMinutesOf(room);
 
+  // (older servers don't send pushEnabled: treat that as on, which is the default)
+  const pushOn = room.pushEnabled !== false;
+
   const setLength = async (m: number) => {
     setError(null);
     const res = await api.setRoundMinutes(m);
+    if (!res.ok) setError(res.error.message);
+  };
+
+  const setPushing = async (on: boolean) => {
+    setError(null);
+    const res = await api.setPushing(on);
     if (!res.ok) setError(res.error.message);
   };
 
@@ -41,6 +50,15 @@ export function HeadChefCard({ room, phase }: Props) {
             {m} min
           </button>
         ))}
+      </div>
+      <p className="kcustom__label">Pushing (shake your phone next to a chef to shove them)</p>
+      <div className="kseg">
+        <button className={pushOn ? 'is-on' : ''} onClick={() => void setPushing(true)}>
+          On
+        </button>
+        <button className={!pushOn ? 'is-on' : ''} onClick={() => void setPushing(false)}>
+          Off
+        </button>
       </div>
       <button className="kbtn kbtn--go" onClick={() => void start()} disabled={busy || need > 0}>
         {busy
