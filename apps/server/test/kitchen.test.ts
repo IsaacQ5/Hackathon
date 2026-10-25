@@ -75,8 +75,15 @@ describe('Gesture detectors', () => {
     assert.equal(flips.bad, 0);
     const single = run('fry', 2500, (t) => ({ rb: t < 90 ? 380 : 0 }));
     assert.deepEqual(single, { good: 1, bad: 0 }, 'a flick without a return still counts');
-    const wild = run('fry', 1000, (t) => ({ rb: t < 50 ? 2400 : 0 }));
+    const wild = run('fry', 1000, (t) => ({ rb: t < 50 ? 3000 : 0 }));
     assert.deepEqual(wild, { good: 0, bad: 1 }, 'way too wild spills');
+    // No gyro readings at all (or odd units): the phone tipping up quickly still counts.
+    const tip = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
+    const noGyro = run('fry', 4000, (t) => {
+      const p = t % 800;
+      return tip(p < 120 ? (p / 120) * 40 : p < 300 ? 40 - ((p - 120) / 180) * 40 : 0);
+    });
+    assert.ok(noGyro.good >= 4, `flicks seen from the tilt alone: ${noGyro.good}`);
     const slow = run('fry', 3000, (t) => ({ rb: wave(t, 2000, 60) }));
     assert.deepEqual(slow, { good: 0, bad: 0 });
     // Flicking a side or a corner up counts too (rotation about y, or x and y together).

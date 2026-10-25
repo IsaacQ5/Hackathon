@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { createDetector, PourDetector, type MotionSample, type PourStage, type StationId } from '@tilt-mayhem/shared';
+import { createDetector, PourDetector, stationById, type MotionSample, type PourStage, type StationId } from '@tilt-mayhem/shared';
+
+/**
+ * How closely the motion has to match the station's (the detector's live 0..1 meter) for effort to
+ * count toward an assisted rep. Holding still or doing a different motion stays below this.
+ */
+const ASSIST_MIN_ENERGY = 0.3;
 
 export interface GestureLive {
   energy: number;
@@ -31,6 +37,11 @@ export function useMotionGesture(
     liveRef.current = { energy: 0, prompt: det.prompt() };
     let gravity: [number, number, number] | null = null;
     let got = false;
+    // Assist: time spent doing roughly the right motion without it registering. Every
+    // `assistMs` of honest effort counts one rep (slower than doing it properly).
+    const assistMs = stationById(station).assistMs;
+    let effortMs = 0;
+    let lastT = 0;
 
     const onMotion = (e: DeviceMotionEvent) => {
       const inc = e.accelerationIncludingGravity;
@@ -91,6 +102,18 @@ export function useMotionGesture(
         tilt: det instanceof PourDetector ? det.tilt : undefined,
       };
       if (r) onRepRef.current(r === 'good');
+
+      const dt = lastT ? Math.min(100, s.t - lastT) : 0;
+      lastT = s.t;
+      if (r) effortMs = 0;
+      else if (det.energy() >= ASSIST_MIN_ENERGY) {
+        // Moving the right way, just not cleanly enough to count: build up toward a free rep.
+        effortMs += dt;
+        if (effortMs >= assistMs) {
+          effortMs = 0;
+          onRepRef.current(true);
+        }
+      }
     };
 
     window.addEventListener('devicemotion', onMotion);

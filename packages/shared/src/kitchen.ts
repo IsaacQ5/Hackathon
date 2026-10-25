@@ -29,6 +29,12 @@ export interface StationDef {
   howTo: string;
   /** Good gestures needed to fill the meter. */
   reps: number;
+  /**
+   * Help for players who are trying but whose motion isn't registering: while they keep doing
+   * roughly the right motion, one rep is counted for them every this many ms. Set so that
+   * finishing purely on assists takes ~12 s (doing it properly is several times faster).
+   */
+  assistMs: number;
   /** Server-side minimum ms between counted gestures (anti-mash). */
   minRepMs: number;
   /** Progress lost on a messed-up gesture, in reps. */
@@ -45,6 +51,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#7cd651',
     howTo: 'Hold your phone sideways like a knife and chop straight down.',
     reps: 8,
+    assistMs: 1500,
     minRepMs: 140,
     badPenalty: 0,
     ingredients: [
@@ -63,6 +70,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#ff8a3d',
     howTo: 'Hold your phone like a pan and flick the front up to toss the food.',
     reps: 5,
+    assistMs: 2400,
     minRepMs: 250,
     badPenalty: 1,
     ingredients: [
@@ -81,6 +89,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#ff3d5a',
     howTo: 'Hold your phone flat and move it in big, full circles.',
     reps: 4,
+    assistMs: 3000,
     minRepMs: 300,
     badPenalty: 0,
     ingredients: [
@@ -99,6 +108,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#e0a458',
     howTo: 'Push your phone forward and pull it back, over and over.',
     reps: 12,
+    assistMs: 1000,
     minRepMs: 200,
     badPenalty: 0,
     ingredients: [
@@ -117,6 +127,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#b26bff',
     howTo: 'Shake your phone gently side to side, left-right-left-right.',
     reps: 12,
+    assistMs: 1000,
     minRepMs: 90,
     badPenalty: 0,
     ingredients: [
@@ -135,6 +146,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#ffd23f',
     howTo: 'Tilt your phone sideways, then back upright. Repeat!',
     reps: 4,
+    assistMs: 3000,
     minRepMs: 350,
     badPenalty: 0,
     ingredients: [

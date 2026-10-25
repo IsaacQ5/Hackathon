@@ -114,34 +114,52 @@ export class ChopDetector implements GestureDetector {
 
 // ------------------------------------------------------------------ 2. FLIP: flick the front of the phone up
 
+/** Flick strength (deg/s-ish) that counts as a flip, and what counts as settled again. */
+const FLIP_AT = 120;
+const FLIP_SETTLED = 70;
+
 export class FlipDetector implements GestureDetector {
   private phase: 'idle' | 'cool' = 'idle';
   private t0 = 0;
   private e = 0;
-  private msg = 'Flick the front up!';
+  private msg = 'Flick it up!';
+  private prevG: V3 | null = null;
+  private prevT = 0;
 
   push(s: MotionSample): RepResult {
     const gyro = s.ra !== 0 || s.rb !== 0 || s.rg !== 0;
-    // A flick tips the phone about a horizontal axis: the front, a side or a corner coming up all
-    // count (rotation about the phone's x and y axes combined). Spinning it flat like a steering
-    // wheel is rotation about z (alpha) and doesn't. Phones without a gyro fall back to a vertical jolt.
-    const mag = gyro ? Math.hypot(s.rb, s.rg) : Math.abs(decompose(s).v) * 25;
-    const other = gyro ? Math.abs(s.ra) : 0;
-    this.e = Math.max(this.e * 0.9, Math.min(1, mag / 300));
+    const { v, g } = decompose(s);
+    // Three ways to see a flick, whichever is strongest:
+    //  1. Gyro: rotation about a horizontal axis (front, side or corner coming up). Spinning the
+    //     phone flat like a steering wheel is rotation about z (alpha) and doesn't count.
+    //  2. How fast the phone is actually tipping, measured from the gravity direction. This works
+    //     on every phone, whatever units (or lack of) its gyro reports.
+    //  3. The upward jolt of the flick itself.
+    const rot = gyro ? Math.hypot(s.rb, s.rg) : 0;
+    const spin = gyro ? Math.abs(s.ra) : 0;
+    let tipRate = 0;
+    if (this.prevG && s.t > this.prevT) {
+      const deg = (Math.acos(Math.max(-1, Math.min(1, dot(g, this.prevG)))) * 180) / Math.PI;
+      tipRate = deg / ((s.t - this.prevT) / 1000);
+    }
+    this.prevG = g;
+    this.prevT = s.t;
+    const mag = Math.max(rot >= spin * 0.9 ? rot : 0, tipRate, Math.abs(v) * 22);
+    this.e = Math.max(this.e * 0.9, Math.min(1, mag / 250));
 
     if (this.phase === 'cool') {
-      // Wait for the pan to settle (this also swallows the return swing).
-      if ((s.t - this.t0 > 220 && mag < 90) || s.t - this.t0 > 700) this.phase = 'idle';
+      // Wait for the pan to settle (this also swallows the return swing), but not for long.
+      if ((s.t - this.t0 > 180 && mag < FLIP_SETTLED) || s.t - this.t0 > 550) this.phase = 'idle';
       return null;
     }
-    if (mag > 2000) {
+    if (rot > 2600) {
       this.phase = 'cool';
       this.t0 = s.t;
       this.msg = 'Whoa! Too wild, the food flew off!';
       return 'bad';
     }
-    // Count the flick the moment it happens; a slow tilt or a sideways twist doesn't count.
-    if (mag > 150 && mag >= other * 0.9) {
+    // Count the flick the moment it happens; a slow tilt or a flat twist doesn't count.
+    if (mag > FLIP_AT) {
       this.phase = 'cool';
       this.t0 = s.t;
       this.msg = 'Nice flip!';
@@ -158,7 +176,9 @@ export class FlipDetector implements GestureDetector {
   reset() {
     this.phase = 'idle';
     this.e = 0;
-    this.msg = 'Flick the front up!';
+    this.msg = 'Flick it up!';
+    this.prevG = null;
+    this.prevT = 0;
   }
 }
 
