@@ -7,8 +7,8 @@ describe('validation', () => {
     assert.equal(sanitizeNickname('  Ada   Lovelace '), 'Ada Lovelace');
     assert.equal(sanitizeNickname('<script>'), 'script');
     assert.equal(sanitizeNickname('a​b\u0007c'), 'abc');
-    assert.equal(sanitizeNickname('x'.repeat(40))!.length, 16);
-    assert.equal(sanitizeNickname('🔥'.repeat(20)), '🔥'.repeat(16));
+    assert.equal(sanitizeNickname('x'.repeat(40))!.length, 15);
+    assert.equal(sanitizeNickname('🔥'.repeat(20)), '🔥'.repeat(15));
     assert.equal(sanitizeNickname('   '), null);
     assert.equal(sanitizeNickname(42), null);
   });

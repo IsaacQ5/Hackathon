@@ -16,7 +16,9 @@ import { sfx } from '../utils/sound';
 
 const W = 1000;
 const H = 600;
-const TOP = 70;
+const TOP = 64;
+/** The kitchen art (walls included) spills this far past the 1000x600 world on every side. */
+const EDGE = 30;
 /** Order tickets live in a column on each side of the kitchen. */
 const TICKET_H = 128;
 const SIDE_GAP = 12;
@@ -184,7 +186,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       const rightW = right.length ? tw + SIDE_GAP * 2 : 16;
       const availW = Math.max(100, cw - leftW - rightW);
       const availH = Math.max(100, ch - TOP - 10);
-      const scale = Math.min(availW / W, availH / H);
+      const scale = Math.min(availW / (W + EDGE * 2), availH / (H + EDGE * 2));
       const ox = leftW + (availW - W * scale) / 2;
       const oy = TOP + (availH - H * scale) / 2;
       const sh = fx.shakeOffset();
@@ -231,7 +233,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       const urgent = secs <= 10 && phase === 'playing';
       const rush = frame.snap.rush && phase === 'playing';
       ctx.save();
-      ctx.translate(cw / 2, 36);
+      ctx.translate(cw / 2, 30);
       const pulse = urgent || rush ? 1 + Math.max(0, Math.sin(now / 150)) * 0.06 : 1;
       ctx.scale(pulse, pulse);
       ctx.font = '34px Bangers, "Arial Black", Impact, system-ui, sans-serif';
@@ -256,19 +258,19 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         const txt = `${['🥇', '🥈', '🥉'][i]} ${c.nickname} ${c.score}`;
         const w = ctx.measureText(txt).width + 20;
         if (lx + w > cw / 2 - 90) return;
-        roundRect(ctx, lx, 22, w, 28, 14);
+        roundRect(ctx, lx, 8, w, 28, 14);
         ctx.fillStyle = 'rgba(43,26,18,0.8)';
         ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(txt, lx + 10, 37);
+        ctx.fillText(txt, lx + 10, 23);
         lx += w + 8;
       });
 
       const sinceRush = now - rushAt;
       const alarming = rush && sinceRush < ALARM_MS + FLY_MS;
-      if (rush && !alarming) comic(ctx, cw / 2 + 170, 38, 'x2 RUSH!', '#ffe14d', 28);
+      if (rush && !alarming) comic(ctx, cw / 2 + 170, 30, 'x2 RUSH!', '#ffe14d', 28);
 
       if (banner && now - banner.at < 2600 && !alarming) comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
 
@@ -360,7 +362,7 @@ function drawRushAlarm(ctx: CanvasRenderingContext2D, since: number, cw: number,
   const k = Math.min(1, (since - ALARM_MS) / FLY_MS);
   const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
   const x = cw / 2 + 170 * e;
-  const y = ch / 2 + (38 - ch / 2) * e;
+  const y = ch / 2 + (30 - ch / 2) * e;
   comic(ctx, x, y, 'x2 RUSH!', '#ffe14d', big + (28 - big) * e);
 }
 

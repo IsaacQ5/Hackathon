@@ -57,15 +57,15 @@ export const STATIONS: readonly StationDef[] = [
     id: 'fry',
     name: 'Frying Pan',
     verb: 'FLIP',
-    icon: '🔥',
+    icon: '🍳',
     color: '#ff8a3d',
     howTo: 'Hold your phone like a pan and flick the front up to toss the food.',
     reps: 5,
     minRepMs: 250,
     badPenalty: 1,
     ingredients: [
-      { id: 'patty', name: 'Cooked burger patty', icon: '🥩' },
-      { id: 'egg', name: 'Fried egg', icon: '🍳' },
+      { id: 'patty', name: 'Burger patty', icon: '🥩' },
+      { id: 'egg', name: 'Fried egg', icon: '🥚' },
       { id: 'bacon', name: 'Cooked bacon', icon: '🥓' },
       { id: 'chicken', name: 'Grilled chicken', icon: '🍗' },
       { id: 'fish', name: 'Cooked fish', icon: '🐟' },
@@ -96,15 +96,15 @@ export const STATIONS: readonly StationDef[] = [
     icon: '🫓',
     color: '#e0a458',
     howTo: 'Push your phone forward and pull it back, over and over.',
-    reps: 10,
-    minRepMs: 150,
+    reps: 12,
+    minRepMs: 200,
     badPenalty: 0,
     ingredients: [
       { id: 'bread', name: 'Bread', icon: '🍞' },
       { id: 'bun', name: 'Burger bun', icon: '🍔' },
       { id: 'pizzadough', name: 'Pizza dough', icon: '🍕' },
       { id: 'tortilla', name: 'Tortilla', icon: '🌯' },
-      { id: 'sandwichbread', name: 'Sandwich bread', icon: '🥪' },
+      { id: 'sandwichbread', name: 'Sub roll', icon: '🥪' },
     ],
   },
   {
@@ -119,7 +119,7 @@ export const STATIONS: readonly StationDef[] = [
     badPenalty: 0,
     ingredients: [
       { id: 'pancake', name: 'Pancake batter', icon: '🥞' },
-      { id: 'omelette', name: 'Omelette mixture', icon: '🥚' },
+      { id: 'omelette', name: 'Omelette mix', icon: '🥚' },
       { id: 'cake', name: 'Cake batter', icon: '🎂' },
       { id: 'cookie', name: 'Cookie mixture', icon: '🍪' },
       { id: 'cream', name: 'Cream filling', icon: '🍦' },
@@ -131,7 +131,7 @@ export const STATIONS: readonly StationDef[] = [
     verb: 'POUR',
     icon: '🧃',
     color: '#ffd23f',
-    howTo: 'Hold your phone sideways like a knife, then tip it forward to pour and HOLD. Level it when it says RELEASE.',
+    howTo: 'Hold your phone facing you, turn it sideways like at CHOP, then tip the top slightly forward and HOLD. Tip it back when it says RELEASE.',
     reps: 2,
     minRepMs: 700,
     badPenalty: 1,
@@ -165,26 +165,26 @@ export interface RecipeDef {
 }
 
 export const RECIPES: readonly RecipeDef[] = [
-  { id: 'burger', name: 'Classic Cheeseburger', icon: '🍔', ingredients: ['lettuce', 'patty', 'bun', 'cheesesauce'] },
-  { id: 'breakfast', name: 'Big Breakfast', icon: '🍳', ingredients: ['egg', 'bread', 'orange', 'pancake'] },
+  { id: 'burger', name: 'Cheeseburger', icon: '🍔', ingredients: ['lettuce', 'patty', 'bun', 'cheesesauce'] },
+  { id: 'breakfast', name: 'Big Breakfast', icon: '🥓', ingredients: ['egg', 'bread', 'orange', 'pancake'] },
   { id: 'blt', name: 'BLT Melt', icon: '🥪', ingredients: ['tomato', 'bacon', 'sandwichbread', 'cheesesauce'] },
-  { id: 'chickenpizza', name: 'Chicken Mushroom Pizza', icon: '🍕', ingredients: ['pizzadough', 'tomatosauce', 'mushroom', 'chicken'] },
+  { id: 'chickenpizza', name: 'Chicken Pizza', icon: '🍕', ingredients: ['pizzadough', 'tomatosauce', 'mushroom', 'chicken'] },
   { id: 'fishtacos', name: 'Fish Tacos', icon: '🌮', ingredients: ['tortilla', 'fish', 'onion', 'lemon'] },
-  { id: 'curry', name: 'Chicken Curry & Naan', icon: '🍛', ingredients: ['curry', 'chicken', 'onion', 'bread'] },
+  { id: 'curry', name: 'Chicken Curry', icon: '🍛', ingredients: ['curry', 'chicken', 'onion', 'bread'] },
   { id: 'pasta', name: 'Meatball Pasta', icon: '🍝', ingredients: ['tomatosauce', 'mushroom', 'patty', 'water'] },
   { id: 'veggiesoup', name: 'Veggie Soup', icon: '🥣', ingredients: ['soupbase', 'carrot', 'bread', 'water'] },
-  { id: 'pancakes', name: 'Pancake Brunch', icon: '🥞', ingredients: ['pancake', 'puree', 'bacon', 'bread'] },
-  { id: 'omelette', name: 'Omelette Deluxe', icon: '🥚', ingredients: ['omelette', 'mushroom', 'cheesesauce', 'orange'] },
-  { id: 'carrotcake', name: 'Choco Carrot Cake', icon: '🎂', ingredients: ['cake', 'carrot', 'chocosauce', 'apple'] },
+  { id: 'pancakes', name: 'Pancakes', icon: '🥞', ingredients: ['pancake', 'puree', 'bacon', 'bread'] },
+  { id: 'omelette', name: 'Omelette', icon: '🥚', ingredients: ['omelette', 'mushroom', 'cheesesauce', 'orange'] },
+  { id: 'carrotcake', name: 'Carrot Cake', icon: '🎂', ingredients: ['cake', 'carrot', 'chocosauce', 'apple'] },
   { id: 'cookiepizza', name: 'Cookie Pizza', icon: '🍪', ingredients: ['pizzadough', 'cookie', 'chocosauce', 'puree'] },
-  { id: 'creambuns', name: 'Choco Cream Buns', icon: '🧁', ingredients: ['bun', 'cream', 'chocosauce', 'puree'] },
-  { id: 'burrito', name: 'Breakfast Burrito', icon: '🌯', ingredients: ['tortilla', 'egg', 'onion', 'cheesesauce'] },
-  { id: 'chickensandwich', name: 'Zesty Chicken Sandwich', icon: '🥪', ingredients: ['sandwichbread', 'chicken', 'lettuce', 'lemon'] },
-  { id: 'chowder', name: 'Fish Chowder', icon: '🍲', ingredients: ['fish', 'soupbase', 'onion', 'bread'] },
-  { id: 'caesar', name: 'Chicken Caesar Salad', icon: '🥗', ingredients: ['lettuce', 'chicken', 'lemon', 'bread'] },
-  { id: 'tomatosoup', name: 'Tomato Soup & Toastie', icon: '🥫', ingredients: ['tomatosauce', 'tomato', 'sandwichbread', 'water'] },
-  { id: 'burgerpizza', name: 'Cheeseburger Pizza', icon: '🍕', ingredients: ['pizzadough', 'cheesesauce', 'patty', 'onion'] },
-  { id: 'currywrap', name: 'Veggie Curry Wrap', icon: '🌯', ingredients: ['tortilla', 'curry', 'carrot', 'puree'] },
+  { id: 'creambuns', name: 'Cream Buns', icon: '🧁', ingredients: ['bun', 'cream', 'chocosauce', 'puree'] },
+  { id: 'burrito', name: 'Burrito', icon: '🌯', ingredients: ['tortilla', 'egg', 'onion', 'cheesesauce'] },
+  { id: 'chickensandwich', name: 'Chicken Sub', icon: '🥪', ingredients: ['sandwichbread', 'chicken', 'lettuce', 'lemon'] },
+  { id: 'chowder', name: 'Chowder', icon: '🍲', ingredients: ['fish', 'soupbase', 'onion', 'bread'] },
+  { id: 'caesar', name: 'Caesar Salad', icon: '🥗', ingredients: ['lettuce', 'chicken', 'lemon', 'bread'] },
+  { id: 'tomatosoup', name: 'Tomato Soup', icon: '🥫', ingredients: ['tomatosauce', 'tomato', 'sandwichbread', 'water'] },
+  { id: 'burgerpizza', name: 'Burger Pizza', icon: '🍕', ingredients: ['pizzadough', 'cheesesauce', 'patty', 'onion'] },
+  { id: 'currywrap', name: 'Curry Wrap', icon: '🌯', ingredients: ['tortilla', 'curry', 'carrot', 'puree'] },
 ];
 
 export function recipeById(id: string): RecipeDef | undefined {
@@ -218,15 +218,15 @@ export function validateRecipes(recipes: readonly RecipeDef[] = RECIPES): string
 // ------------------------------------------------------------------ chef looks
 
 /** Face cosmetics a chef can pick in the lobby. The hat always stays on. */
-export const CHEF_FACES = ['stache', 'none', 'shades', 'glasses', 'beard', 'blush'] as const;
+export const CHEF_FACES = ['stache', 'handlebar', 'beard', 'shades', 'glasses', 'blush'] as const;
 export type ChefFace = (typeof CHEF_FACES)[number];
 
 export const FACE_NAMES: Record<ChefFace, string> = {
   stache: 'Moustache',
-  none: 'Clean',
+  handlebar: 'Handlebar',
+  beard: 'Big Beard',
   shades: 'Shades',
   glasses: 'Specs',
-  beard: 'Beard',
   blush: 'Rosy',
 };
 

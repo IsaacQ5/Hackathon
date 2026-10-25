@@ -79,6 +79,38 @@ export function drawKitchen(ctx: CanvasRenderingContext2D, t: number) {
 
 // ====================================================================== stations
 
+/** Colour of each ingredient once it's chopped / in the pot / in the glass. */
+const FOOD_TINT: Record<string, string> = {
+  lettuce: '#7cd651',
+  tomato: '#ff4d4d',
+  onion: '#e8c8f0',
+  mushroom: '#d9b48f',
+  carrot: '#ff9a2e',
+  tomatosauce: '#e8432f',
+  cheesesauce: '#ffcf3d',
+  chocosauce: '#7a4a2a',
+  soupbase: '#e9b872',
+  curry: '#f0a020',
+  pancake: '#ffe3a6',
+  omelette: '#ffe066',
+  cake: '#f7d9a8',
+  cookie: '#d9a066',
+  cream: '#fff6e0',
+  orange: '#ffb02e',
+  lemon: '#fff06a',
+  puree: '#ff5d7a',
+  apple: '#d8e86a',
+  water: '#7fd0ff',
+};
+const DEFAULT_TINT: Record<StationId, string> = {
+  chop: '#ff9a2e',
+  fry: '#ffe066',
+  stir: '#e8432f',
+  knead: '#fbe7c0',
+  mix: '#fff4d6',
+  juice: '#ffb02e',
+};
+
 /** Who is working at a station right now (for animation). */
 export interface StationActivity {
   progress: number;
@@ -109,177 +141,308 @@ export function drawStation(ctx: CanvasRenderingContext2D, id: StationId, act: S
     ctx.stroke();
   }
 
-  // station plate
-  roundRect(ctx, -82, -40, 164, 80, 16);
+  // station plate: counter-top tile in the station colour with a soft highlight
+  roundRect(ctx, -84, -42, 168, 84, 18);
   outlined(ctx, shade(def.color, 0.2), 4);
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  roundRect(ctx, -76, -36, 152, 12, 6);
+  ctx.fill();
+
+  // Everything below only moves while somebody is cooking here.
+  const ing = act.ingredient ? INGREDIENTS.get(act.ingredient)?.ingredient : undefined;
+  const food = FOOD_TINT[act.ingredient ?? ''] ?? DEFAULT_TINT[id];
 
   switch (id) {
     case 'chop': {
-      // board
-      roundRect(ctx, -58, -24, 116, 48, 10);
-      outlined(ctx, '#e8b77a', 3);
-      // food pieces
-      const ing = act.ingredient ? INGREDIENTS.get(act.ingredient)?.ingredient.icon : '🥬';
-      emoji(ctx, ing ?? '🥬', -18, 2, 26);
-      // knife: lifts and slams with each chop
-      const lift = busy ? (pulse > 0 ? (1 - pulse) * 22 : 20 + Math.sin(t * 10) * 2) : 6;
+      // wooden board with grain + a juice groove
+      roundRect(ctx, -64, -28, 128, 56, 12);
+      outlined(ctx, '#e3a96b', 3);
+      roundRect(ctx, -56, -21, 112, 42, 9);
+      ctx.strokeStyle = 'rgba(120,70,30,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(120,70,30,0.25)';
+      for (const gy of [-10, 2, 12]) {
+        ctx.beginPath();
+        ctx.moveTo(-48, gy);
+        ctx.bezierCurveTo(-20, gy - 4, 10, gy + 4, 44, gy - 1);
+        ctx.stroke();
+      }
+      // the whole vegetable on the left, chopped slices piling up on the right
+      const knifeY = busy ? -Math.abs(Math.sin(t * 9)) * 22 : -16;
+      const slices = busy ? 2 + Math.floor(act.progress * 6) : 3;
+      for (let i = 0; i < slices; i++) {
+        const sx = 4 + (i % 3) * 13 + (i > 2 ? 6 : 0);
+        const sy = -6 + Math.floor(i / 3) * 12 + (i % 2) * 3;
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, 6, 4.5, 0.4 * (i % 2 ? 1 : -1), 0, Math.PI * 2);
+        outlined(ctx, food, 2);
+        ctx.beginPath();
+        ctx.ellipse(sx, sy, 3, 2, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fill();
+      }
+      emoji(ctx, ing?.icon ?? '🥕', -30, 2, 26);
+      // chef's knife: steel blade with shine, wooden handle with rivets
       ctx.save();
-      ctx.translate(22, -lift + 6);
-      ctx.rotate(-0.25);
-      roundRect(ctx, -6, -6, 46, 14, 4);
-      outlined(ctx, '#dfe6ef', 2.5);
-      roundRect(ctx, 36, -5, 22, 12, 4);
+      ctx.translate(-8, knifeY + 2);
+      ctx.rotate(busy ? -0.15 - Math.abs(Math.sin(t * 9)) * 0.25 : -0.3);
+      ctx.beginPath();
+      ctx.moveTo(-6, -8);
+      ctx.lineTo(34, -8);
+      ctx.lineTo(34, 6);
+      ctx.quadraticCurveTo(10, 10, -10, 4);
+      ctx.closePath();
+      outlined(ctx, '#e6edf5', 2.5);
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(0, -5, 28, 2.5);
+      roundRect(ctx, 33, -7, 26, 12, 4);
       outlined(ctx, '#6b3e1f', 2.5);
+      ctx.fillStyle = '#e0c08a';
+      for (const rx of [40, 51]) {
+        ctx.beginPath();
+        ctx.arc(rx, -1, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
       break;
     }
     case 'fry': {
-      // stove ring
-      ctx.beginPath();
-      ctx.arc(-8, 2, 34, 0, Math.PI * 2);
+      // stove top + burner
+      roundRect(ctx, -66, -32, 132, 64, 12);
       outlined(ctx, '#3b3b46', 3);
-      if (busy) {
-        ctx.beginPath();
-        ctx.arc(-8, 2, 28, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,120,40,${0.5 + Math.sin(t * 20) * 0.3})`;
-        ctx.lineWidth = 4;
-        ctx.stroke();
-      }
-      // pan + handle
       ctx.beginPath();
-      ctx.arc(-8, 0, 26, 0, Math.PI * 2);
-      outlined(ctx, '#55555f', 3);
-      roundRect(ctx, 16, -5, 44, 10, 5);
-      outlined(ctx, '#2a2a30', 2.5);
-      // food flips up in an arc on each good flip
-      const hop = pulse > 0 ? Math.sin((1 - pulse) * Math.PI) * 34 : 0;
-      const spin = pulse > 0 ? (1 - pulse) * Math.PI * 2 : 0;
+      ctx.arc(-10, 2, 30, 0, Math.PI * 2);
+      ctx.strokeStyle = '#1e1e26';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      // flames dance under the pan only while cooking
+      if (busy) {
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2;
+          const fl = 8 + Math.sin(t * 18 + i * 1.7) * 4;
+          const bx = -10 + Math.cos(a) * 30;
+          const by = 2 + Math.sin(a) * 30;
+          ctx.beginPath();
+          ctx.moveTo(bx - Math.sin(a) * 4, by + Math.cos(a) * 4);
+          ctx.lineTo(bx + Math.cos(a) * fl, by + Math.sin(a) * fl);
+          ctx.lineTo(bx + Math.sin(a) * 4, by - Math.cos(a) * 4);
+          ctx.closePath();
+          ctx.fillStyle = i % 2 ? '#ffb02e' : '#ff5a2a';
+          ctx.fill();
+        }
+      }
+      // pan jiggles while cooking; food hops in a loop and flips higher on each good rep
+      const jig = busy ? Math.sin(t * 14) * 2 : 0;
       ctx.save();
-      ctx.translate(-8, -hop);
+      ctx.translate(jig, 0);
+      roundRect(ctx, 14, -5, 52, 10, 5);
+      outlined(ctx, '#2a2a30', 2.5);
+      ctx.beginPath();
+      ctx.arc(-10, 0, 27, 0, Math.PI * 2);
+      outlined(ctx, '#4a4a55', 3);
+      ctx.beginPath();
+      ctx.arc(-10, 0, 21, 0, Math.PI * 2);
+      ctx.fillStyle = '#2f2f37';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(-17, -7, 7, Math.PI, Math.PI * 1.6);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      const loopHop = busy ? Math.abs(Math.sin(t * 5)) * 10 : 0;
+      const hop = pulse > 0 ? Math.sin((1 - pulse) * Math.PI) * 34 : loopHop;
+      const spin = pulse > 0 ? (1 - pulse) * Math.PI * 2 : busy ? Math.sin(t * 5) * 0.3 : 0;
+      ctx.save();
+      ctx.translate(-10, -hop);
       ctx.rotate(spin);
-      const ing = act.ingredient ? INGREDIENTS.get(act.ingredient)?.ingredient.icon : '🍳';
-      emoji(ctx, ing ?? '🍳', 0, 0, 26);
+      emoji(ctx, ing?.icon ?? '🥚', 0, 0, 26);
       ctx.restore();
-      // sizzle steam
+      ctx.restore();
       if (busy) {
         ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         for (let i = -1; i <= 1; i++) {
           ctx.beginPath();
-          const sx = -8 + i * 12;
-          for (let k = 0; k < 8; k++) ctx.lineTo(sx + Math.sin(t * 8 + k + i) * 4, -26 - k * 4);
+          const sx = -10 + i * 12;
+          for (let k = 0; k < 8; k++) ctx.lineTo(sx + Math.sin(t * 8 + k + i) * 4, -28 - k * 4);
           ctx.stroke();
         }
       }
       break;
     }
     case 'stir': {
+      // pot with side handles, rim and coloured soup
+      for (const s of [-1, 1]) {
+        roundRect(ctx, s * 50 - 9, -6, 18, 10, 5);
+        outlined(ctx, '#5c606c', 2.5);
+      }
       ctx.beginPath();
-      ctx.ellipse(0, 4, 46, 30, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 6, 46, 30, 0, 0, Math.PI * 2);
       outlined(ctx, '#7b7f8c', 3.5);
       ctx.beginPath();
-      ctx.ellipse(0, 0, 38, 22, 0, 0, Math.PI * 2);
-      outlined(ctx, '#e8553f', 2.5);
-      // swirl
-      const rot = t * (busy ? 6 : 0.8);
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+      ctx.ellipse(0, 0, 40, 23, 0, 0, Math.PI * 2);
+      outlined(ctx, '#a3a8b5', 2.5);
+      ctx.beginPath();
+      ctx.ellipse(0, 1, 34, 18, 0, 0, Math.PI * 2);
+      ctx.fillStyle = food;
+      ctx.fill();
+      // swirl + bubbles + spoon only turn while somebody stirs
+      const rot = busy ? t * 6 : 0;
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
       ctx.lineWidth = 3;
       ctx.beginPath();
       for (let a = 0; a < Math.PI * 3; a += 0.25) {
-        const r = 4 + a * 3.2;
-        ctx.lineTo(Math.cos(a + rot) * r, Math.sin(a + rot) * r * 0.55);
+        const r = 3 + a * 2.9;
+        ctx.lineTo(Math.cos(a + rot) * r, 1 + Math.sin(a + rot) * r * 0.5);
       }
       ctx.stroke();
-      // bubbles
       if (busy) {
-        for (let i = 0; i < 4; i++) {
-          const k = (t * 1.5 + i * 0.25) % 1;
+        for (let i = 0; i < 5; i++) {
+          const k = (t * 1.5 + i * 0.2) % 1;
           ctx.beginPath();
-          ctx.arc(Math.sin(i * 2.3) * 24, -k * 18, 3 + k * 3, 0, Math.PI * 2);
+          ctx.arc(Math.sin(i * 2.3) * 22, 2 - k * 20, 3 + k * 3, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(255,255,255,${1 - k})`;
           ctx.fill();
         }
       }
-      // spoon
-      const sa = rot * 0.7;
+      const sa = busy ? rot * 0.7 : 0.8;
       ctx.save();
-      ctx.translate(Math.cos(sa) * 18, Math.sin(sa) * 10);
+      ctx.translate(Math.cos(sa) * 18, Math.sin(sa) * 9);
       ctx.rotate(-0.6);
-      roundRect(ctx, -3, -44, 6, 46, 3);
+      roundRect(ctx, -3.5, -48, 7, 48, 3.5);
+      outlined(ctx, '#a36b3d', 2);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 7, 5, 0, 0, Math.PI * 2);
       outlined(ctx, '#a36b3d', 2);
       ctx.restore();
       break;
     }
     case 'knead': {
-      roundRect(ctx, -62, -26, 124, 52, 10);
+      // floured marble slab
+      roundRect(ctx, -64, -28, 128, 56, 12);
       outlined(ctx, '#f3e2c4', 3);
-      // flour dust
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      for (let i = 0; i < 9; i++) ctx.fillRect(-50 + ((i * 37) % 100), -18 + ((i * 23) % 36), 3, 3);
-      // dough blob stretches each knead, then puffs up with progress
-      const stretch = pulse > 0 ? 1 + Math.sin((1 - pulse) * Math.PI) * 0.45 : 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 14; i++) ctx.fillRect(-54 + ((i * 37) % 108), -20 + ((i * 23) % 40), 3, 3);
+      // dough squashes in rhythm (and stretches more on each counted knead)
+      const beat = busy ? Math.sin(t * 8) : 0;
+      const stretch = 1 + (pulse > 0 ? Math.sin((1 - pulse) * Math.PI) * 0.35 : 0) + beat * 0.12;
       const puff = 0.8 + act.progress * 0.5;
       ctx.beginPath();
-      ctx.ellipse(0, 2, 26 * stretch * puff, (18 / stretch) * puff, 0, 0, Math.PI * 2);
+      ctx.ellipse(-6, 4, 24 * stretch * puff, (16 / stretch) * puff, 0, 0, Math.PI * 2);
       outlined(ctx, act.progress > 0.95 ? '#d99a4e' : '#fbe7c0', 3);
+      ctx.beginPath();
+      ctx.arc(-12, -1, 5 * puff, Math.PI * 1.1, Math.PI * 1.7);
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      // rolling pin rolls back and forth over the dough
+      const px = busy ? Math.sin(t * 8) * 16 : 34;
+      ctx.save();
+      ctx.translate(px, busy ? -4 : -14);
+      ctx.rotate(Math.PI / 2 - 0.15);
+      roundRect(ctx, -22, -7, 44, 14, 7);
+      outlined(ctx, '#d9a066', 2.5);
+      for (const s of [-1, 1]) {
+        roundRect(ctx, s * 22 - (s > 0 ? 0 : 10), -4, 10, 8, 4);
+        outlined(ctx, '#8d5a2b', 2);
+      }
+      ctx.restore();
       break;
     }
     case 'mix': {
-      const shake = busy ? Math.sin(t * 40) * 3 * (pulse + 0.3) : 0;
+      const shake = busy ? Math.sin(t * 30) * 3 : 0;
+      ctx.save();
       ctx.translate(shake, 0);
+      // bowl with a shine and batter that ripples while whisking
       ctx.beginPath();
-      ctx.ellipse(0, 4, 44, 26, 0, 0, Math.PI);
-      ctx.lineTo(-44, 4);
+      ctx.ellipse(0, 4, 46, 28, 0, 0, Math.PI);
+      ctx.lineTo(-46, 4);
       outlined(ctx, '#8ec5ff', 3.5);
       ctx.beginPath();
-      ctx.ellipse(0, 4, 44, 12, 0, 0, Math.PI * 2);
-      const batter = act.progress > 0.5 ? '#ffe3a6' : '#fff4d6';
-      outlined(ctx, batter, 3);
-      // whisk
+      ctx.ellipse(-24, 16, 8, 4, 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(0, 4, 46, 13, 0, 0, Math.PI * 2);
+      outlined(ctx, '#cfe6ff', 3);
+      ctx.beginPath();
+      ctx.ellipse(0, 4, 39, 9, 0, 0, Math.PI * 2);
+      ctx.fillStyle = act.progress > 0.5 ? '#ffe3a6' : food;
+      ctx.fill();
+      if (busy) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.ellipse(0, 4, 10 + i * 9 + Math.sin(t * 12 + i) * 2, 2 + i * 2, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      // whisk: spins while mixing, rests against the rim otherwise
       ctx.save();
-      ctx.rotate(-0.4 + shake * 0.05);
+      ctx.translate(busy ? Math.sin(t * 20) * 8 : 22, busy ? -2 : -4);
+      ctx.rotate(busy ? -0.2 + Math.sin(t * 20) * 0.25 : 0.6);
       ctx.strokeStyle = '#c4ccd8';
       ctx.lineWidth = 2.5;
       for (const k of [-6, 0, 6]) {
         ctx.beginPath();
-        ctx.ellipse(k * 0.5, -18, 5 + Math.abs(k) * 0.6, 14, 0, 0, Math.PI * 2);
+        ctx.ellipse(k * 0.5, -16, 5 + Math.abs(k) * 0.6, 14, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
-      roundRect(ctx, -3, -50, 6, 22, 3);
+      roundRect(ctx, -3.5, -52, 7, 24, 3.5);
       outlined(ctx, '#ff8a3d', 2);
+      ctx.restore();
       ctx.restore();
       break;
     }
     case 'juice': {
-      // press
-      roundRect(ctx, -60, -30, 42, 60, 8);
-      outlined(ctx, '#ffd23f', 3);
-      const press = busy ? 6 + act.progress * 8 + Math.sin(t * 6) * 2 : 0;
-      roundRect(ctx, -56, -36 + press, 34, 12, 4);
-      outlined(ctx, '#8d6e4f', 2.5);
-      const ing = act.ingredient ? INGREDIENTS.get(act.ingredient)?.ingredient.icon : '🍊';
-      emoji(ctx, ing ?? '🍊', -39, 6, 22);
-      // glass fills with progress
+      // citrus press on the left, glass on the right
+      roundRect(ctx, -64, -28, 50, 58, 10);
+      outlined(ctx, '#fff1b8', 3);
+      ctx.beginPath();
+      ctx.ellipse(-39, -4, 18, 9, 0, 0, Math.PI * 2);
+      outlined(ctx, '#ffd23f', 2.5);
+      // ridged reamer
+      ctx.beginPath();
+      ctx.moveTo(-49, -4);
+      ctx.quadraticCurveTo(-39, -26, -29, -4);
+      outlined(ctx, '#ffe78a', 2);
+      const press = busy ? Math.abs(Math.sin(t * 6)) * 8 : 0;
+      emoji(ctx, ing?.icon ?? '🍊', -39, -14 + press, 22);
+      // spout + glass that fills with progress
+      roundRect(ctx, -16, 6, 14, 6, 3);
+      outlined(ctx, '#e0b52a', 2);
       ctx.save();
-      roundRect(ctx, 6, -26, 40, 56, 8);
+      roundRect(ctx, 8, -26, 42, 56, 8);
       ctx.clip();
-      ctx.fillStyle = 'rgba(255,255,255,0.65)';
-      ctx.fillRect(6, -26, 40, 56);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(8, -26, 42, 56);
       const fill = act.progress;
-      ctx.fillStyle = act.ingredient === 'water' ? '#7fd0ff' : act.ingredient === 'puree' ? '#ff5d7a' : '#ffb02e';
-      ctx.fillRect(6, 30 - 56 * fill, 40, 56 * fill);
+      const wave = busy ? Math.sin(t * 10) * 2 : 0;
+      ctx.fillStyle = food;
+      ctx.beginPath();
+      ctx.moveTo(8, 30);
+      ctx.lineTo(8, 30 - 56 * fill + wave);
+      ctx.lineTo(50, 30 - 56 * fill - wave);
+      ctx.lineTo(50, 30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillRect(14, -20, 5, 44);
       ctx.restore();
-      roundRect(ctx, 6, -26, 40, 56, 8);
+      roundRect(ctx, 8, -26, 42, 56, 8);
       ctx.lineWidth = 3;
       ctx.strokeStyle = INK;
       ctx.stroke();
       if (busy && act.progress < 1) {
-        ctx.strokeStyle = '#ffb02e';
+        ctx.strokeStyle = food;
         ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(-18, 0);
-        ctx.quadraticCurveTo(0, -10, 20, -18 + Math.sin(t * 14) * 2);
+        ctx.moveTo(-4, 10);
+        ctx.quadraticCurveTo(14, 4 + Math.sin(t * 14) * 2, 26, 26 - 56 * act.progress);
         ctx.stroke();
       }
       break;
@@ -435,15 +598,32 @@ export interface ChefView extends ChefSnap {
   crown?: boolean;
 }
 
-/** Eyes, mouth and the chosen face cosmetic. (cx, cy) is the centre between the eyes. */
+/**
+ * Eyes, mouth and the chosen face cosmetic. (cx, cy) is the centre between the eyes.
+ * Rows, top to bottom: eyes (cy), moustache (cy+7), mouth (just under the moustache), beard (wraps the chin).
+ */
 function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy: number, fx: number, fy: number, busy: boolean) {
+  const HAIR = '#5a3a26';
+  const stache = face === 'stache' || face === 'beard' || face === 'handlebar';
+  const mouthY = stache ? cy + 10 : cy + 6;
+
   if (face === 'beard') {
+    // big bushy beard around the chin, leaving the mouth uncovered
     ctx.beginPath();
-    ctx.moveTo(cx - 13, cy + 3);
-    ctx.quadraticCurveTo(cx - 12, cy + 20, cx, cy + 21);
-    ctx.quadraticCurveTo(cx + 12, cy + 20, cx + 13, cy + 3);
-    ctx.quadraticCurveTo(cx, cy + 9, cx - 13, cy + 3);
+    ctx.moveTo(cx - 14, cy + 2);
+    ctx.quadraticCurveTo(cx - 15, cy + 24, cx, cy + 25);
+    ctx.quadraticCurveTo(cx + 15, cy + 24, cx + 14, cy + 2);
+    ctx.quadraticCurveTo(cx + 9, cy + 16, cx, cy + 16);
+    ctx.quadraticCurveTo(cx - 9, cy + 16, cx - 14, cy + 2);
     outlined(ctx, '#6b4428', 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1.5;
+    for (const s of [-1, 0, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 6, cy + 18);
+      ctx.lineTo(cx + s * 7, cy + 22);
+      ctx.stroke();
+    }
   }
   if (face === 'blush') {
     ctx.fillStyle = 'rgba(255,110,140,0.65)';
@@ -453,6 +633,8 @@ function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy:
       ctx.fill();
     }
   }
+
+  // eyes
   if (face === 'shades') {
     for (const s of [-1, 1]) {
       roundRect(ctx, cx + s * 7 - 6.5, cy - 4.5, 13, 9, 4);
@@ -475,6 +657,17 @@ function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy:
       ctx.arc(cx + s * 7 + fx * 2, cy + fy * 2, 2.4, 0, Math.PI * 2);
       ctx.fillStyle = INK;
       ctx.fill();
+      if (face === 'blush') {
+        // lashes
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 1.5;
+        for (const k of [-1, 0, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(cx + s * 7 + k * 3, cy - 4.5);
+          ctx.lineTo(cx + s * 7 + k * 4.5, cy - 7.5);
+          ctx.stroke();
+        }
+      }
     }
   }
   if (face === 'glasses') {
@@ -490,42 +683,82 @@ function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy:
     ctx.lineTo(cx + 1, cy - 1);
     ctx.stroke();
   }
+
   // mouth: concentrating "o" while working, smile otherwise
   ctx.beginPath();
-  if (busy) ctx.ellipse(cx, cy + 10, 4, 3.5, 0, 0, Math.PI * 2);
-  else ctx.arc(cx, cy + 6, 5, 0.15 * Math.PI, 0.85 * Math.PI);
+  if (busy) ctx.ellipse(cx, mouthY + 2, 3.5, 3, 0, 0, Math.PI * 2);
+  else ctx.arc(cx, mouthY - 1, 4.5, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.lineWidth = 2.5;
-  ctx.strokeStyle = face === 'beard' ? '#fff' : INK;
+  ctx.strokeStyle = INK;
   if (busy) {
     ctx.fillStyle = INK;
     ctx.fill();
   } else ctx.stroke();
+
+  // moustache sits between the eyes and the mouth
   if (face === 'stache' || face === 'beard') {
+    ctx.fillStyle = HAIR;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + s * 4.5, cy + 7, 5, 2.6, s * -0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (face === 'handlebar') {
+    ctx.strokeStyle = HAIR;
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 6);
+      ctx.quadraticCurveTo(cx + s * 7, cy + 10, cx + s * 12, cy + 6);
+      ctx.stroke();
+      // curled tip
+      ctx.beginPath();
+      ctx.arc(cx + s * 11.5, cy + 3.5, 2.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.beginPath();
-    ctx.ellipse(cx - 4, cy + 4, 4, 2, 0.3, 0, Math.PI * 2);
-    ctx.ellipse(cx + 4, cy + 4, 4, 2, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = '#5a3a26';
+    ctx.ellipse(cx, cy + 6.5, 3.5, 2.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = HAIR;
     ctx.fill();
   }
 }
 
-/** Small jug for the POUR animation. `tip` 0..1 shows a stream when tipped far enough. */
-function drawJug(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number, tip: number) {
+/**
+ * Small jug for the POUR animation. `dir` is the side it pours toward (handle on the other side);
+ * `tip` 0..1 shows a stream when tipped far enough.
+ */
+function drawJug(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number, tip: number, dir: number) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(rot);
+  // handle
+  ctx.beginPath();
+  ctx.arc(-dir * 9, 0, 5, Math.PI / 2, -Math.PI / 2, dir > 0);
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#ffd23f';
+  ctx.stroke();
+  // body + juice + spout
   roundRect(ctx, -8, -10, 16, 20, 4);
   outlined(ctx, '#ffd23f', 2.5);
   ctx.fillStyle = '#ffb02e';
   ctx.fillRect(-6, -2, 12, 10);
+  ctx.beginPath();
+  ctx.moveTo(dir * 6, -10);
+  ctx.lineTo(dir * 12, -12);
+  ctx.lineTo(dir * 7, -5);
+  ctx.closePath();
+  outlined(ctx, '#ffd23f', 2);
   if (tip > 0.6) {
     ctx.strokeStyle = '#ffb02e';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    const side = rot > 0 ? 1 : -1;
-    ctx.moveTo(side * 8, -10);
-    ctx.quadraticCurveTo(side * 14, -4, side * 12, 8);
+    ctx.moveTo(dir * 12, -12);
+    ctx.quadraticCurveTo(dir * 18, -4, dir * 15, 8);
     ctx.stroke();
   }
   ctx.restore();
@@ -609,11 +842,17 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   // arms: animated by station gesture
   const since = work ? work.sinceRep : 9999;
   const hit = Math.max(0, 1 - since / 260);
-  // POUR: both hands tip a little jug out to the side (never over the face)
+  // POUR: a jug held out to the side (never over the face), tipping outward.
+  // One hand holds the handle (body side), the other supports the base; the jug is drawn on top.
   const tip = (Math.sin(t * 2.4) + 1) / 2;
-  const jugX = Math.abs(fx) < 0.3 ? 17 : fx * 18;
-  const jugY = bodyY + 4 - tip * 8;
-  if (work?.station === 'juice') drawJug(ctx, jugX, jugY, Math.sign(jugX) * tip * 1.1, tip);
+  const jugX = Math.abs(fx) < 0.3 ? 19 : fx * 20;
+  const jugY = bodyY + 6 - tip * 8;
+  const jugDir = Math.sign(jugX) || 1;
+  const jugRot = jugDir * tip * 1.1;
+  const onJug = (lx: number, ly: number): [number, number] => [
+    jugX + lx * Math.cos(jugRot) - ly * Math.sin(jugRot),
+    jugY + lx * Math.sin(jugRot) + ly * Math.cos(jugRot),
+  ];
   for (const s of [-1, 1]) {
     const shX = s * R * 0.9;
     const shY = bodyY - 2;
@@ -643,8 +882,8 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
           hy = shY + 8;
           break;
         case 'juice':
-          hx = jugX + s * 8;
-          hy = jugY + (s * Math.sign(jugX) > 0 ? -4 : 4);
+          // body-side hand on the handle, outer hand under the base
+          [hx, hy] = s === jugDir ? onJug(jugDir * 3, 12) : onJug(-jugDir * 14, 0);
           break;
       }
     }
@@ -662,6 +901,7 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     ctx.arc(hx, hy, 5, 0, Math.PI * 2);
     outlined(ctx, '#ffe0c7', 2.5);
   }
+  if (work?.station === 'juice') drawJug(ctx, jugX, jugY, jugRot, tip, jugDir);
 
   // chef hat (toque): outline every piece first, then fill them all, so the
   // puffs read as one clean shape instead of overlapping circles

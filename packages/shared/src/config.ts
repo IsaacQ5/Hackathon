@@ -16,7 +16,7 @@ export const GAME_CONFIG = {
   maxSpeed: 260,
   playerRadius: 22,
 
-  /** Round timing: Sizzle Scramble rounds are 3 minutes. */
+  /** Round timing: shifts default to 3 minutes (the head chef can pick ROUND_MINUTE_OPTIONS). */
   countdownMs: 3000,
   roundDurationMs: 180_000,
 
@@ -39,7 +39,10 @@ export type GameConfig = { -readonly [K in keyof typeof GAME_CONFIG]: number };
 export const ROOM_CODE_LENGTH = 4;
 /** No I or O, to avoid confusion with 1 and 0. */
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-export const NICKNAME_MAX_LENGTH = 16;
+export const NICKNAME_MAX_LENGTH = 15;
+
+/** Shift lengths the head chef can pick in the lobby (minutes). */
+export const ROUND_MINUTE_OPTIONS = [2, 3, 5, 7, 10] as const;
 
 /** Movement updates per second the phone sends while playing. */
 export const INPUT_SEND_HZ = 30;

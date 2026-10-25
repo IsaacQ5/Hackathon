@@ -15,6 +15,7 @@ import {
 } from '@tilt-mayhem/shared';
 import { ChefPortrait } from '../components/ChefPortrait';
 import { CustomizeCard } from '../components/CustomizeCard';
+import { HeadChefCard } from '../components/HeadChefCard';
 import { JoinForm } from '../components/JoinForm';
 import { RecipeBar } from '../components/RecipeBar';
 import { StationPanel } from '../components/StationPanel';
@@ -80,6 +81,8 @@ export function ControllerPage({ code }: { code: string }) {
   const me = room?.players.find((p) => p.id === session?.playerId) ?? null;
   const color = me?.color ?? session?.color ?? '#ffffff';
   const face: ChefFace = me?.face ?? 'stache';
+  const isCaptain = !!room && !!session && room.captainId === session.playerId;
+  const captainName = room?.players.find((p) => p.id === room.captainId)?.nickname ?? null;
   const tiltReady = tilt.status === 'active';
   const tiltBroken = ['denied', 'no-data', 'unsupported', 'insecure'].includes(tilt.status);
   // Tilt to walk; the joystick only appears when this phone can't do motion.
@@ -386,8 +389,13 @@ export function ControllerPage({ code }: { code: string }) {
         <section className="kbanner">
           <ChefPortrait color={color} face={face} size={110} />
           <h2>{phase === 'lobby' ? 'You’re on the line!' : 'Another shift?'}</h2>
-          <p>Waiting for the host to start…</p>
+          <p>
+            {isCaptain
+              ? 'You’re the head chef: you start the shift!'
+              : `Waiting for ${captainName ?? 'the head chef'} to start…`}
+          </p>
         </section>
+        {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
         <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} />
         {motionSetup}
         <section className="kcard khowto-card">

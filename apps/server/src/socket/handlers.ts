@@ -157,6 +157,18 @@ export function registerSocketHandlers(io: IOServer, rooms: RoomManager): void {
       // 'stale' and 'phase' are expected occasionally and ignored.
     });
 
+    socket.on('room:settings', (payload, rawAck) => {
+      const ack = safeAck<object>(rawAck);
+      if (limited(ack)) return;
+      if (!isPlainObject(payload)) return ack(err('INVALID_INPUT', 'Bad request.'));
+      const found = rooms.bySocket(socket.id);
+      if (!found) return ack(err('ROOM_NOT_FOUND', 'You are not in a room.'));
+      const res = rooms.setRoundLength(found.room, socket.id, payload.roundMinutes);
+      if (!res.ok) return ack(res);
+      ack({ ok: true });
+      emitRoomState(io, rooms, found.room);
+    });
+
     socket.on('player:customize', (payload, rawAck) => {
       const ack = safeAck<{ color: string; face: ChefFace }>(rawAck);
       if (limited(ack)) return;

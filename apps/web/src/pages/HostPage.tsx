@@ -48,8 +48,6 @@ export function HostPage({ code }: { code: string }) {
   const [results, setResults] = useState<GameEndedPayload | null>(null);
   const [match, setMatch] = useState<MatchResults | null>(null);
   const [showTable, setShowTable] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<ServerError | null>(null);
   const buffer = useMemo(() => new KitchenBuffer(), []);
   const claimingRef = useRef(false);
   const joinUrl = joinUrlFor(code);
@@ -87,7 +85,6 @@ export function HostPage({ code }: { code: string }) {
     const onStarted = () => {
       setResults(null);
       setMatch(null);
-      setActionError(null);
       buffer.reset();
     };
     const onEnded = (p: GameEndedPayload) => setResults(p);
@@ -122,14 +119,13 @@ export function HostPage({ code }: { code: string }) {
     };
   }, [buffer, claim, code]);
 
-  const start = async (kind: 'start' | 'rematch') => {
-    sfx.unlock();
-    setBusy(true);
-    setActionError(null);
-    const res = kind === 'start' ? await api.startGame() : await api.rematch();
-    setBusy(false);
-    if (!res.ok) setActionError(res.error);
-  };
+  // The head chef starts shifts from their phone, so the TV may never be clicked.
+  // Browsers only allow sound after a click: any click on this page unlocks it.
+  useEffect(() => {
+    const unlock = () => sfx.unlock();
+    window.addEventListener('pointerdown', unlock);
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, []);
 
   if (status === 'lost') {
     return (
@@ -146,7 +142,6 @@ export function HostPage({ code }: { code: string }) {
   }
 
   const phase = room?.phase ?? 'lobby';
-  const connectedPlayers = room?.players.filter((p) => p.connected).length ?? 0;
   const showKitchen = phase === 'countdown' || phase === 'playing' || (phase === 'results' && !showTable && match);
 
   return (
@@ -168,16 +163,9 @@ export function HostPage({ code }: { code: string }) {
         ) : showKitchen ? (
           <KitchenArena buffer={buffer} />
         ) : phase === 'lobby' ? (
-          <KitchenLobby room={room} joinUrl={joinUrl} onStart={() => void start('start')} starting={busy} error={actionError} />
+          <KitchenLobby room={room} joinUrl={joinUrl} />
         ) : (
-          <KitchenResults
-            results={match ?? resultsFrom(room, results)}
-            code={code}
-            onRematch={() => void start('rematch')}
-            busy={busy}
-            canRematch={connectedPlayers >= room.minPlayers}
-            error={actionError}
-          />
+          <KitchenResults results={match ?? resultsFrom(room, results)} room={room} code={code} />
         )}
       </main>
     </div>

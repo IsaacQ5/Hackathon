@@ -94,14 +94,24 @@ describe('RoomManager', () => {
     assert.ok(back.ok && back.value.resumed);
   });
 
-  it('only the host can start, and needs enough connected players', () => {
+  it('only the head chef (first phone) or host can start, and needs enough connected players', () => {
     const { rm, room } = setup();
-    mustJoin(rm, room.code, 'A', 's1');
-    const notHost = rm.startGame(room, 's1', 'start');
-    assert.ok(!notHost.ok && notHost.error.code === 'NOT_HOST');
-    const tooFew = rm.startGame(room, 'host-sock', 'start');
+    const a = mustJoin(rm, room.code, 'A', 's1');
+    assert.equal(rm.roomState(room).captainId, a.player.id);
+    const tooFew = rm.startGame(room, 's1', 'start');
     assert.ok(!tooFew.ok && tooFew.error.code === 'NOT_ENOUGH_PLAYERS');
-    mustJoin(rm, room.code, 'B', 's2');
+    const b = mustJoin(rm, room.code, 'B', 's2');
+    const notHost = rm.startGame(room, 's2', 'start');
+    assert.ok(!notHost.ok && notHost.error.code === 'NOT_HOST');
+    assert.ok(!rm.setRoundLength(room, 's2', 5).ok, 'only the head chef sets the length');
+    assert.ok(!rm.setRoundLength(room, 's1', 4).ok, 'only listed lengths');
+    assert.ok(rm.setRoundLength(room, 's1', 5).ok);
+    assert.equal(rm.roomState(room).roundDurationMs, 300_000);
+    // Head chef leaves: the next phone takes over.
+    rm.disconnect('s1');
+    assert.equal(rm.roomState(room).captainId, b.player.id);
+    mustJoin(rm, room.code, 'A', 's3', a.player.token);
+    assert.equal(rm.roomState(room).captainId, a.player.id, 'first joiner gets it back on reconnect');
     const rematchFromLobby = rm.startGame(room, 'host-sock', 'rematch');
     assert.ok(!rematchFromLobby.ok && rematchFromLobby.error.code === 'INVALID_PHASE');
     assert.ok(rm.startGame(room, 'host-sock', 'start').ok);

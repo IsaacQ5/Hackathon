@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { STATIONS, type RoomState, type ServerError } from '@tilt-mayhem/shared';
+import { STATIONS, type RoomState } from '@tilt-mayhem/shared';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
 
 interface Props {
   room: RoomState;
   joinUrl: string;
-  onStart: () => void;
-  starting: boolean;
-  error: ServerError | null;
 }
 
-export function KitchenLobby({ room, joinUrl, onStart, starting, error }: Props) {
+export function KitchenLobby({ room, joinUrl }: Props) {
   const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,6 +26,8 @@ export function KitchenLobby({ room, joinUrl, onStart, starting, error }: Props)
   const need = Math.max(0, room.minPlayers - connected);
   const isLocal = /\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(joinUrl);
   const slots = Array.from({ length: room.maxPlayers }, (_, i) => room.players[i] ?? null);
+  const captain = room.players.find((p) => p.id === room.captainId);
+  const minutes = Math.round(room.roundDurationMs / 60_000);
 
   return (
     <div className="klobby">
@@ -58,6 +57,7 @@ export function KitchenLobby({ room, joinUrl, onStart, starting, error }: Props)
               <li key={p.id} className="kslot kslot--on" style={colorVar(p.color)}>
                 <ChefPortrait color={p.color} face={p.face} size={78} dim={!p.connected} />
                 <span className="kslot__name">{p.nickname}</span>
+                {p.id === room.captainId && <span className="kslot__boss">HEAD CHEF</span>}
                 {!p.connected && <span className="kslot__away">away</span>}
               </li>
             ) : (
@@ -82,14 +82,16 @@ export function KitchenLobby({ room, joinUrl, onStart, starting, error }: Props)
           <li>Every chef gets a recipe with 4 ingredients from 4 stations.</li>
           <li>Tilt to walk to a station. When your phone buzzes, tap the button.</li>
           <li>Do the motion: chop, flip, stir, knead, mix or pour!</li>
-          <li>Bring all 4 to the SERVE table in the middle and hit SERVE. Most points in 3:00 wins.</li>
+          <li>Bring all 4 to the SERVE table in the middle and hit SERVE. Most points in {minutes}:00 wins.</li>
           <li>The last 30 seconds are RUSH HOUR: double points!</li>
         </ol>
 
-        <button className="kbtn kbtn--go" onClick={onStart} disabled={need > 0 || starting}>
-          {starting ? 'Starting…' : need > 0 ? `Need ${need} more chef${need === 1 ? '' : 's'}` : 'OPEN THE KITCHEN!'}
-        </button>
-        {error && <p className="error">{error.message}</p>}
+        <p className="klobby__start">
+          {need > 0
+            ? `Need ${need} more chef${need === 1 ? '' : 's'}`
+            : `📱 ${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`}
+          <span className="kpill">{minutes} min shift</span>
+        </p>
       </section>
     </div>
   );

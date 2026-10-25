@@ -151,6 +151,11 @@ export class GameEngine {
     this.layout();
   }
 
+  /** Length of the next round (takes effect at the next countdown). */
+  setRoundDuration(ms: number): void {
+    if (this._phase === 'lobby' || this._phase === 'results') this.config.roundDurationMs = ms;
+  }
+
   get playStartsAt(): number {
     return this.countdownEndsAt;
   }

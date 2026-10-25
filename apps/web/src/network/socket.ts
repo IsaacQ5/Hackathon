@@ -47,6 +47,7 @@ export const api = {
   joinRoom: (payload: JoinRoomPayload) => request<PlayerSession>('room:join', payload),
   startGame: () => request<object>('game:start', {}),
   rematch: () => request<object>('game:rematch', {}),
+  setRoundMinutes: (roundMinutes: number) => request<object>('room:settings', { roundMinutes }),
   customize: (look: CustomizePayload) => request<{ color: string; face: ChefFace }>('player:customize', look),
   recenter: () => socket.emit('player:recenter', {}),
   ping: () => request<{ serverTime: number }>('net:ping', {}),

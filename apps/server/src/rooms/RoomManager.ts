@@ -4,6 +4,7 @@ import {
   PLAYER_COLORS,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
+  ROUND_MINUTE_OPTIONS,
   isChefFace,
   type ChefFace,
   type GameConfig,
@@ -286,8 +287,34 @@ export class RoomManager {
     return n;
   }
 
+  /** The head chef: the first phone that joined and is still connected (next in line if they leave). */
+  captainId(room: Room): string | null {
+    for (const p of room.players.values()) if (p.socketId) return p.id;
+    return null;
+  }
+
+  /** The head chef's phone (or the host screen) runs the lobby. */
+  canControl(room: Room, socketId: string): boolean {
+    if (this.isHost(room, socketId)) return true;
+    const b = this.sockets.get(socketId);
+    return !!b && b.code === room.code && b.role === 'player' && b.playerId === this.captainId(room);
+  }
+
+  /** Set the next shift's length (whole minutes from ROUND_MINUTE_OPTIONS). */
+  setRoundLength(room: Room, socketId: string, rawMinutes: unknown): Result<void> {
+    if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef can change the shift length.');
+    const phase = room.engine.phase;
+    if (phase !== 'lobby' && phase !== 'results') return fail('INVALID_PHASE', 'Change the shift length between rounds.');
+    if (typeof rawMinutes !== 'number' || !(ROUND_MINUTE_OPTIONS as readonly number[]).includes(rawMinutes)) {
+      return fail('INVALID_INPUT', 'Pick one of the listed shift lengths.');
+    }
+    room.engine.setRoundDuration(rawMinutes * 60_000);
+    room.lastActivityAt = this.now();
+    return { ok: true, value: undefined };
+  }
+
   startGame(room: Room, socketId: string, kind: 'start' | 'rematch'): Result<void> {
-    if (!this.isHost(room, socketId)) return fail('NOT_HOST', 'Only the host screen can start the game.');
+    if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef can start the game.');
     const phase = room.engine.phase;
     const allowed = kind === 'start' ? phase === 'lobby' || phase === 'results' : phase === 'results';
     if (!allowed) return fail('INVALID_PHASE', `Cannot ${kind} while the game is in "${phase}".`);
@@ -369,6 +396,8 @@ export class RoomManager {
       minPlayers: this.gameConfig.minPlayers,
       maxPlayers: this.gameConfig.maxPlayers,
       players: room.engine.publicPlayers(),
+      captainId: this.captainId(room),
+      roundDurationMs: room.engine.config.roundDurationMs,
     };
   }
 

@@ -131,6 +131,10 @@ export interface RoomState {
   minPlayers: number;
   maxPlayers: number;
   players: PublicPlayer[];
+  /** The "head chef": first phone to join (next one if they leave). Starts shifts from their phone. */
+  captainId: string | null;
+  /** Length of the next shift. */
+  roundDurationMs: number;
 }
 
 export type ErrorCode =

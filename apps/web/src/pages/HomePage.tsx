@@ -74,7 +74,7 @@ export function HomePage() {
             <ChefPortrait key={c} color={c} size={78} station={(['chop', 'fry', 'stir', 'juice', 'mix'] as const)[i]} />
           ))}
         </div>
-        <p className="tagline">Chop, flip, stir, knead, mix and pour with your phone. Most dishes in 3 minutes wins!</p>
+        <p className="tagline">Chop, flip, stir, knead, mix and pour with your phone. Most dishes before the timer runs out wins!</p>
       </header>
       <main className="home__cards">
         {isPhone ? (

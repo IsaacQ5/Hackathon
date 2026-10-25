@@ -265,7 +265,7 @@ class AlternationTracker {
 // ------------------------------------------------------------------ 4. KNEAD: forward/back strokes
 
 export class KneadDetector implements GestureDetector {
-  private tr = new AlternationTracker(1.8, 30, 0.8);
+  private tr = new AlternationTracker(2.4, 30, 0.7);
   private push_ = true;
   private e = 0;
   private msg = 'Push... and pull...';
@@ -275,7 +275,7 @@ export class KneadDetector implements GestureDetector {
     this.e = Math.max(this.e * 0.93, Math.min(1, Math.abs(hy) / 4));
     const r = this.tr.push(s.t, hy, hx);
     if (r.kind !== 'stroke') return null;
-    if (r.dt < 110) {
+    if (r.dt < 150) {
       // Frantic shaking does not knead dough.
       this.msg = 'Slow down! Bigger pushes.';
       return null;
@@ -339,7 +339,7 @@ export class MixDetector implements GestureDetector {
 
 export type PourStage = 'setup' | 'ready' | 'pouring' | 'release' | 'spilled';
 
-export const POUR = { tiltDeg: 35, backDeg: 20, holdMs: 1500, releaseWindowMs: 1300, sidewaysMs: 250 } as const;
+export const POUR = { tiltDeg: 22, backDeg: 10, holdMs: 1500, releaseWindowMs: 1300, sidewaysMs: 250 } as const;
 
 export class PourDetector implements GestureDetector {
   private base: V3 | null = null;
@@ -360,8 +360,8 @@ export class PourDetector implements GestureDetector {
     this.lastT = s.t;
 
     if (this.stage === 'setup' || !this.base) {
-      // First the phone must be held sideways (on its long edge, like the knife at CHOP):
-      // gravity runs along the phone's short x axis.
+      // Start facing the player, then turn the phone sideways (landscape, like the knife
+      // at CHOP): gravity runs along the phone's short x axis.
       this.tilt = 0;
       if (Math.abs(g[0]) > 0.8) {
         if (!this.sideSince) this.sideSince = s.t;
@@ -372,12 +372,15 @@ export class PourDetector implements GestureDetector {
       } else this.sideSince = 0;
       return null;
     }
-    this.tilt = (Math.acos(Math.max(-1, Math.min(1, dot(g, this.base)))) * 180) / Math.PI;
+    // Only a FORWARD tip counts (the top edge leaning away, so gravity moves onto the
+    // screen axis). Turning back toward upright, in the screen's own plane, doesn't pour.
+    const lean = (v: V3) => (Math.asin(Math.min(1, Math.abs(v[2]))) * 180) / Math.PI;
+    this.tilt = Math.max(0, lean(g) - lean(this.base));
 
     switch (this.stage) {
       case 'ready':
-        // Slowly re-centre while level, so drift doesn't matter.
-        if (this.tilt < 10) this.base = norm([...scale(this.base, 0.97).map((x, i) => x + g[i]! * 0.03)] as V3);
+        // Slowly re-centre while held sideways, so drift doesn't matter.
+        if (this.tilt < 6 && Math.abs(g[0]) > 0.7) this.base = norm([...scale(this.base, 0.97).map((x, i) => x + g[i]! * 0.03)] as V3);
         if (this.tilt > POUR.tiltDeg) {
           this.stage = 'pouring';
           this.held = 0;
@@ -422,15 +425,15 @@ export class PourDetector implements GestureDetector {
   prompt() {
     switch (this.stage) {
       case 'setup':
-        return 'Hold your phone SIDEWAYS, like a knife…';
+        return 'Face the phone at you, then turn it SIDEWAYS…';
       case 'ready':
-        return 'Now TIP it forward to pour…';
+        return 'Now tip the top slightly FORWARD…';
       case 'pouring':
         return 'HOLD it steady…';
       case 'release':
-        return 'RELEASE! Level the phone!';
+        return 'RELEASE! Tip it back sideways!';
       case 'spilled':
-        return 'Spilled! Level the phone to try again.';
+        return 'Spilled! Tip it back sideways to try again.';
     }
   }
   reset() {

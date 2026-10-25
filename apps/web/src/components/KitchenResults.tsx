@@ -1,20 +1,19 @@
-import { stationById, type MatchResults, type ServerError } from '@tilt-mayhem/shared';
+import { stationById, type MatchResults, type RoomState } from '@tilt-mayhem/shared';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
 import { awardsFor, fmtSecs, ordinal } from '../game/kawards';
 
 interface Props {
   results: MatchResults;
+  room: RoomState;
   code: string;
-  onRematch: () => void;
-  busy: boolean;
-  canRematch: boolean;
-  error: ServerError | null;
 }
 
 const MEDAL = ['🥇', '🥈', '🥉'];
 
-export function KitchenResults({ results, code, onRematch, busy, canRematch, error }: Props) {
+export function KitchenResults({ results, room, code }: Props) {
+  const captain = room.players.find((p) => p.id === room.captainId);
+  const need = Math.max(0, room.minPlayers - room.players.filter((p) => p.connected).length);
   const winners = results.results.filter((r) => results.winnerIds.includes(r.id));
   const awards = awardsFor(results.results);
   const dishes = results.results.reduce((n, r) => n + r.served, 0);
@@ -78,13 +77,12 @@ export function KitchenResults({ results, code, onRematch, busy, canRematch, err
       </table>
 
       <div className="kresults__next">
-        <button className="kbtn kbtn--go" onClick={onRematch} disabled={busy || !canRematch}>
-          {busy ? 'Starting…' : canRematch ? 'ANOTHER SHIFT!' : 'Need more chefs'}
-        </button>
+        <p className="klobby__start">
+          {need > 0 ? 'Need more chefs for another shift' : `📱 ${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`}
+        </p>
         <p className="klobby__hint">
           New chefs can join now with code <b>{code}</b>.
         </p>
-        {error && <p className="error">{error.message}</p>}
       </div>
     </div>
   );

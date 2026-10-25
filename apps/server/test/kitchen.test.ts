@@ -91,7 +91,8 @@ describe('Gesture detectors', () => {
   it('KNEAD counts every forward/back stroke, not frantic shaking or circles', () => {
     const knead = run('knead', 6000, (t) => ({ ay: wave(t, 800, 5) }));
     assert.ok(knead.good >= 12, `kneads ${knead.good}`);
-    const gentle = run('knead', 4000, (t) => ({ ay: wave(t, 700, 2.5) }));
+    const gentle = run('knead', 4000, (t) => ({ ay: wave(t, 700, 3.5) }));
+    assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 700, 1.8) })).good, 0, 'barely moving');
     assert.ok(gentle.good >= 8, `gentle kneads ${gentle.good}`);
     assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 120, 8) })).good, 0, 'frantic');
     const circle = run('knead', 4000, (t) => ({ ax: 5 * Math.cos((2 * Math.PI * t) / 900), ay: 5 * Math.sin((2 * Math.PI * t) / 900) }));
@@ -106,9 +107,12 @@ describe('Gesture detectors', () => {
     assert.equal(run('mix', 3000, (t) => ({ ax: wave(t, 400, 35) })).good, 0, 'too violent');
   });
 
-  it('POUR: hold sideways, tip forward, hold steady, release on cue; holding too long spills', () => {
-    // Sideways = on its long edge (gravity along the phone's x axis), then tip forward.
-    const tilt = (deg: number) => ({ gx: G * Math.cos((deg * Math.PI) / 180), gy: G * Math.sin((deg * Math.PI) / 180), gz: 0 });
+  it('POUR: turn sideways, tip forward, hold steady, release on cue; holding too long spills', () => {
+    // Sideways = landscape (gravity along the phone's x axis), then tip the top forward (onto z).
+    const tilt = (deg: number) => ({ gx: G * Math.cos((deg * Math.PI) / 180), gy: 0, gz: G * Math.sin((deg * Math.PI) / 180) });
+    const upright = (deg: number) => ({ gx: G * Math.cos((deg * Math.PI) / 180), gy: G * Math.sin((deg * Math.PI) / 180), gz: 0 });
+    assert.deepEqual(run('juice', 3000, (t) => upright(t > 400 && t < 2100 ? 60 : 0)), { good: 0, bad: 0 }, 'turning back upright is not a pour');
+    assert.deepEqual(run('juice', 3000, (t) => tilt(t > 400 && t < 2100 ? 28 : 0)), { good: 1, bad: 0 }, 'a slight forward tip pours');
     const flat = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
     assert.deepEqual(run('juice', 3000, (t) => flat(t > 400 && t < 2100 ? 50 : 0)), { good: 0, bad: 0 }, 'must start sideways');
     const good = run('juice', 3000, (t) => tilt(t > 400 && t < 2100 ? 50 : 0));

@@ -86,8 +86,8 @@ describe('socket flow', () => {
     );
     assert.equal(bad.ok, false);
 
-    // Players can't start the game.
-    const notHost = await new Promise<{ ok: boolean }>((r) => p1.s.emit('game:start', {}, r));
+    // Only the head chef (first phone) can start, not other players.
+    const notHost = await new Promise<{ ok: boolean }>((r) => p2.s.emit('game:start', {}, r));
     assert.equal(notHost.ok, false);
 
     const state = await waitFor<RoomState>(host, 'room:state', (s) => s.players.length === 2, 2000).catch(() => null);

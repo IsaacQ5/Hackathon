@@ -90,6 +90,8 @@ export interface ClientToServerEvents {
   'game:rematch': (payload: EmptyPayload, ack: Ack<object>) => void;
   /** High-frequency; sent with volatile delivery. */
   'player:input': (payload: PlayerInput) => void;
+  /** Head chef (or host screen), between shifts: set the next shift's length. */
+  'room:settings': (payload: { roundMinutes: number }, ack: Ack<object>) => void;
   /** Lobby/results only: pick a free colour and a face cosmetic. */
   'player:customize': (payload: CustomizePayload, ack: Ack<{ color: string; face: ChefFace }>) => void;
   /** Informational: the phone recalibrated locally. */
