@@ -6,6 +6,7 @@ import {
   SCORING,
   recipeById,
   stationById,
+  type ChefFace,
   type ChefResult,
   type ChefSnap,
   type GameConfig,
@@ -75,10 +76,18 @@ export class GameEngine {
     return this.chefs.has(id);
   }
 
-  addPlayer(id: string, nickname: string, color: string): void {
+  addPlayer(id: string, nickname: string, color: string, face: ChefFace = 'stache'): void {
     if (this.chefs.has(id)) return;
-    this.chefs.set(id, this.blankChef(id, nickname, color));
+    this.chefs.set(id, this.blankChef(id, nickname, color, face));
     this.layout();
+  }
+
+  /** Lobby customisation: new colour and/or face. */
+  setLook(id: string, color: string, face: ChefFace): void {
+    const c = this.chefs.get(id);
+    if (!c) return;
+    c.color = color;
+    c.face = face;
   }
 
   removePlayer(id: string): void {
@@ -128,7 +137,7 @@ export class GameEngine {
     this.lastResults = null;
     this.pendingEvents = [];
     for (const old of [...this.chefs.values()]) {
-      const c = this.blankChef(old.id, old.nickname, old.color);
+      const c = this.blankChef(old.id, old.nickname, old.color, old.face);
       c.connected = old.connected;
       this.chefs.set(c.id, c);
     }
@@ -385,11 +394,12 @@ export class GameEngine {
     });
   }
 
-  private blankChef(id: string, nickname: string, color: string): Chef {
+  private blankChef(id: string, nickname: string, color: string, face: ChefFace): Chef {
     const c: Chef = {
       id,
       nickname,
       color,
+      face,
       x: KITCHEN.pass.x,
       y: KITCHEN.pass.y + 150,
       vx: 0,
@@ -429,6 +439,7 @@ export class GameEngine {
         id: c.id,
         nickname: c.nickname,
         color: c.color,
+        face: c.face,
         placement,
         score: c.score,
         served: c.served,
@@ -454,6 +465,7 @@ export class GameEngine {
       id: c.id,
       nickname: c.nickname,
       color: c.color,
+      face: c.face,
       x: round1(c.x),
       y: round1(c.y),
       score: c.score,
@@ -514,6 +526,7 @@ export class GameEngine {
       id: c.id,
       nickname: c.nickname,
       color: c.color,
+      face: c.face,
       x: round1(c.x),
       y: round1(c.y),
       vx: Math.round(c.vx),

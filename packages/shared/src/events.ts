@@ -10,6 +10,7 @@ import type {
   RoomState,
   ServerError,
 } from './types.js';
+import type { ChefFace } from './kitchen.js';
 
 export type EmptyPayload = Record<string, never>;
 
@@ -53,6 +54,12 @@ export interface ResumeHostPayload {
   token: string;
 }
 
+/** Lobby only: change your chef's colour and/or face. */
+export interface CustomizePayload {
+  color?: string;
+  face?: string;
+}
+
 export interface GameStartedPayload {
   round: number;
   /** Server time (ms) when the countdown began. */
@@ -83,6 +90,8 @@ export interface ClientToServerEvents {
   'game:rematch': (payload: EmptyPayload, ack: Ack<object>) => void;
   /** High-frequency; sent with volatile delivery. */
   'player:input': (payload: PlayerInput) => void;
+  /** Lobby/results only: pick a free colour and a face cosmetic. */
+  'player:customize': (payload: CustomizePayload, ack: Ack<{ color: string; face: ChefFace }>) => void;
   /** Informational: the phone recalibrated locally. */
   'player:recenter': (payload: EmptyPayload) => void;
   /** Connectivity test + clock sample. */

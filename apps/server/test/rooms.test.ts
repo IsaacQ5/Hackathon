@@ -50,6 +50,21 @@ describe('RoomManager', () => {
     assert.notEqual(a.player.color, b.player.color);
   });
 
+  it('lets chefs pick a free colour and a face in the lobby, but not a taken colour', () => {
+    const { rm, room } = setup();
+    const a = mustJoin(rm, room.code, 'Ann', 's1');
+    const b = mustJoin(rm, room.code, 'Bob', 's2');
+    const taken = rm.customize(room, b.player.id, a.player.color, undefined);
+    assert.ok(!taken.ok && taken.error.code === 'COLOR_TAKEN');
+    const ok = rm.customize(room, b.player.id, '#3d8bff', 'shades');
+    assert.ok(ok.ok);
+    const pub = rm.roomState(room).players.find((p) => p.id === b.player.id)!;
+    assert.equal(pub.color, '#3d8bff');
+    assert.equal(pub.face, 'shades');
+    assert.ok(!rm.customize(room, b.player.id, '#123456', undefined).ok, 'only palette colours');
+    assert.ok(!rm.customize(room, b.player.id, undefined, 'crown').ok, 'only known faces');
+  });
+
   it('reconnects with a token without creating a duplicate, and rotates the token', () => {
     const { rm, room } = setup();
     const first = mustJoin(rm, room.code, 'Alice', 's1');

@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 import type {
   Ack,
   AckResult,
+  ChefFace,
   ClientToServerEvents,
   ErrorCode,
   GameStartedPayload,
@@ -154,6 +155,18 @@ export function registerSocketHandlers(io: IOServer, rooms: RoomManager): void {
         }
       }
       // 'stale' and 'phase' are expected occasionally and ignored.
+    });
+
+    socket.on('player:customize', (payload, rawAck) => {
+      const ack = safeAck<{ color: string; face: ChefFace }>(rawAck);
+      if (limited(ack)) return;
+      if (!isPlainObject(payload)) return ack(err('INVALID_INPUT', 'Bad request.'));
+      const found = rooms.bySocket(socket.id);
+      if (!found || found.binding.role !== 'player') return ack(err('INVALID_SESSION', 'You are not in a room.'));
+      const res = rooms.customize(found.room, found.binding.playerId, payload.color, payload.face);
+      if (!res.ok) return ack(res);
+      ack({ ok: true, ...res.value });
+      emitRoomState(io, rooms, found.room);
     });
 
     socket.on('player:recenter', () => {

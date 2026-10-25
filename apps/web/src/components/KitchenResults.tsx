@@ -26,7 +26,7 @@ export function KitchenResults({ results, code, onRematch, busy, canRematch, err
       <div className="kresults__hero">
         <div className="kresults__winners">
           {winners.map((w) => (
-            <ChefPortrait key={w.id} color={w.color} size={150} />
+            <ChefPortrait key={w.id} color={w.color} face={w.face} size={150} />
           ))}
         </div>
         <h1 className="kresults__title" style={{ color: winners[0]?.color ?? '#fff' }}>
@@ -55,7 +55,7 @@ export function KitchenResults({ results, code, onRematch, busy, canRematch, err
               <td className="ktable__place">{MEDAL[r.placement - 1] ?? ordinal(r.placement)}</td>
               <td>
                 <div className="ktable__who">
-                  <ChefPortrait color={r.color} size={44} />
+                  <ChefPortrait color={r.color} face={r.face} size={44} />
                   <span>{r.nickname}</span>
                 </div>
               </td>

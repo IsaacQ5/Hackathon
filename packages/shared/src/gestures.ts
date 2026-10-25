@@ -112,53 +112,38 @@ export class ChopDetector implements GestureDetector {
   }
 }
 
-// ------------------------------------------------------------------ 2. FLIP: wrist flick up, then back level
+// ------------------------------------------------------------------ 2. FLIP: flick the front of the phone up
 
 export class FlipDetector implements GestureDetector {
-  private phase: 'idle' | 'up' | 'cool' = 'idle';
-  private sign = 0;
+  private phase: 'idle' | 'cool' = 'idle';
   private t0 = 0;
   private e = 0;
-  private msg = 'Flick up, then level!';
+  private msg = 'Flick the front up!';
 
   push(s: MotionSample): RepResult {
-    const pitch = s.rb;
-    const other = Math.max(Math.abs(s.ra), Math.abs(s.rg));
-    const mag = Math.abs(pitch);
-    this.e = Math.max(this.e * 0.9, Math.min(1, mag / 400));
+    const gyro = s.ra !== 0 || s.rb !== 0 || s.rg !== 0;
+    // Pitch rate (front edge up/down). Phones without a gyro fall back to a vertical jolt.
+    const mag = gyro ? Math.abs(s.rb) : Math.abs(decompose(s).v) * 25;
+    const other = gyro ? Math.max(Math.abs(s.ra), Math.abs(s.rg)) : 0;
+    this.e = Math.max(this.e * 0.9, Math.min(1, mag / 300));
 
     if (this.phase === 'cool') {
-      if (s.t - this.t0 > 280) this.phase = 'idle';
+      // Wait for the pan to settle (this also swallows the return swing).
+      if ((s.t - this.t0 > 220 && mag < 90) || s.t - this.t0 > 700) this.phase = 'idle';
       return null;
     }
-    if (mag > 1100) {
+    if (mag > 2000) {
       this.phase = 'cool';
       this.t0 = s.t;
       this.msg = 'Whoa! Too wild, the food flew off!';
       return 'bad';
     }
-    if (this.phase === 'idle') {
-      // An intentional flick is a fast pitch rotation, not a slow tilt or a twist.
-      if (mag > 200 && mag > other * 1.2) {
-        this.phase = 'up';
-        this.sign = Math.sign(pitch);
-        this.t0 = s.t;
-        this.msg = '...and back!';
-      }
-      return null;
-    }
-    // phase === 'up': wait for the return swing
-    if (Math.sign(pitch) === -this.sign && mag > 120) {
+    // Count the flick the moment it happens; a slow tilt or a sideways twist doesn't count.
+    if (mag > 150 && mag >= other * 0.9) {
       this.phase = 'cool';
       this.t0 = s.t;
       this.msg = 'Nice flip!';
       return 'good';
-    }
-    if (s.t - this.t0 > 900) {
-      this.phase = 'cool';
-      this.t0 = s.t;
-      this.msg = 'Oops! Level the pan after the flick.';
-      return 'bad';
     }
     return null;
   }
@@ -171,7 +156,7 @@ export class FlipDetector implements GestureDetector {
   reset() {
     this.phase = 'idle';
     this.e = 0;
-    this.msg = 'Flick up, then level!';
+    this.msg = 'Flick the front up!';
   }
 }
 
@@ -246,6 +231,8 @@ class AlternationTracker {
   constructor(
     private readonly min: number,
     private readonly maxAmp: number,
+    /** How loud the other axis may be, relative to the main one. */
+    private readonly cleanRatio = 0.55,
   ) {}
 
   /** Returns 'stroke' when the motion reverses direction cleanly, 'violent' if too hard. */
@@ -258,7 +245,7 @@ class AlternationTracker {
     if (a < this.min) return { kind: null, dt: 0 };
     const sign = Math.sign(main);
     if (sign === this.lastSign) return { kind: null, dt: 0 };
-    const clean = this.otherMax.max() < this.mainMax.max() * 0.55;
+    const clean = this.otherMax.max() < this.mainMax.max() * this.cleanRatio;
     const dt = t - this.lastT;
     const first = this.lastSign === 0;
     this.lastSign = sign;
@@ -275,47 +262,32 @@ class AlternationTracker {
   }
 }
 
-// ------------------------------------------------------------------ 4. KNEAD: steady forward/back rhythm
+// ------------------------------------------------------------------ 4. KNEAD: forward/back strokes
 
 export class KneadDetector implements GestureDetector {
-  private tr = new AlternationTracker(2.5, 30);
-  private dts: number[] = [];
-  private strokes = 0;
+  private tr = new AlternationTracker(1.8, 30, 0.8);
+  private push_ = true;
   private e = 0;
   private msg = 'Push... and pull...';
 
   push(s: MotionSample): RepResult {
     const { hx, hy } = decompose(s);
-    this.e = Math.max(this.e * 0.93, Math.min(1, Math.abs(hy) / 6));
+    this.e = Math.max(this.e * 0.93, Math.min(1, Math.abs(hy) / 4));
     const r = this.tr.push(s.t, hy, hx);
     if (r.kind !== 'stroke') return null;
-    if (r.dt < 130) {
+    if (r.dt < 110) {
       // Frantic shaking does not knead dough.
-      this.strokes = 0;
-      this.msg = 'Slow down! Steady pushes.';
+      this.msg = 'Slow down! Bigger pushes.';
       return null;
     }
-    if (r.dt > 1400) {
-      this.dts = [];
-      this.strokes = 0;
+    if (r.dt > 1600) {
       this.msg = 'Push... and pull...';
       return null;
     }
-    const mean = this.dts.length ? this.dts.reduce((a, b) => a + b, 0) / this.dts.length : r.dt;
-    const steady = this.dts.length < 2 || Math.abs(r.dt - mean) <= mean * 0.45;
-    this.dts = [...this.dts, r.dt].slice(-4);
-    if (!steady) {
-      this.msg = 'Keep a steady rhythm!';
-      return null;
-    }
-    // One knead = a push plus a pull.
-    this.strokes++;
-    if (this.strokes % 2 === 0) {
-      this.msg = 'Nice rhythm!';
-      return 'good';
-    }
-    this.msg = '...and pull!';
-    return null;
+    // Every push and every pull counts.
+    this.push_ = !this.push_;
+    this.msg = this.push_ ? 'Push!' : 'Pull!';
+    return 'good';
   }
   energy() {
     return this.e;
@@ -325,9 +297,9 @@ export class KneadDetector implements GestureDetector {
   }
   reset() {
     this.tr.reset();
-    this.dts = [];
-    this.strokes = 0;
+    this.push_ = true;
     this.e = 0;
+    this.msg = 'Push... and pull...';
   }
 }
 
@@ -363,15 +335,16 @@ export class MixDetector implements GestureDetector {
   }
 }
 
-// ------------------------------------------------------------------ 6. POUR: tilt forward, hold steady, release on cue
+// ------------------------------------------------------------------ 6. POUR: hold sideways, tip forward, hold steady, release on cue
 
-export type PourStage = 'ready' | 'pouring' | 'release' | 'spilled';
+export type PourStage = 'setup' | 'ready' | 'pouring' | 'release' | 'spilled';
 
-export const POUR = { tiltDeg: 35, backDeg: 20, holdMs: 1500, releaseWindowMs: 1300 } as const;
+export const POUR = { tiltDeg: 35, backDeg: 20, holdMs: 1500, releaseWindowMs: 1300, sidewaysMs: 250 } as const;
 
 export class PourDetector implements GestureDetector {
   private base: V3 | null = null;
-  private stage: PourStage = 'ready';
+  private stage: PourStage = 'setup';
+  private sideSince = 0;
   private holdStart = 0;
   private held = 0;
   private releaseAt = 0;
@@ -382,11 +355,24 @@ export class PourDetector implements GestureDetector {
 
   push(s: MotionSample): RepResult {
     const g = norm([s.gx, s.gy, s.gz]);
-    if (!this.base) this.base = g;
-    this.tilt = (Math.acos(Math.max(-1, Math.min(1, dot(g, this.base)))) * 180) / Math.PI;
     const spin = Math.hypot(s.ra, s.rb, s.rg);
     const dt = this.lastT ? s.t - this.lastT : 0;
     this.lastT = s.t;
+
+    if (this.stage === 'setup' || !this.base) {
+      // First the phone must be held sideways (on its long edge, like the knife at CHOP):
+      // gravity runs along the phone's short x axis.
+      this.tilt = 0;
+      if (Math.abs(g[0]) > 0.8) {
+        if (!this.sideSince) this.sideSince = s.t;
+        if (s.t - this.sideSince >= POUR.sidewaysMs) {
+          this.base = g;
+          this.stage = 'ready';
+        }
+      } else this.sideSince = 0;
+      return null;
+    }
+    this.tilt = (Math.acos(Math.max(-1, Math.min(1, dot(g, this.base)))) * 180) / Math.PI;
 
     switch (this.stage) {
       case 'ready':
@@ -422,6 +408,8 @@ export class PourDetector implements GestureDetector {
       case 'spilled':
         if (this.tilt < POUR.backDeg) this.stage = 'ready';
         return null;
+      default:
+        return null;
     }
   }
 
@@ -433,8 +421,10 @@ export class PourDetector implements GestureDetector {
   }
   prompt() {
     switch (this.stage) {
+      case 'setup':
+        return 'Hold your phone SIDEWAYS, like a knife…';
       case 'ready':
-        return 'TILT forward to pour…';
+        return 'Now TIP it forward to pour…';
       case 'pouring':
         return 'HOLD it steady…';
       case 'release':
@@ -445,7 +435,8 @@ export class PourDetector implements GestureDetector {
   }
   reset() {
     this.base = null;
-    this.stage = 'ready';
+    this.stage = 'setup';
+    this.sideSince = 0;
     this.held = 0;
     this.lastT = 0;
   }

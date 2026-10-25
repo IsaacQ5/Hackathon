@@ -4,6 +4,7 @@ import {
   INPUT_SEND_HZ,
   recipeById,
   stationById,
+  type ChefFace,
   type GameEndedPayload,
   type GamePhase,
   type KitchenStatus,
@@ -13,8 +14,7 @@ import {
   type ServerError,
 } from '@tilt-mayhem/shared';
 import { ChefPortrait } from '../components/ChefPortrait';
-import { ConnectionBadge } from '../components/ConnectionBadge';
-import { DPad } from '../components/DPad';
+import { CustomizeCard } from '../components/CustomizeCard';
 import { JoinForm } from '../components/JoinForm';
 import { RecipeBar } from '../components/RecipeBar';
 import { StationPanel } from '../components/StationPanel';
@@ -25,7 +25,7 @@ import { useConnection } from '../hooks/useConnection';
 import { useTilt, type TiltStatus, type Vec2 } from '../hooks/useTilt';
 import { storage, type AxisSettings } from '../network/session';
 import { api, kitchenApi, socket } from '../network/socket';
-import { prefs, type ControllerPrefs, type MoveMode } from '../utils/prefs';
+import { prefs, type ControllerPrefs } from '../utils/prefs';
 import { navigate } from '../utils/router';
 import { colorVar } from '../utils/style';
 import '../styles/controller.css';
@@ -51,10 +51,10 @@ const TILT_HELP: Record<TiltStatus, string> = {
   waiting: 'Listening for your phone’s motion sensor…',
   active: '',
   denied:
-    'Motion access was blocked. Reload and tap Allow (on iPhone, close the tab and reopen the link first). Buttons work too!',
-  'no-data': 'No motion sensor here. Use the joystick or arrows, and buttons at stations.',
-  unsupported: 'This browser has no motion sensors. Use the joystick or arrows, and buttons at stations.',
-  insecure: 'Motion needs a secure (https://) link. Use the joystick and buttons, or ask the host for the https link.',
+    'Motion access was blocked. Reload and tap Allow (on iPhone, close the tab and reopen the link first). The on-screen joystick works too!',
+  'no-data': 'No motion sensor here, so you get an on-screen joystick and buttons at stations.',
+  unsupported: 'This browser has no motion sensors, so you get an on-screen joystick and buttons at stations.',
+  insecure: 'Motion needs a secure (https://) link. Use the on-screen joystick, or ask the host for the https link.',
 };
 
 export function ControllerPage({ code }: { code: string }) {
@@ -78,10 +78,12 @@ export function ControllerPage({ code }: { code: string }) {
 
   const phase: GamePhase = room?.phase ?? session?.phase ?? 'lobby';
   const me = room?.players.find((p) => p.id === session?.playerId) ?? null;
-  const color = session?.color ?? '#ffffff';
+  const color = me?.color ?? session?.color ?? '#ffffff';
+  const face: ChefFace = me?.face ?? 'stache';
   const tiltReady = tilt.status === 'active';
   const tiltBroken = ['denied', 'no-data', 'unsupported', 'insecure'].includes(tilt.status);
-  const mode: MoveMode = ctrl.moveMode === 'tilt' && tiltBroken ? 'joystick' : ctrl.moveMode;
+  // Tilt to walk; the joystick only appears when this phone can't do motion.
+  const mode: 'tilt' | 'joystick' = tiltBroken ? 'joystick' : 'tilt';
   const source: 'tilt' | 'touch' = mode === 'tilt' && tiltReady ? 'tilt' : 'touch';
   // The same permission covers the station gestures.
   const motionAllowed = tiltReady;
@@ -250,7 +252,6 @@ export function ControllerPage({ code }: { code: string }) {
   const updateCtrl = (next: ControllerPrefs) => {
     setCtrl(next);
     prefs.setController(next);
-    if (next.moveMode === 'tilt' && tilt.status === 'idle') void tilt.enable();
   };
 
   const leave = () => {
@@ -281,7 +282,6 @@ export function ControllerPage({ code }: { code: string }) {
             Enter a different code
           </button>
         )}
-        <ConnectionBadge connected={connected} />
       </div>
     );
   }
@@ -290,7 +290,7 @@ export function ControllerPage({ code }: { code: string }) {
   const header = (
     <header className="kctrl__bar">
       <span className="kctrl__me">
-        <ChefPortrait color={color} size={40} />
+        <ChefPortrait color={color} face={face} size={40} />
         <b>{session.nickname}</b>
       </span>
       {phase === 'playing' && (
@@ -300,7 +300,6 @@ export function ControllerPage({ code }: { code: string }) {
         </span>
       )}
       <span className="kctrl__score">{status?.score ?? me?.score ?? 0}</span>
-      <ConnectionBadge connected={connected} label={connected ? 'Live' : '…'} />
     </header>
   );
 
@@ -311,28 +310,7 @@ export function ControllerPage({ code }: { code: string }) {
       </button>
       {showSettings && (
         <div className="kcard ksettings">
-          <p className="ksettings__label">Walk with</p>
-          <div className="kseg">
-            {(['tilt', 'joystick', 'dpad'] as const).map((m) => (
-              <button
-                key={m}
-                className={mode === m ? 'is-on' : ''}
-                disabled={m === 'tilt' && tiltBroken}
-                onClick={() => updateCtrl({ ...ctrl, moveMode: m })}
-              >
-                {m === 'tilt' ? '📱 Tilt' : m === 'joystick' ? '🕹️ Stick' : '✚ Arrows'}
-              </button>
-            ))}
-          </div>
           {tiltBroken && <p className="note small">{TILT_HELP[tilt.status]}</p>}
-          <label>
-            <input
-              type="checkbox"
-              checked={ctrl.stationButtons}
-              onChange={(e) => updateCtrl({ ...ctrl, stationButtons: e.target.checked })}
-            />
-            Use buttons at stations (no motion gestures)
-          </label>
           <label className="kslider">
             Tilt sensitivity
             <input
@@ -364,14 +342,11 @@ export function ControllerPage({ code }: { code: string }) {
   );
 
   const motionSetup =
-    ctrl.moveMode === 'tilt' && !tiltReady && !tiltBroken ? (
+    !tiltReady && !tiltBroken ? (
       <div className="kcard ksetup">
         <p>{TILT_HELP[tilt.status]}</p>
         <button className="kbtn kbtn--go" onClick={() => void tilt.enable()} disabled={tilt.status === 'requesting'}>
           📱 Enable motion controls
-        </button>
-        <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => updateCtrl({ ...ctrl, moveMode: 'joystick' })}>
-          Use the joystick instead
         </button>
       </div>
     ) : null;
@@ -409,10 +384,11 @@ export function ControllerPage({ code }: { code: string }) {
           </section>
         )}
         <section className="kbanner">
-          <ChefPortrait color={color} size={110} />
+          <ChefPortrait color={color} face={face} size={110} />
           <h2>{phase === 'lobby' ? 'You’re on the line!' : 'Another shift?'}</h2>
           <p>Waiting for the host to start…</p>
         </section>
+        <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} />
         {motionSetup}
         <section className="kcard khowto-card">
           <h3>How to cook</h3>
@@ -420,7 +396,7 @@ export function ControllerPage({ code }: { code: string }) {
             <li>Your recipe shows 4 station symbols at the top of this screen.</li>
             <li>{mode === 'tilt' ? 'Tilt' : 'Use the stick'} to walk to a station. Your phone buzzes when you're there.</li>
             <li>Tap the button under the circle, then do the motion shown on screen.</li>
-            <li>Got all 4? Walk to the PASS in the middle and hit SEND!</li>
+            <li>Got all 4? Walk to the SERVE table in the middle and hit SERVE!</li>
           </ol>
         </section>
         <footer className="kctrl__foot">{settingsPanel}</footer>
@@ -436,7 +412,7 @@ export function ControllerPage({ code }: { code: string }) {
         {header}
         {status && <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={null} />}
         <section className="kready">
-          <ChefPortrait color={color} size={140} station="stir" />
+          <ChefPortrait color={color} face={face} size={140} station="stir" />
           <h2>GET READY!</h2>
           <p>{mode === 'tilt' ? 'Hold your phone flat and still: calibrating…' : 'Thumbs on the controls!'}</p>
         </section>
@@ -451,12 +427,7 @@ export function ControllerPage({ code }: { code: string }) {
       <div className="kctrl kctrl--work" style={colorVar(color)}>
         {header}
         <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={status.working.ingredient} />
-        <StationPanel
-          work={status.working}
-          motionAllowed={motionAllowed}
-          preferButtons={ctrl.stationButtons}
-          onToggleButtons={() => updateCtrl({ ...ctrl, stationButtons: !ctrl.stationButtons })}
-        />
+        <StationPanel work={status.working} motionAllowed={motionAllowed} />
       </div>
     );
   }
@@ -474,11 +445,11 @@ export function ControllerPage({ code }: { code: string }) {
   const allFour = status ? status.have.length === 4 : false;
 
   let action: { label: string; cls: string; onClick?: () => void } = { label: 'Walk to a station', cls: 'is-idle' };
-  if (canServe) action = { label: '🔔 SEND DISH!', cls: 'is-serve', onClick: () => kitchenApi.serve() };
+  if (canServe) action = { label: '🔔 SERVE!', cls: 'is-serve', onClick: () => kitchenApi.serve() };
   else if (canInteract && nearDef) action = { label: `${nearDef.icon} ${nearDef.verb} ${neededIcon}`, cls: 'is-go', onClick: () => kitchenApi.interact() };
   else if (nearDef) action = { label: `${nearDef.icon} Nothing needed here`, cls: 'is-no' };
   else if (near === 'pass') action = { label: 'Make all 4 first!', cls: 'is-no' };
-  else if (allFour) action = { label: '🔔 Take it to the PASS!', cls: 'is-hint' };
+  else if (allFour) action = { label: '🔔 Take it to SERVE!', cls: 'is-hint' };
 
   return (
     <div className={`kctrl kctrl--play ${status?.rush ? 'is-rush' : ''}`} style={colorVar(color)}>
@@ -487,9 +458,7 @@ export function ControllerPage({ code }: { code: string }) {
       <div className="kctrl__move">
         {mode === 'tilt' && tiltReady ? (
           <TiltIndicator read={() => tilt.inputRef.current} color={color} />
-        ) : mode === 'dpad' ? (
-          <DPad outputRef={touchRef} />
-        ) : mode === 'joystick' || tiltBroken ? (
+        ) : mode === 'joystick' ? (
           <TouchPad outputRef={touchRef} color={color} />
         ) : (
           motionSetup

@@ -9,8 +9,6 @@ interface Props {
   work: ChefWork;
   /** Motion permission granted and sensors available. */
   motionAllowed: boolean;
-  preferButtons: boolean;
-  onToggleButtons: () => void;
 }
 
 const buzz = (ms: number | number[]) => {
@@ -27,7 +25,7 @@ const buzz = (ms: number | number[]) => {
  * Full-screen station mode on the phone: what to do, a live motion meter, the
  * progress bar, and an on-screen fallback when motion isn't available.
  */
-export function StationPanel({ work, motionAllowed, preferButtons, onToggleButtons }: Props) {
+export function StationPanel({ work, motionAllowed }: Props) {
   const def = stationById(work.station);
   const ing = INGREDIENTS.get(work.ingredient)?.ingredient;
   const [flash, setFlash] = useState<{ good: boolean; at: number } | null>(null);
@@ -50,7 +48,8 @@ export function StationPanel({ work, motionAllowed, preferButtons, onToggleButto
     [def.minRepMs, def.badPenalty],
   );
 
-  const useMotion = motionAllowed && !preferButtons;
+  // On-screen buttons are only a fallback for phones that can't do motion.
+  const useMotion = motionAllowed;
   const { sensorOk, liveRef } = useMotionGesture(work.station, useMotion, onRep);
   const showButtons = !useMotion || sensorOk === false;
 
@@ -116,11 +115,6 @@ export function StationPanel({ work, motionAllowed, preferButtons, onToggleButto
       )}
 
       <footer className="kpanel__foot">
-        {motionAllowed && (
-          <button className="kbtn kbtn--ghost kbtn--sm" onClick={onToggleButtons}>
-            {preferButtons ? '📱 Use motion' : '👆 Use buttons'}
-          </button>
-        )}
         <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => kitchenApi.cancel()}>
           ↩ Step away
         </button>

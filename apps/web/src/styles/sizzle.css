@@ -620,9 +620,9 @@ html body {
 .kact {
   font: inherit;
   font-family: var(--comic);
-  font-size: 1.9rem;
+  font-size: 2.3rem;
   letter-spacing: 0.05em;
-  min-height: 84px;
+  min-height: 108px;
   border: 4px solid var(--ink);
   border-radius: 24px;
   box-shadow: 0 7px 0 var(--ink);
@@ -647,7 +647,7 @@ html body {
 .kact.is-hint {
   font-family: inherit;
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
 }
 .kact.is-hint {
   background: #c9f7c1;
@@ -712,6 +712,54 @@ html body {
   padding-left: 1.2rem;
   line-height: 1.45;
   font-weight: 600;
+}
+.kcustom h3 {
+  margin: 0 0 0.3rem;
+}
+.kcustom__label {
+  margin: 0.4rem 0 0.3rem;
+  font-weight: 700;
+}
+.kcustom__colors {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.35rem;
+}
+.kcustom__swatch {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 0;
+}
+.kcustom__swatch.is-on {
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--ink);
+}
+.kcustom__swatch.is-taken {
+  opacity: 0.35;
+}
+.kcustom__faces {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+.kcustom__face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  padding: 0.2rem;
+}
+.kcustom__face.is-on {
+  background: var(--mustard);
 }
 .ksetup {
   text-align: center;
@@ -929,7 +977,7 @@ html body {
 }
 .kgesture--juice span {
   animation: g-pour 2.6s ease-in-out infinite;
-  transform-origin: bottom center;
+  transform-origin: center;
 }
 @keyframes g-chop {
   0%,
@@ -976,18 +1024,19 @@ html body {
     transform: translateX(18px);
   }
 }
+/* sideways (like the knife at CHOP), then tip the front down to pour */
 @keyframes g-pour {
   0%,
-  10% {
-    transform: rotate(0);
+  15% {
+    transform: rotate(90deg);
   }
-  25%,
+  30%,
   75% {
-    transform: rotate(-55deg);
+    transform: rotate(140deg);
   }
   90%,
   100% {
-    transform: rotate(0);
+    transform: rotate(90deg);
   }
 }
 

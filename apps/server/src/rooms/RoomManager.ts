@@ -4,6 +4,8 @@ import {
   PLAYER_COLORS,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
+  isChefFace,
+  type ChefFace,
   type GameConfig,
   type LeaderboardEntry,
   type Role,
@@ -17,6 +19,7 @@ export interface PlayerRecord {
   id: string;
   nickname: string;
   color: string;
+  face: ChefFace;
   token: string;
   socketId: string | null;
   disconnectedAt: number | null;
@@ -205,12 +208,13 @@ export class RoomManager {
       id: randomUUID(),
       nickname: this.uniqueNickname(room, nickname),
       color: this.freeColor(room),
+      face: 'stache',
       token: newToken(),
       socketId,
       disconnectedAt: null,
     };
     room.players.set(player.id, player);
-    room.engine.addPlayer(player.id, player.nickname, player.color);
+    room.engine.addPlayer(player.id, player.nickname, player.color, player.face);
     room.lastActivityAt = now;
     this.sockets.set(socketId, { code: room.code, role: 'player', playerId: player.id });
     return { ok: true, value: { room, player, resumed: false, previousSocketId: null, left } };
@@ -244,6 +248,34 @@ export class RoomManager {
       }
     }
     return binding;
+  }
+
+  /** Change a player's colour and/or face between rounds. Colours stay unique per room. */
+  customize(room: Room, playerId: string, rawColor: unknown, rawFace: unknown): Result<{ color: string; face: ChefFace }> {
+    const p = room.players.get(playerId);
+    if (!p) return fail('INVALID_SESSION', 'You are not in this room.');
+    const phase = room.engine.phase;
+    if (phase !== 'lobby' && phase !== 'results') return fail('INVALID_PHASE', 'You can only change your chef between rounds.');
+    let color = p.color;
+    if (rawColor !== undefined) {
+      if (typeof rawColor !== 'string' || !(PLAYER_COLORS as readonly string[]).includes(rawColor)) {
+        return fail('INVALID_INPUT', 'Unknown colour.');
+      }
+      if ([...room.players.values()].some((o) => o.id !== p.id && o.color === rawColor)) {
+        return fail('COLOR_TAKEN', 'Another chef already has that colour.');
+      }
+      color = rawColor;
+    }
+    let face = p.face;
+    if (rawFace !== undefined) {
+      if (!isChefFace(rawFace)) return fail('INVALID_INPUT', 'Unknown face.');
+      face = rawFace;
+    }
+    p.color = color;
+    p.face = face;
+    room.engine.setLook(p.id, color, face);
+    room.lastActivityAt = this.now();
+    return { ok: true, value: { color, face } };
   }
 
   // ------------------------------------------------------------ game flow

@@ -1,4 +1,4 @@
-import type { StationId } from './kitchen.js';
+import type { ChefFace, StationId } from './kitchen.js';
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'results';
 
@@ -16,6 +16,7 @@ export interface PublicPlayer {
   id: string;
   nickname: string;
   color: string;
+  face: ChefFace;
   x: number;
   y: number;
   score: number;
@@ -37,6 +38,7 @@ export interface ChefSnap {
   id: string;
   nickname: string;
   color: string;
+  face: ChefFace;
   x: number;
   y: number;
   vx: number;
@@ -95,6 +97,7 @@ export interface ChefResult {
   id: string;
   nickname: string;
   color: string;
+  face: ChefFace;
   placement: number;
   score: number;
   served: number;
@@ -139,6 +142,7 @@ export type ErrorCode =
   | 'NOT_HOST'
   | 'INVALID_PHASE'
   | 'NOT_ENOUGH_PLAYERS'
+  | 'COLOR_TAKEN'
   | 'RATE_LIMITED'
   /** Client-side only: the server did not acknowledge in time. */
   | 'TIMEOUT';

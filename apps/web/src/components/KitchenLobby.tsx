@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { RECIPES, STATIONS, type RoomState, type ServerError } from '@tilt-mayhem/shared';
+import { STATIONS, type RoomState, type ServerError } from '@tilt-mayhem/shared';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
 
@@ -56,7 +56,7 @@ export function KitchenLobby({ room, joinUrl, onStart, starting, error }: Props)
           {slots.map((p, i) =>
             p ? (
               <li key={p.id} className="kslot kslot--on" style={colorVar(p.color)}>
-                <ChefPortrait color={p.color} size={78} dim={!p.connected} />
+                <ChefPortrait color={p.color} face={p.face} size={78} dim={!p.connected} />
                 <span className="kslot__name">{p.nickname}</span>
                 {!p.connected && <span className="kslot__away">away</span>}
               </li>
@@ -82,15 +82,13 @@ export function KitchenLobby({ room, joinUrl, onStart, starting, error }: Props)
           <li>Every chef gets a recipe with 4 ingredients from 4 stations.</li>
           <li>Tilt to walk to a station. When your phone buzzes, tap the button.</li>
           <li>Do the motion: chop, flip, stir, knead, mix or pour!</li>
-          <li>Bring all 4 to the PASS in the middle and hit SEND. Most points in 3:00 wins.</li>
+          <li>Bring all 4 to the SERVE table in the middle and hit SERVE. Most points in 3:00 wins.</li>
+          <li>The last 30 seconds are RUSH HOUR: double points!</li>
         </ol>
 
         <button className="kbtn kbtn--go" onClick={onStart} disabled={need > 0 || starting}>
           {starting ? 'Starting…' : need > 0 ? `Need ${need} more chef${need === 1 ? '' : 's'}` : 'OPEN THE KITCHEN!'}
         </button>
-        <p className="klobby__hint">
-          {RECIPES.length} recipes on rotation · 2–8 chefs · last 30 seconds = RUSH HOUR (double points)
-        </p>
         {error && <p className="error">{error.message}</p>}
       </section>
     </div>

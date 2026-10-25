@@ -3,6 +3,7 @@ import {
   KITCHEN,
   STATIONS,
   stationById,
+  type ChefFace,
   type ChefSnap,
   type ChefWork,
   type StationId,
@@ -285,23 +286,43 @@ export function drawStation(ctx: CanvasRenderingContext2D, id: StationId, act: S
     }
   }
 
-  // name tag + action symbol
-  // Label on the counter's outer edge so chefs' name tags never cover it.
-  const ty = top ? -52 : 52;
-  ctx.font = '600 15px Fredoka, system-ui, sans-serif';
-  const label = `${def.verb}`;
-  const w = ctx.measureText(label).width + 44;
-  roundRect(ctx, -w / 2, ty - 14, w, 28, 14);
-  outlined(ctx, def.color, 3);
-  ctx.fillStyle = INK;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, -w / 2 + 34, ty + 1);
-  emoji(ctx, def.icon, -w / 2 + 18, ty + 1, 17);
+  // Big sign on the counter's outer edge (so chefs' name tags never cover it),
+  // styled like the station tiles on the phones: same symbol, verb and colour.
+  drawSign(ctx, def.icon, def.verb, def.color, top ? -64 : 64);
   ctx.restore();
 }
 
-export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolean) {
+const CREAM = '#fffaf2';
+
+/** Mix a hex colour toward cream, like the phone's `color-mix(var(--c) 40%, cream)`. */
+function tint(hex: string, amt: number): string {
+  const a = parseInt(hex.slice(1), 16);
+  const b = parseInt(CREAM.slice(1), 16);
+  const ch = (sh: number) => Math.round(((a >> sh) & 255) * amt + ((b >> sh) & 255) * (1 - amt));
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
+
+/** Station/serve sign: symbol + comic verb on a tinted tile with a hard ink shadow. */
+function drawSign(ctx: CanvasRenderingContext2D, icon: string, verb: string, color: string, y: number) {
+  ctx.font = '32px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
+  const tw = ctx.measureText(verb).width;
+  const w = tw + 76;
+  const h = 54;
+  roundRect(ctx, -w / 2 + 4, y - h / 2 + 4, w, h, 16);
+  ctx.fillStyle = INK;
+  ctx.fill();
+  roundRect(ctx, -w / 2, y - h / 2, w, h, 16);
+  outlined(ctx, tint(color, 0.55), 4);
+  emoji(ctx, icon, -w / 2 + 30, y + 1, 30);
+  ctx.font = '32px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(verb, -w / 2 + 54, y + 3);
+}
+
+/** `happy` (0..1) makes the customer bounce right after a dish is served. */
+export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolean, happy = 0) {
   const { x, y, r } = KITCHEN.pass;
   ctx.save();
   ctx.translate(x, y);
@@ -317,6 +338,7 @@ export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolea
     ctx.stroke();
     ctx.setLineDash([]);
   }
+  drawCustomer(ctx, t, happy, -r + 2);
   ctx.beginPath();
   ctx.arc(0, 6, r, 0, Math.PI * 2);
   outlined(ctx, '#8a5a2f', 4);
@@ -332,10 +354,75 @@ export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolea
   ctx.beginPath();
   ctx.arc(0, -14, 4, 0, Math.PI * 2);
   outlined(ctx, '#ffd23f', 2);
-  ctx.font = '700 13px Fredoka, system-ui, sans-serif';
+  drawSign(ctx, '🔔', 'SERVE', '#3fbf2f', r + 8);
+  ctx.restore();
+}
+
+/** Cosmetic diner seated at the serve table, peeking over its far edge. */
+function drawCustomer(ctx: CanvasRenderingContext2D, t: number, happy: number, baseY: number) {
+  const hop = happy > 0 ? Math.abs(Math.sin(t * 14)) * 8 * happy : 0;
+  const sway = Math.sin(t * 1.6) * 1.5;
+  ctx.save();
+  ctx.translate(sway, baseY - hop);
+  // chair back
+  roundRect(ctx, -28, -62, 56, 60, 14);
+  outlined(ctx, '#a0522d', 3.5);
+  // body + bib
+  ctx.beginPath();
+  ctx.ellipse(0, -14, 21, 22, 0, 0, Math.PI * 2);
+  outlined(ctx, '#4f7cff', 3.5);
+  ctx.beginPath();
+  ctx.moveTo(-11, -30);
+  ctx.lineTo(11, -30);
+  ctx.lineTo(0, -10);
+  ctx.closePath();
+  outlined(ctx, '#ffffff', 2.5);
+  // head
+  ctx.beginPath();
+  ctx.arc(0, -46, 15, 0, Math.PI * 2);
+  outlined(ctx, '#ffd9b8', 3);
+  ctx.beginPath();
+  ctx.arc(0, -50, 15, Math.PI * 1.05, Math.PI * 1.95);
+  ctx.lineTo(10, -54);
+  ctx.quadraticCurveTo(0, -58, -10, -54);
+  ctx.closePath();
+  outlined(ctx, '#6b3e1f', 2.5);
+  // eyes (blink now and then) + mouth
+  const blink = t % 3.7 < 0.12;
   ctx.fillStyle = INK;
-  ctx.textAlign = 'center';
-  ctx.fillText('PASS', 0, 30);
+  for (const s of [-1, 1]) {
+    if (blink) ctx.fillRect(s * 6 - 3, -47, 6, 2);
+    else {
+      ctx.beginPath();
+      ctx.arc(s * 6, -46, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.beginPath();
+  if (happy > 0.05) ctx.arc(0, -40, 5, 0.1 * Math.PI, 0.9 * Math.PI);
+  else ctx.arc(0, -37, 2.5, 0, Math.PI * 2);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  // fork and knife, waiting for food
+  const wave = happy > 0 ? Math.sin(t * 16) * 6 * happy : Math.sin(t * 3) * 1.5;
+  for (const s of [-1, 1]) {
+    const hx = s * 25;
+    const hy = -16 + (s > 0 ? wave : -wave);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy + 4);
+    ctx.lineTo(hx, hy - 22);
+    ctx.stroke();
+    ctx.strokeStyle = '#dfe6ef';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(hx, hy, 5, 0, Math.PI * 2);
+    outlined(ctx, '#ffd9b8', 2.5);
+  }
   ctx.restore();
 }
 
@@ -344,6 +431,134 @@ export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolea
 export interface ChefView extends ChefSnap {
   seed: number;
   bounce: number;
+  /** In first place right now. */
+  crown?: boolean;
+}
+
+/** Eyes, mouth and the chosen face cosmetic. (cx, cy) is the centre between the eyes. */
+function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy: number, fx: number, fy: number, busy: boolean) {
+  if (face === 'beard') {
+    ctx.beginPath();
+    ctx.moveTo(cx - 13, cy + 3);
+    ctx.quadraticCurveTo(cx - 12, cy + 20, cx, cy + 21);
+    ctx.quadraticCurveTo(cx + 12, cy + 20, cx + 13, cy + 3);
+    ctx.quadraticCurveTo(cx, cy + 9, cx - 13, cy + 3);
+    outlined(ctx, '#6b4428', 2);
+  }
+  if (face === 'blush') {
+    ctx.fillStyle = 'rgba(255,110,140,0.65)';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + s * 12, cy + 6, 4.5, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  if (face === 'shades') {
+    for (const s of [-1, 1]) {
+      roundRect(ctx, cx + s * 7 - 6.5, cy - 4.5, 13, 9, 4);
+      outlined(ctx, '#1d1d24', 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(cx + s * 7 - 4, cy - 2.5, 3, 2);
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - 1, cy - 1);
+    ctx.lineTo(cx + 1, cy - 1);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+  } else {
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(cx + s * 7, cy, 5, 0, Math.PI * 2);
+      outlined(ctx, '#fff', 2);
+      ctx.beginPath();
+      ctx.arc(cx + s * 7 + fx * 2, cy + fy * 2, 2.4, 0, Math.PI * 2);
+      ctx.fillStyle = INK;
+      ctx.fill();
+    }
+  }
+  if (face === 'glasses') {
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = INK;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(cx + s * 7, cy, 7, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - 1, cy - 1);
+    ctx.lineTo(cx + 1, cy - 1);
+    ctx.stroke();
+  }
+  // mouth: concentrating "o" while working, smile otherwise
+  ctx.beginPath();
+  if (busy) ctx.ellipse(cx, cy + 10, 4, 3.5, 0, 0, Math.PI * 2);
+  else ctx.arc(cx, cy + 6, 5, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = face === 'beard' ? '#fff' : INK;
+  if (busy) {
+    ctx.fillStyle = INK;
+    ctx.fill();
+  } else ctx.stroke();
+  if (face === 'stache' || face === 'beard') {
+    ctx.beginPath();
+    ctx.ellipse(cx - 4, cy + 4, 4, 2, 0.3, 0, Math.PI * 2);
+    ctx.ellipse(cx + 4, cy + 4, 4, 2, -0.3, 0, Math.PI * 2);
+    ctx.fillStyle = '#5a3a26';
+    ctx.fill();
+  }
+}
+
+/** Small jug for the POUR animation. `tip` 0..1 shows a stream when tipped far enough. */
+function drawJug(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number, tip: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  roundRect(ctx, -8, -10, 16, 20, 4);
+  outlined(ctx, '#ffd23f', 2.5);
+  ctx.fillStyle = '#ffb02e';
+  ctx.fillRect(-6, -2, 12, 10);
+  if (tip > 0.6) {
+    ctx.strokeStyle = '#ffb02e';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const side = rot > 0 ? 1 : -1;
+    ctx.moveTo(side * 8, -10);
+    ctx.quadraticCurveTo(side * 14, -4, side * 12, 8);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Gold crown; (x, y) is the middle of its bottom edge. */
+function drawCrown(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.beginPath();
+  ctx.moveTo(-15, 0);
+  ctx.lineTo(-16, -16);
+  ctx.lineTo(-8, -8);
+  ctx.lineTo(0, -20);
+  ctx.lineTo(8, -8);
+  ctx.lineTo(16, -16);
+  ctx.lineTo(15, 0);
+  ctx.closePath();
+  ctx.lineJoin = 'round';
+  outlined(ctx, '#ffd23f', 2.5);
+  for (const [jx, jy, col] of [
+    [-16, -16, '#ff3d5a'],
+    [0, -20, '#2de2e6'],
+    [16, -16, '#7cd651'],
+  ] as const) {
+    ctx.beginPath();
+    ctx.arc(jx, jy, 2.6, 0, Math.PI * 2);
+    outlined(ctx, col, 1.5);
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillRect(-11, -5, 22, 2);
+  ctx.restore();
 }
 
 export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, showCard: boolean) {
@@ -386,10 +601,19 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.fillStyle = '#ffffff';
   ctx.fill();
 
-  // arms: animated by station gesture
   const work = c.working;
+
+  // face first, so hands held up in front of it (stirring, chopping) stay on top
+  if (fy > -0.7) drawFace(ctx, c.face, fx * 7, bodyY - 8, fx, fy, !!work);
+
+  // arms: animated by station gesture
   const since = work ? work.sinceRep : 9999;
   const hit = Math.max(0, 1 - since / 260);
+  // POUR: both hands tip a little jug out to the side (never over the face)
+  const tip = (Math.sin(t * 2.4) + 1) / 2;
+  const jugX = Math.abs(fx) < 0.3 ? 17 : fx * 18;
+  const jugY = bodyY + 4 - tip * 8;
+  if (work?.station === 'juice') drawJug(ctx, jugX, jugY, Math.sign(jugX) * tip * 1.1, tip);
   for (const s of [-1, 1]) {
     const shX = s * R * 0.9;
     const shY = bodyY - 2;
@@ -411,15 +635,16 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
           break;
         case 'knead':
           hx = s * 8 + fx * (10 + Math.sin(t * 8) * 10);
-          hy = shY + 10 + fy * 6;
+          // vertical pump too, so it still reads when the chef faces the camera
+          hy = shY + 10 + fy * 6 + Math.sin(t * 8) * 5;
           break;
         case 'mix':
           hx = s * 6 + fx * 14 + Math.sin(t * 30) * 6 * (hit + 0.3);
           hy = shY + 8;
           break;
         case 'juice':
-          hx = s * 8 + fx * 16;
-          hy = shY + 4 + work.progress * 6;
+          hx = jugX + s * 8;
+          hy = jugY + (s * Math.sign(jugX) > 0 ? -4 : 4);
           break;
       }
     }
@@ -438,53 +663,41 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     outlined(ctx, '#ffe0c7', 2.5);
   }
 
-  // face (back of head when facing away)
-  if (fy > -0.7) {
-    const cx = fx * 7;
-    const cy = bodyY - 8;
-    for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.arc(cx + s * 7, cy, 5, 0, Math.PI * 2);
-      outlined(ctx, '#fff', 2);
-      ctx.beginPath();
-      ctx.arc(cx + s * 7 + fx * 2, cy + fy * 2, 2.4, 0, Math.PI * 2);
-      ctx.fillStyle = INK;
-      ctx.fill();
-    }
-    ctx.beginPath();
-    if (work) ctx.ellipse(cx, cy + 10, 4, 3.5, 0, 0, Math.PI * 2);
-    else ctx.arc(cx, cy + 6, 5, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = INK;
-    if (work) {
-      ctx.fillStyle = INK;
-      ctx.fill();
-    } else ctx.stroke();
-    // moustache, because chefs
-    ctx.beginPath();
-    ctx.ellipse(cx - 4, cy + 4, 4, 2, 0.3, 0, Math.PI * 2);
-    ctx.ellipse(cx + 4, cy + 4, 4, 2, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = '#5a3a26';
-    ctx.fill();
-  }
-
-  // chef hat (toque)
+  // chef hat (toque): outline every piece first, then fill them all, so the
+  // puffs read as one clean shape instead of overlapping circles
   const hatY = bodyY - R * 1.1 + 2;
-  roundRect(ctx, -13, hatY - 6, 26, 10, 3);
-  outlined(ctx, '#ffffff', 2.5);
-  ctx.beginPath();
-  ctx.arc(-9, hatY - 14, 9, 0, Math.PI * 2);
-  ctx.arc(9, hatY - 14, 9, 0, Math.PI * 2);
-  ctx.arc(0, hatY - 20, 11, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.lineWidth = 2.5;
+  const puffs: [number, number, number][] = [
+    [-9, hatY - 14, 9],
+    [9, hatY - 14, 9],
+    [0, hatY - 20, 11],
+  ];
+  const hatPath = () => {
+    roundRect(ctx, -13, hatY - 6, 26, 10, 3);
+    for (const [px, py, pr] of puffs) {
+      ctx.moveTo(px + pr, py);
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+    }
+  };
+  hatPath();
+  ctx.lineWidth = 5;
+  ctx.lineJoin = 'round';
   ctx.strokeStyle = INK;
   ctx.stroke();
+  hatPath();
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-11, hatY - 6);
+  ctx.lineTo(11, hatY - 6);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // leader's crown sits on top of the hat
+  if (c.crown) drawCrown(ctx, 0, hatY - 27 + Math.sin(t * 4) * 1.5, Math.sin(t * 2) * 0.08);
   ctx.restore();
 
-  // carried ingredients bob above the head
-  const headTop = c.y - bob - 80;
+  // carried ingredients bob above the head (higher when there's a crown in the way)
+  const headTop = c.y - bob - (c.crown ? 104 : 80);
   c.have.forEach((ing, i) => {
     const icon = INGREDIENTS.get(ing)?.ingredient.icon ?? '?';
     const ox = (i - (c.have.length - 1) / 2) * 22;

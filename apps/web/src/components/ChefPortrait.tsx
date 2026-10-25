@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import type { StationId } from '@tilt-mayhem/shared';
+import type { ChefFace, StationId } from '@tilt-mayhem/shared';
 import { drawChef, type ChefView } from '../game/kitchenArt';
 
 interface Props {
   color: string;
+  face?: ChefFace;
   size?: number;
   /** Show the chef busy at a station (animated arms). */
   station?: StationId | null;
@@ -11,7 +12,7 @@ interface Props {
 }
 
 /** Small animated chef for lobby slots, results and the phone header. */
-export function ChefPortrait({ color, size = 80, station = null, dim = false }: Props) {
+export function ChefPortrait({ color, face = 'stache', size = 80, station = null, dim = false }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function ChefPortrait({ color, size = 80, station = null, dim = false }: 
         id: 'p',
         nickname: '',
         color,
+        face,
         x: 0,
         y: 0,
         vx: 0,
@@ -53,7 +55,7 @@ export function ChefPortrait({ color, size = 80, station = null, dim = false }: 
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [color, size, station]);
+  }, [color, face, size, station]);
 
   return <canvas ref={ref} style={{ width: size, height: size, opacity: dim ? 0.4 : 1 }} aria-hidden />;
 }

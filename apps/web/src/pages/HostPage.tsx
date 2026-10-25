@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { GameEndedPayload, GameSnapshot, MatchResults, RoomState, ServerError } from '@tilt-mayhem/shared';
-import { ConnectionBadge } from '../components/ConnectionBadge';
 import { KitchenArena } from '../components/KitchenArena';
 import { KitchenLobby } from '../components/KitchenLobby';
 import { KitchenResults } from '../components/KitchenResults';
 import { KitchenBuffer } from '../game/kbuffer';
-import { useConnection } from '../hooks/useConnection';
 import { storage } from '../network/session';
 import { api, socket } from '../network/socket';
 import { joinUrlFor, navigate } from '../utils/router';
@@ -30,6 +28,7 @@ function resultsFrom(room: RoomState, ended: GameEndedPayload | null): MatchResu
         id: e.id,
         nickname: p?.nickname ?? '?',
         color: p?.color ?? '#fff',
+        face: p?.face ?? 'stache',
         placement: e.rank,
         score: p?.score ?? 0,
         served: 0,
@@ -43,7 +42,6 @@ function resultsFrom(room: RoomState, ended: GameEndedPayload | null): MatchResu
 }
 
 export function HostPage({ code }: { code: string }) {
-  const connected = useConnection();
   const [status, setStatus] = useState<Status>('claiming');
   const [fatal, setFatal] = useState<ServerError | null>(null);
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -52,7 +50,6 @@ export function HostPage({ code }: { code: string }) {
   const [showTable, setShowTable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<ServerError | null>(null);
-  const [muted, setMuted] = useState(false);
   const buffer = useMemo(() => new KitchenBuffer(), []);
   const claimingRef = useRef(false);
   const joinUrl = joinUrlFor(code);
@@ -134,12 +131,6 @@ export function HostPage({ code }: { code: string }) {
     if (!res.ok) setActionError(res.error);
   };
 
-  const toggleMute = () => {
-    sfx.unlock();
-    sfx.muted = !muted;
-    setMuted(!muted);
-  };
-
   if (status === 'lost') {
     return (
       <div className="center-screen">
@@ -166,13 +157,6 @@ export function HostPage({ code }: { code: string }) {
         </h1>
         <div className="khost__join">
           Join at <b>{joinUrl.replace(/^https?:\/\//, '').replace(/\/play\/.*/, '')}</b> · code <b className="khost__code">{code}</b>
-        </div>
-        <div className="khost__right">
-          {room && room.round > 0 && <span className="kpill">Shift {room.round}</span>}
-          <button className="kicon" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-          <ConnectionBadge connected={connected && status === 'ready'} />
         </div>
       </header>
 

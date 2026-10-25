@@ -1,4 +1,4 @@
-import type { GamePhase, StationId } from '@tilt-mayhem/shared';
+import type { ChefFace, GamePhase, StationId } from '@tilt-mayhem/shared';
 
 /** Internal (server-only) per-player simulation state. */
 export interface EnginePlayer {
@@ -14,6 +14,7 @@ export interface EnginePlayer {
 export interface Chef extends EnginePlayer {
   nickname: string;
   color: string;
+  face: ChefFace;
   vx: number;
   vy: number;
   facing: number;

@@ -17,7 +17,12 @@ import { sfx } from '../utils/sound';
 const W = 1000;
 const H = 600;
 const TOP = 70;
-const BOTTOM = 150;
+/** Order tickets live in a column on each side of the kitchen. */
+const TICKET_H = 128;
+const SIDE_GAP = 12;
+/** Rush hour: flashing alarm in the middle, then it flies up next to the timer. */
+const ALARM_MS = 2400;
+const FLY_MS = 650;
 
 const STATION_WORDS: Record<StationId, string[]> = {
   chop: ['CHOP!', 'SLICE!', 'DICE!'],
@@ -62,6 +67,8 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
     const seeds = new Map<string, { seed: number; bounce: number }>();
     const chefPos = new Map<string, { x: number; y: number; color: string; name: string }>();
     let banner: { text: string; color: string; at: number } | null = null;
+    let rushAt = -1e9;
+    let lastServeAt = -1e9;
     let lastCount = -1;
     let lastPhase = '';
     let goUntil = 0;
@@ -80,8 +87,10 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
 
     const handle = (e: KitchenEvent, now: number) => {
       if (e.type === 'rush') {
-        banner = { text: 'RUSH HOUR! DOUBLE POINTS!', color: '#ff3d5a', at: now };
+        rushAt = now;
         sfx.warn();
+        window.setTimeout(() => sfx.warn(), 450);
+        window.setTimeout(() => sfx.warn(), 900);
         return;
       }
       const p = chefPos.get(e.chef);
@@ -109,6 +118,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         sfx.powerup();
       } else if (e.type === 'served') {
         const pass = KITCHEN.pass;
+        lastServeAt = now;
         fx.word(`+${e.points}!`, pass.x, pass.y - 70, e.points > 150 ? '#ff3d5a' : '#2bb02b', 60);
         if (e.fast) fx.word('SPEEDY!', pass.x, pass.y - 20, '#ff8a3d', 32);
         fx.confetti(pass.x - 140, pass.x + 140, pass.y - 120, 50);
@@ -152,6 +162,9 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       draw(frame, t, now);
     };
 
+    /** Width of one ticket column, scaled a little with the screen. */
+    const ticketW = () => Math.max(170, Math.min(230, cw * 0.13));
+
     const draw = (frame: Frame | null, t: number, now: number) => {
       ctx.fillStyle = '#ff9f45';
       ctx.fillRect(0, 0, cw, ch);
@@ -162,9 +175,17 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         ctx.fillText('Heating up the kitchen…', cw / 2, ch / 2);
         return;
       }
-      const availH = Math.max(100, ch - TOP - BOTTOM);
-      const scale = Math.min((cw - 32) / W, availH / H);
-      const ox = (cw - W * scale) / 2;
+      const chefs = frame.chefs;
+      const half = Math.ceil(chefs.length / 2);
+      const left = chefs.slice(0, half);
+      const right = chefs.slice(half);
+      const tw = ticketW();
+      const leftW = left.length ? tw + SIDE_GAP * 2 : 16;
+      const rightW = right.length ? tw + SIDE_GAP * 2 : 16;
+      const availW = Math.max(100, cw - leftW - rightW);
+      const availH = Math.max(100, ch - TOP - 10);
+      const scale = Math.min(availW / W, availH / H);
+      const ox = leftW + (availW - W * scale) / 2;
       const oy = TOP + (availH - H * scale) / 2;
       const sh = fx.shakeOffset();
 
@@ -175,7 +196,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
 
       // Station activity + highlight (someone standing there who needs it).
       for (const st of STATIONS) {
-        const workers = frame.chefs.filter((c) => c.working?.station === st.id);
+        const workers = chefs.filter((c) => c.working?.station === st.id);
         const lead = workers[0]?.working;
         const act: StationActivity = {
           progress: lead?.progress ?? 0,
@@ -183,19 +204,22 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
           ingredient: lead?.ingredient ?? null,
           workers: workers.length,
         };
-        const waiting = frame.chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
+        const waiting = chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
         drawStation(ctx, st.id, act, t, waiting ? waiting.color : null);
       }
-      drawPass(ctx, t, frame.chefs.some((c) => complete(c)));
+      drawPass(ctx, t, chefs.some((c) => complete(c)), Math.max(0, 1 - (now - lastServeAt) / 1500));
       fx.drawBack(ctx);
-      for (const c of [...frame.chefs].sort((a, b) => a.y - b.y)) {
+      const best = Math.max(0, ...chefs.map((c) => c.score));
+      for (const c of [...chefs].sort((a, b) => a.y - b.y)) {
         const j = juice(c.id);
-        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce };
+        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: best > 0 && c.score === best };
         drawChef(ctx, v, t, true);
       }
       fx.drawFront(ctx);
       ctx.restore();
 
+      drawTicketColumn(ctx, left, SIDE_GAP, TOP, tw, ch - TOP - 10);
+      drawTicketColumn(ctx, right, cw - SIDE_GAP - tw, TOP, tw, ch - TOP - 10);
       drawHud(frame, t, now);
     };
 
@@ -223,26 +247,30 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       ctx.textBaseline = 'middle';
       ctx.fillText(label, 0, 2);
       ctx.restore();
-      if (rush) comic(ctx, cw / 2 + 170, 38, 'x2 RUSH!', '#ffe14d', 28);
 
-      // top 3 mini leaderboard
+      // top 3, in a row along the top-left
       const top3 = [...frame.chefs].sort((a, b) => b.score - a.score).slice(0, 3);
+      let lx = 16;
       top3.forEach((c, i) => {
-        const x = cw - 16;
-        const y = 14 + i * 30;
         ctx.font = '600 15px Fredoka, system-ui, sans-serif';
         const txt = `${['🥇', '🥈', '🥉'][i]} ${c.nickname} ${c.score}`;
         const w = ctx.measureText(txt).width + 20;
-        roundRect(ctx, x - w, y, w, 26, 13);
+        if (lx + w > cw / 2 - 90) return;
+        roundRect(ctx, lx, 22, w, 28, 14);
         ctx.fillStyle = 'rgba(43,26,18,0.8)';
         ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.textAlign = 'right';
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(txt, x - 10, y + 14);
+        ctx.fillText(txt, lx + 10, 37);
+        lx += w + 8;
       });
 
-      if (banner && now - banner.at < 2600) comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
+      const sinceRush = now - rushAt;
+      const alarming = rush && sinceRush < ALARM_MS + FLY_MS;
+      if (rush && !alarming) comic(ctx, cw / 2 + 170, 38, 'x2 RUSH!', '#ffe14d', 28);
+
+      if (banner && now - banner.at < 2600 && !alarming) comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
 
       if (phase === 'countdown') {
         const s = Math.max(1, Math.ceil(frame.countdownMs / 1000));
@@ -258,7 +286,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         comic(ctx, cw / 2, ch * 0.42, text, winners[0]?.color ?? '#fff', Math.min(96, (cw / Math.max(10, text.length)) * 1.5) * (1 + Math.sin(t * 6) * 0.03));
       }
 
-      drawTickets(ctx, frame.chefs, cw, ch);
+      if (alarming) drawRushAlarm(ctx, sinceRush, cw, ch);
     };
 
     raf = requestAnimationFrame(loop);
@@ -299,82 +327,125 @@ function comic(ctx: CanvasRenderingContext2D, x: number, y: number, text: string
   ctx.restore();
 }
 
-/** One order ticket per chef along the bottom: dish, 4 station symbols, what's done, score. */
-function drawTickets(ctx: CanvasRenderingContext2D, chefs: ChefSnap[], cw: number, ch: number) {
-  const n = chefs.length;
-  if (!n) return;
-  const gap = 10;
-  const w = Math.min(230, (cw - 32 - gap * (n - 1)) / n);
-  const h = 128;
-  const total = n * w + (n - 1) * gap;
-  let x = (cw - total) / 2;
-  const y = ch - h - 10;
-  for (const c of chefs) {
-    const r = recipeById(c.recipeId);
+/** Full-screen flashing alarm when rush hour starts, then the label flies up beside the timer. */
+function drawRushAlarm(ctx: CanvasRenderingContext2D, since: number, cw: number, ch: number) {
+  const big = Math.min(cw, ch) * 0.13;
+  if (since < ALARM_MS) {
+    const on = Math.floor(since / 220) % 2 === 0;
     ctx.save();
-    roundRect(ctx, x, y, w, h, 14);
-    ctx.fillStyle = '#fffaf2';
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = c.color;
-    ctx.stroke();
-    ctx.clip();
-    ctx.fillStyle = c.color;
-    ctx.fillRect(x, y, w, 26);
-    ctx.font = '700 14px Fredoka, system-ui, sans-serif';
-    ctx.fillStyle = INK;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(fit(ctx, c.nickname, w - 70), x + 10, y + 14);
-    ctx.textAlign = 'right';
-    ctx.fillText(`${c.score} pts`, x + w - 10, y + 14);
-    // dish
-    ctx.textAlign = 'left';
-    ctx.font = '600 13px Fredoka, system-ui, sans-serif';
-    emoji(ctx, r?.icon ?? '🍽️', x + 18, y + 44, 20);
-    ctx.fillStyle = INK;
-    ctx.textAlign = 'left';
-    ctx.font = '600 13px Fredoka, system-ui, sans-serif';
-    ctx.fillText(fit(ctx, r?.name ?? '', w - 44), x + 32, y + 45);
-    // four slots: station symbol on top, ingredient below
-    const slotW = (w - 16) / 4;
-    r?.ingredients.forEach((ing, i) => {
-      const info = INGREDIENTS.get(ing)!;
-      const st = stationById(info.station);
-      const sx = x + 8 + i * slotW;
-      const sy = y + 60;
-      const done = c.have.includes(ing);
-      const active = c.working?.ingredient === ing;
-      roundRect(ctx, sx + 2, sy, slotW - 4, 60, 10);
-      ctx.fillStyle = done ? '#c9f7c1' : active ? `${st.color}66` : '#f1e7d8';
-      ctx.fill();
-      ctx.lineWidth = active ? 3 : 1.5;
-      ctx.strokeStyle = active ? st.color : 'rgba(43,26,18,0.35)';
-      ctx.stroke();
-      emoji(ctx, st.icon, sx + slotW / 2, sy + 17, 18);
-      emoji(ctx, info.ingredient.icon, sx + slotW / 2, sy + 43, 15);
-      if (active && c.working) {
-        ctx.fillStyle = st.color;
-        ctx.fillRect(sx + 6, sy + 54, (slotW - 12) * c.working.progress, 4);
-      }
-      if (done) {
-        ctx.font = '700 14px Fredoka, system-ui, sans-serif';
-        ctx.fillStyle = '#2bb02b';
-        ctx.textAlign = 'right';
-        ctx.fillText('✔', sx + slotW - 6, sy + 10);
-      }
-    });
-    if (!c.connected) {
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillRect(x, y, w, h);
-      ctx.fillStyle = INK;
-      ctx.font = '600 13px Fredoka, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('reconnecting…', x + w / 2, y + h / 2);
-    }
+    ctx.fillStyle = on ? 'rgba(255,30,60,0.32)' : 'rgba(255,30,60,0.08)';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.lineWidth = 26;
+    ctx.strokeStyle = on ? '#ff3d5a' : '#ffe14d';
+    ctx.strokeRect(13, 13, cw - 26, ch - 26);
     ctx.restore();
-    x += w + gap;
+    const pop = Math.min(1, since / 250);
+    const size = big * (0.6 + pop * 0.4) * (1 + Math.sin(since / 70) * 0.03);
+    comic(ctx, cw / 2, ch / 2 - size * 0.45, 'RUSH HOUR!', on ? '#ffe14d' : '#ffffff', size);
+    comic(ctx, cw / 2, ch / 2 + size * 0.55, 'DOUBLE POINTS!', '#ffffff', size * 0.55);
+    ctx.save();
+    ctx.font = `${Math.round(size * 0.8)}px Bangers, "Arial Black", Impact, sans-serif`;
+    const half = ctx.measureText('RUSH HOUR!').width / 2;
+    ctx.restore();
+    const wob = Math.sin(since / 60) * 0.15;
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.translate(cw / 2 + s * (half + size * 0.55), ch / 2 - size * 0.45);
+      ctx.rotate(s * wob);
+      emoji(ctx, '🚨', 0, 0, size * 0.8);
+      ctx.restore();
+    }
+    return;
   }
+  const k = Math.min(1, (since - ALARM_MS) / FLY_MS);
+  const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+  const x = cw / 2 + 170 * e;
+  const y = ch / 2 + (38 - ch / 2) * e;
+  comic(ctx, x, y, 'x2 RUSH!', '#ffe14d', big + (28 - big) * e);
+}
+
+/** A column of order tickets (one per chef), shrunk to fit the height if needed. */
+function drawTicketColumn(ctx: CanvasRenderingContext2D, chefs: ChefSnap[], x: number, top: number, w: number, avail: number) {
+  if (!chefs.length) return;
+  const gap = 10;
+  const k = Math.min(1, (avail - gap * (chefs.length - 1)) / (chefs.length * TICKET_H));
+  const h = TICKET_H * k;
+  const total = chefs.length * h + (chefs.length - 1) * gap;
+  let y = top + Math.max(0, (avail - total) / 2);
+  for (const c of chefs) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(k, k);
+    drawTicket(ctx, c, w / k);
+    ctx.restore();
+    y += h + gap;
+  }
+}
+
+/** One order ticket at (0, 0): name + score, dish, then 4 station symbols with what's done. */
+function drawTicket(ctx: CanvasRenderingContext2D, c: ChefSnap, w: number) {
+  const r = recipeById(c.recipeId);
+  const h = TICKET_H;
+  ctx.save();
+  roundRect(ctx, 0, 0, w, h, 14);
+  ctx.fillStyle = '#fffaf2';
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = c.color;
+  ctx.stroke();
+  ctx.clip();
+  ctx.fillStyle = c.color;
+  ctx.fillRect(0, 0, w, 26);
+  ctx.font = '700 14px Fredoka, system-ui, sans-serif';
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(fit(ctx, c.nickname, w - 70), 10, 14);
+  ctx.textAlign = 'right';
+  ctx.fillText(`${c.score} pts`, w - 10, 14);
+  // dish
+  emoji(ctx, r?.icon ?? '🍽️', 18, 44, 20);
+  ctx.fillStyle = INK;
+  ctx.textAlign = 'left';
+  ctx.font = '600 13px Fredoka, system-ui, sans-serif';
+  ctx.fillText(fit(ctx, r?.name ?? '', w - 44), 32, 45);
+  // four slots: station symbol on top, ingredient below
+  const slotW = (w - 16) / 4;
+  r?.ingredients.forEach((ing, i) => {
+    const info = INGREDIENTS.get(ing)!;
+    const st = stationById(info.station);
+    const sx = 8 + i * slotW;
+    const sy = 60;
+    const done = c.have.includes(ing);
+    const active = c.working?.ingredient === ing;
+    roundRect(ctx, sx + 2, sy, slotW - 4, 60, 10);
+    ctx.fillStyle = done ? '#c9f7c1' : active ? `${st.color}66` : '#f1e7d8';
+    ctx.fill();
+    ctx.lineWidth = active ? 3 : 1.5;
+    ctx.strokeStyle = active ? st.color : 'rgba(43,26,18,0.35)';
+    ctx.stroke();
+    emoji(ctx, st.icon, sx + slotW / 2, sy + 17, 18);
+    emoji(ctx, info.ingredient.icon, sx + slotW / 2, sy + 43, 15);
+    if (active && c.working) {
+      ctx.fillStyle = st.color;
+      ctx.fillRect(sx + 6, sy + 54, (slotW - 12) * c.working.progress, 4);
+    }
+    if (done) {
+      ctx.font = '700 14px Fredoka, system-ui, sans-serif';
+      ctx.fillStyle = '#2bb02b';
+      ctx.textAlign = 'right';
+      ctx.fillText('✔', sx + slotW - 6, sy + 10);
+    }
+  });
+  if (!c.connected) {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = INK;
+    ctx.font = '600 13px Fredoka, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('reconnecting…', w / 2, h / 2);
+  }
+  ctx.restore();
 }
 
 function fit(ctx: CanvasRenderingContext2D, s: string, max: number) {

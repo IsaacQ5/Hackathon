@@ -1,7 +1,9 @@
 import { io, type ManagerOptions, type Socket, type SocketOptions } from 'socket.io-client';
 import type {
   AckResult,
+  ChefFace,
   ClientToServerEvents,
+  CustomizePayload,
   HostSession,
   JoinRoomPayload,
   PlayerSession,
@@ -45,6 +47,7 @@ export const api = {
   joinRoom: (payload: JoinRoomPayload) => request<PlayerSession>('room:join', payload),
   startGame: () => request<object>('game:start', {}),
   rematch: () => request<object>('game:rematch', {}),
+  customize: (look: CustomizePayload) => request<{ color: string; face: ChefFace }>('player:customize', look),
   recenter: () => socket.emit('player:recenter', {}),
   ping: () => request<{ serverTime: number }>('net:ping', {}),
 };

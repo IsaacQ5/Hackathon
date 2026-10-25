@@ -59,9 +59,9 @@ export const STATIONS: readonly StationDef[] = [
     verb: 'FLIP',
     icon: '🔥',
     color: '#ff8a3d',
-    howTo: 'Flick your wrist up to toss the food, then bring the pan back level.',
+    howTo: 'Hold your phone like a pan and flick the front up to toss the food.',
     reps: 5,
-    minRepMs: 300,
+    minRepMs: 250,
     badPenalty: 1,
     ingredients: [
       { id: 'patty', name: 'Cooked burger patty', icon: '🥩' },
@@ -95,9 +95,9 @@ export const STATIONS: readonly StationDef[] = [
     verb: 'KNEAD',
     icon: '🫓',
     color: '#e0a458',
-    howTo: 'Push your phone forward and pull it back in a steady rhythm.',
-    reps: 6,
-    minRepMs: 200,
+    howTo: 'Push your phone forward and pull it back, over and over.',
+    reps: 10,
+    minRepMs: 150,
     badPenalty: 0,
     ingredients: [
       { id: 'bread', name: 'Bread', icon: '🍞' },
@@ -131,7 +131,7 @@ export const STATIONS: readonly StationDef[] = [
     verb: 'POUR',
     icon: '🧃',
     color: '#ffd23f',
-    howTo: 'Tilt your phone forward to pour and HOLD it steady. Level it when it says RELEASE.',
+    howTo: 'Hold your phone sideways like a knife, then tip it forward to pour and HOLD. Level it when it says RELEASE.',
     reps: 2,
     minRepMs: 700,
     badPenalty: 1,
@@ -213,6 +213,25 @@ export function validateRecipes(recipes: readonly RecipeDef[] = RECIPES): string
     if (stations.size !== r.ingredients.length) problems.push(`${r.id}: two ingredients from the same station`);
   }
   return problems;
+}
+
+// ------------------------------------------------------------------ chef looks
+
+/** Face cosmetics a chef can pick in the lobby. The hat always stays on. */
+export const CHEF_FACES = ['stache', 'none', 'shades', 'glasses', 'beard', 'blush'] as const;
+export type ChefFace = (typeof CHEF_FACES)[number];
+
+export const FACE_NAMES: Record<ChefFace, string> = {
+  stache: 'Moustache',
+  none: 'Clean',
+  shades: 'Shades',
+  glasses: 'Specs',
+  beard: 'Beard',
+  blush: 'Rosy',
+};
+
+export function isChefFace(v: unknown): v is ChefFace {
+  return typeof v === 'string' && (CHEF_FACES as readonly string[]).includes(v);
 }
 
 // ------------------------------------------------------------------ map layout (world 1000 x 600)

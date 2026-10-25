@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
 import { ROOM_CODE_LENGTH, type ServerError } from '@tilt-mayhem/shared';
-import { ConnectionBadge } from '../components/ConnectionBadge';
 import { useConnection } from '../hooks/useConnection';
 import { storage } from '../network/session';
 import { api } from '../network/socket';
@@ -35,7 +34,7 @@ export function HomePage() {
 
   const joinCard = (
     <form className="kcard home__card" onSubmit={join}>
-      <h2>📱 Join a kitchen</h2>
+      <h2>Join a kitchen</h2>
       <p className="muted">Enter the code shown on the big screen.</p>
       <input
         className="input input--code"
@@ -55,7 +54,7 @@ export function HomePage() {
 
   const hostCard = (
     <div className="kcard home__card">
-      <h2>📺 Host a kitchen</h2>
+      <h2>Host a kitchen</h2>
       <p className="muted">Open this on a laptop or TV. Players join with their phones.</p>
       <button className="kbtn" onClick={create} disabled={creating || !connected}>
         {creating ? 'Creating…' : 'Create room'}
@@ -72,11 +71,10 @@ export function HomePage() {
         </h1>
         <div className="home__crew" aria-hidden>
           {['#ff3d7f', '#2de2e6', '#ffd23f', '#7cff6b', '#b26bff'].map((c, i) => (
-            <ChefPortrait key={c} color={c} size={78} station={(['chop', 'fry', 'stir', 'knead', 'mix'] as const)[i]} />
+            <ChefPortrait key={c} color={c} size={78} station={(['chop', 'fry', 'stir', 'juice', 'mix'] as const)[i]} />
           ))}
         </div>
         <p className="tagline">Chop, flip, stir, knead, mix and pour with your phone. Most dishes in 3 minutes wins!</p>
-        <ConnectionBadge connected={connected} label={connected ? 'Server online' : 'Connecting to server…'} />
       </header>
       <main className="home__cards">
         {isPhone ? (

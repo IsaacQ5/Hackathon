@@ -64,16 +64,17 @@ describe('Gesture detectors', () => {
     assert.equal(run('chop', 3000, (t) => ({ az: wave(t, 600, 3) })).good, 0, 'walking jiggle');
   });
 
-  it('FLIP needs a flick and a return; holding it tipped is a mess-up; slow tilts do nothing', () => {
+  it('FLIP counts each flick once (the return swing is ignored); slow tilts and twists do nothing', () => {
     const flips = run('fry', 4000, (t) => {
       const p = t % 800;
       return { rb: p < 90 ? 380 : p < 180 ? -260 : 0 };
     });
-    assert.ok(flips.good >= 4, `flips ${flips.good}`);
+    assert.equal(flips.good, 5, `flips ${flips.good}`);
     assert.equal(flips.bad, 0);
-    const tipped = run('fry', 2500, (t) => ({ rb: t < 90 ? 380 : 0 }));
-    assert.equal(tipped.good, 0);
-    assert.equal(tipped.bad, 1);
+    const single = run('fry', 2500, (t) => ({ rb: t < 90 ? 380 : 0 }));
+    assert.deepEqual(single, { good: 1, bad: 0 }, 'a flick without a return still counts');
+    const wild = run('fry', 1000, (t) => ({ rb: t < 50 ? 2400 : 0 }));
+    assert.deepEqual(wild, { good: 0, bad: 1 }, 'way too wild spills');
     const slow = run('fry', 3000, (t) => ({ rb: wave(t, 2000, 60) }));
     assert.deepEqual(slow, { good: 0, bad: 0 });
     const twist = run('fry', 2000, (t) => ({ rb: t % 600 < 80 ? 300 : 0, rg: t % 600 < 80 ? 600 : 0 }));
@@ -87,9 +88,11 @@ describe('Gesture detectors', () => {
     assert.equal(run('stir', 4000, (t) => ({ ay: wave(t, 700, 6) })).good, 0, 'push-pull');
   });
 
-  it('KNEAD rewards a steady forward/back rhythm, not frantic shaking or circles', () => {
+  it('KNEAD counts every forward/back stroke, not frantic shaking or circles', () => {
     const knead = run('knead', 6000, (t) => ({ ay: wave(t, 800, 5) }));
-    assert.ok(knead.good >= 5, `kneads ${knead.good}`);
+    assert.ok(knead.good >= 12, `kneads ${knead.good}`);
+    const gentle = run('knead', 4000, (t) => ({ ay: wave(t, 700, 2.5) }));
+    assert.ok(gentle.good >= 8, `gentle kneads ${gentle.good}`);
     assert.equal(run('knead', 4000, (t) => ({ ay: wave(t, 120, 8) })).good, 0, 'frantic');
     const circle = run('knead', 4000, (t) => ({ ax: 5 * Math.cos((2 * Math.PI * t) / 900), ay: 5 * Math.sin((2 * Math.PI * t) / 900) }));
     assert.equal(circle.good, 0, 'circles');
@@ -103,15 +106,18 @@ describe('Gesture detectors', () => {
     assert.equal(run('mix', 3000, (t) => ({ ax: wave(t, 400, 35) })).good, 0, 'too violent');
   });
 
-  it('POUR: tilt, hold steady, release on cue; holding too long spills', () => {
-    const tilt = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
-    const good = run('juice', 3000, (t) => tilt(t > 200 && t < 1900 ? 50 : 0));
+  it('POUR: hold sideways, tip forward, hold steady, release on cue; holding too long spills', () => {
+    // Sideways = on its long edge (gravity along the phone's x axis), then tip forward.
+    const tilt = (deg: number) => ({ gx: G * Math.cos((deg * Math.PI) / 180), gy: G * Math.sin((deg * Math.PI) / 180), gz: 0 });
+    const flat = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
+    assert.deepEqual(run('juice', 3000, (t) => flat(t > 400 && t < 2100 ? 50 : 0)), { good: 0, bad: 0 }, 'must start sideways');
+    const good = run('juice', 3000, (t) => tilt(t > 400 && t < 2100 ? 50 : 0));
     assert.deepEqual(good, { good: 1, bad: 0 });
-    const spill = run('juice', 4500, (t) => tilt(t > 200 ? 50 : 0));
+    const spill = run('juice', 4500, (t) => tilt(t > 400 ? 50 : 0));
     assert.deepEqual(spill, { good: 0, bad: 1 });
-    const early = run('juice', 2500, (t) => tilt(t > 200 && t < 800 ? 50 : 0));
+    const early = run('juice', 2500, (t) => tilt(t > 400 && t < 1000 ? 50 : 0));
     assert.deepEqual(early, { good: 0, bad: 0 }, 'letting go early: no juice, no penalty');
-    const shaky = run('juice', 3000, (t) => ({ ...tilt(t > 200 && t < 1900 ? 50 : 0), ra: 200 }));
+    const shaky = run('juice', 3000, (t) => ({ ...tilt(t > 400 && t < 2100 ? 50 : 0), ra: 200 }));
     assert.equal(shaky.good, 0, 'must hold steady');
   });
 });

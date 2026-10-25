@@ -16,18 +16,15 @@ function write(key: string, value: unknown) {
   }
 }
 
-export type MoveMode = 'tilt' | 'joystick' | 'dpad';
-
 export interface ControllerPrefs {
   /** Degrees of tilt for full speed: lower = more sensitive. */
   tiltDeg: number;
-  moveMode: MoveMode;
-  /** Use on-screen buttons at stations instead of motion gestures. */
-  stationButtons: boolean;
 }
 
 export const prefs = {
-  controller: (): ControllerPrefs =>
-    read<ControllerPrefs>('ss:controller', { tiltDeg: 22, moveMode: 'tilt', stationButtons: false }),
+  controller: (): ControllerPrefs => {
+    const { tiltDeg } = read<ControllerPrefs>('ss:controller', { tiltDeg: 22 });
+    return { tiltDeg };
+  },
   setController: (c: ControllerPrefs) => write('ss:controller', c),
 };
