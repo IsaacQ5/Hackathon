@@ -1,4 +1,25 @@
-import type { ChefFace, GamePhase, StationId } from '@tilt-mayhem/shared';
+import type { ChefFace, GamePhase, HazardKind, StationId, StuckKind } from '@tilt-mayhem/shared';
+
+/** Server-side hazard state (a superset of HazardSnap). */
+export interface Hazard {
+  id: number;
+  kind: HazardKind;
+  x: number;
+  y: number;
+  r: number;
+  warnMs: number;
+  station: StationId | null;
+  progress: number;
+  dir: number;
+  ttl: number;
+  /** Chicken movement. */
+  vx: number;
+  vy: number;
+  age: number;
+  turnAt: number;
+  /** Cheese: chefs already flattened by this wheel. */
+  hit: Set<string>;
+}
 
 /** Internal (server-only) per-player simulation state. */
 export interface EnginePlayer {
@@ -26,6 +47,10 @@ export interface Chef extends EnginePlayer {
   partial: Map<string, number>;
   working: { station: StationId; ingredient: string; reps: number; lastRepAt: number } | null;
   near: StationId | 'pass' | null;
+  /** Taken out by a hazard until the phone does the recovery motion. */
+  stuck: { kind: StuckKind; reps: number; hazardId: number | null; lastRepAt: number } | null;
+  /** playMs until which hazards can't knock this chef down again (just got up). */
+  immuneUntil: number;
   served: number;
   stats: { gestures: number; oops: number; perStation: Partial<Record<StationId, number>>; fastestMs: number | null };
 }

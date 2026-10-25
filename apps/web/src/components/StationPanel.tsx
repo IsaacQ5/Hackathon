@@ -84,9 +84,24 @@ export function StationPanel({ work, motionAllowed }: Props) {
         </div>
       </header>
 
-      <div className={`kgesture kgesture--${work.station}`} aria-hidden>
-        <span>📱</span>
-      </div>
+      {work.station === 'juice' ? (
+        // A real 3D phone: facing you, turn sideways, tip the top forward, juice pours.
+        <div className="kpour3d" aria-hidden>
+          <div className="kpour3d__shadow" />
+          <div className="kpour3d__phone">
+            <div className="kpour3d__back" />
+            <div className="kpour3d__front">
+              <div className="kpour3d__screen" />
+            </div>
+          </div>
+          <div className="kpour3d__stream" />
+          <span className="kpour3d__glass">🥛</span>
+        </div>
+      ) : (
+        <div className={`kgesture kgesture--${work.station}`} aria-hidden>
+          <span>📱</span>
+        </div>
+      )}
       <p className="kpanel__how">{def.howTo}</p>
 
       <div className="kprog">

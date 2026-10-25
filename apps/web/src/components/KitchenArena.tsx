@@ -6,10 +6,13 @@ import {
   recipeById,
   stationById,
   type ChefSnap,
+  type HazardKind,
   type KitchenEvent,
   type StationId,
+  type StuckKind,
 } from '@tilt-mayhem/shared';
 import { Fx } from '../game/fx';
+import { drawFires, drawHazardsBack, drawHazardsFront } from '../game/hazardArt';
 import type { Frame, KitchenBuffer } from '../game/kbuffer';
 import { drawChef, drawKitchen, drawPass, drawStation, emoji, INK, roundRect, type ChefView, type StationActivity } from '../game/kitchenArt';
 import { sfx } from '../utils/sound';
@@ -71,6 +74,8 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
     let banner: { text: string; color: string; at: number } | null = null;
     let rushAt = -1e9;
     let lastServeAt = -1e9;
+    /** Last dish served: the diner eats it, then the empty plate stays on the table. */
+    let lastDish: { icon: string; at: number } | null = null;
     let lastCount = -1;
     let lastPhase = '';
     let goUntil = 0;
@@ -95,8 +100,53 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         window.setTimeout(() => sfx.warn(), 900);
         return;
       }
+      if (e.type === 'hazard') {
+        const where = e.station ? stationById(e.station).name.toUpperCase() : '';
+        const text: Record<HazardKind, string> = {
+          spill: '💦 SPILL ON THE FLOOR! DON’T SLIP!',
+          chicken: '🐔 A CHICKEN GOT LOOSE!',
+          fire: `🔥 FIRE AT THE ${where}!`,
+          meteor: '☄️ MEATBALL INCOMING! MOVE!',
+          cheese: '🧀 RUNAWAY CHEESE WHEEL! CLEAR THE LANE!',
+        };
+        banner = { text: text[e.kind], color: e.kind === 'spill' ? '#7fd0ff' : '#ff8a3d', at: now };
+        // Big ones get an alarm so everyone looks up.
+        if (e.kind === 'meteor' || e.kind === 'cheese' || e.kind === 'fire') {
+          sfx.warn();
+          window.setTimeout(() => sfx.warn(), 500);
+        } else sfx.pop();
+        return;
+      }
+      if (e.type === 'impact') {
+        if (e.kind === 'meteor') {
+          fx.shake(16, now);
+          fx.dust(e.x, e.y, 14);
+          fx.word('SPLAT!', e.x, e.y - 50, '#e8432f', 44);
+          sfx.wham();
+        } else {
+          fx.word('ROLLING!', e.x < 500 ? 140 : 860, e.y - 40, '#ffcf3d', 36);
+          sfx.boing();
+        }
+        return;
+      }
+      if (e.type === 'served') lastDish = { icon: recipeById(e.recipeId)?.icon ?? '🍽️', at: now };
       const p = chefPos.get(e.chef);
       if (!p) return;
+      if (e.type === 'stuck') {
+        const words: Record<StuckKind, string> = { slip: 'WHOOPS!', bonk: 'BONK!', feathers: 'BAWK!', fire: 'FAN IT!' };
+        fx.word(words[e.kind], p.x, p.y - 90, '#ff3d5a', 34);
+        if (e.kind === 'slip') sfx.slip();
+        else if (e.kind === 'bonk') sfx.fall();
+        else sfx.pop();
+        juice(e.chef).bounce = 1;
+        return;
+      }
+      if (e.type === 'recovered') {
+        fx.word(e.kind === 'slip' ? 'CLEAN!' : e.kind === 'fire' ? 'FIRE OUT!' : 'BACK UP!', p.x, p.y - 90, '#2bb02b', 32);
+        fx.stars(p.x, p.y - 50, 6);
+        sfx.powerup();
+        return;
+      }
       if (e.type === 'rep') {
         const st = stationById(e.station);
         const spot = KITCHEN.spots.find((s) => s.id === e.station)!;
@@ -195,6 +245,8 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       ctx.translate(ox + sh.x, oy + sh.y);
       ctx.scale(scale, scale);
       drawKitchen(ctx, t);
+      const hazards = frame.snap.hazards ?? [];
+      drawHazardsBack(ctx, hazards, t);
 
       // Station activity + highlight (someone standing there who needs it).
       for (const st of STATIONS) {
@@ -209,14 +261,26 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         const waiting = chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
         drawStation(ctx, st.id, act, t, waiting ? waiting.color : null);
       }
-      drawPass(ctx, t, chefs.some((c) => complete(c)), Math.max(0, 1 - (now - lastServeAt) / 1500));
+      drawFires(ctx, hazards, t);
+      drawPass(
+        ctx,
+        t,
+        chefs.some((c) => complete(c)),
+        Math.max(0, 1 - (now - lastServeAt) / 1500),
+        lastDish ? { icon: lastDish.icon, age: now - lastDish.at } : null,
+      );
       fx.drawBack(ctx);
       const best = Math.max(0, ...chefs.map((c) => c.score));
+      const over = frame.snap.phase === 'results';
       for (const c of [...chefs].sort((a, b) => a.y - b.y)) {
         const j = juice(c.id);
-        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: best > 0 && c.score === best };
+        const top = best > 0 && c.score === best;
+        // When time's up the winner dances and everyone else droops.
+        const mood = over ? (top ? 'dance' : 'sad') : undefined;
+        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: top, mood };
         drawChef(ctx, v, t, true);
       }
+      drawHazardsFront(ctx, hazards, t);
       fx.drawFront(ctx);
       ctx.restore();
 

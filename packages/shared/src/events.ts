@@ -106,6 +106,8 @@ export interface ClientToServerEvents {
   'kitchen:rep': (payload: { good: boolean }) => void;
   /** Step away from the station (progress is kept). */
   'kitchen:cancel': (payload: EmptyPayload) => void;
+  /** One recovery motion while stuck (mop / get up / shake off feathers / fan the fire). */
+  'kitchen:recover': (payload: { good: boolean }) => void;
   /** Send the finished dish at the pass. */
   'kitchen:serve': (payload: EmptyPayload) => void;
 }

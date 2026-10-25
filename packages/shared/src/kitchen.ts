@@ -7,6 +7,8 @@
  * to RECIPES; no station logic needs to change.
  */
 
+import type { StuckKind } from './types.js';
+
 export type StationId = 'chop' | 'fry' | 'stir' | 'knead' | 'mix' | 'juice';
 
 export interface IngredientDef {
@@ -251,6 +253,8 @@ export interface StationSpot {
 export const KITCHEN = {
   floor: { x0: 60, x1: 940, y0: 132, y1: 468 },
   pass: { x: 500, y: 300, r: 58, serveR: 125 },
+  /** The diner seated at the far side of the serve table: solid, like the table. */
+  customer: { x: 500, y: 222, r: 30 },
   interactR: 85,
   chefR: 22,
   spots: [
@@ -262,6 +266,67 @@ export const KITCHEN = {
     { id: 'juice', x: 800, y: 522, fx: 800, fy: 438 },
   ] as readonly StationSpot[],
 } as const;
+
+// ------------------------------------------------------------------ kitchen chaos
+
+/**
+ * Environmental hazards. They start tame and ramp up as the shift goes on:
+ * `unlockAt` is the fraction of the shift that must have passed before a kind can appear.
+ */
+export const HAZARDS = {
+  /** Nothing happens before this fraction of the shift. */
+  startAt: 0.12,
+  /** Time between hazards at the start / end of the shift (ms). */
+  intervalStartMs: 15_000,
+  intervalEndMs: 6_000,
+  warnMs: 2_500,
+  spill: { r: 34, unlockAt: 0, weight: 3 },
+  chicken: { r: 20, unlockAt: 0.3, weight: 2, speed: 170, lifeMs: 12_000 },
+  fire: { unlockAt: 0.35, weight: 2 },
+  meteor: { r: 58, unlockAt: 0.5, weight: 3, landedMs: 1_500 },
+  cheese: { r: 30, unlockAt: 0.6, weight: 2, speed: 480 },
+} as const;
+
+export interface StuckDef {
+  title: string;
+  /** What happened + what to do, shown full-screen on the phone. */
+  howTo: string;
+  /** The station gesture used to recover (reuses that station's motion detector). */
+  gesture: StationId;
+  reps: number;
+  icon: string;
+}
+
+export const STUCK: Record<StuckKind, StuckDef> = {
+  slip: {
+    title: 'You slipped in a spill!',
+    howTo: 'MOP IT UP: hold your phone flat and move it in big circles to clean the floor.',
+    gesture: 'stir',
+    reps: 3,
+    icon: '💦',
+  },
+  bonk: {
+    title: 'BONK! You got knocked down!',
+    howTo: 'GET UP: lift your phone up and down, like pushing yourself off the floor.',
+    gesture: 'chop',
+    reps: 5,
+    icon: '💫',
+  },
+  feathers: {
+    title: 'The chicken got you! Feathers everywhere!',
+    howTo: 'SHAKE THEM OFF: push your phone forward and pull it back, fast.',
+    gesture: 'knead',
+    reps: 6,
+    icon: '🪶',
+  },
+  fire: {
+    title: 'This station is on fire!',
+    howTo: 'FAN IT OUT: wave your phone side to side like a fan.',
+    gesture: 'mix',
+    reps: 10,
+    icon: '🔥',
+  },
+};
 
 export const SCORING = {
   recipe: 100,

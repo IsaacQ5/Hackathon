@@ -8,6 +8,7 @@ import {
   type ChefWork,
   type StationId,
 } from '@tilt-mayhem/shared';
+import { drawStuckBadge } from './hazardArt';
 
 export const INK = '#2b1a12';
 const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
@@ -35,7 +36,7 @@ export function emoji(ctx: CanvasRenderingContext2D, ch: string, x: number, y: n
   ctx.fillText(ch, x, y);
 }
 
-function outlined(ctx: CanvasRenderingContext2D, fill: string, lw = 3.5) {
+export function outlined(ctx: CanvasRenderingContext2D, fill: string, lw = 3.5) {
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.lineWidth = lw;
@@ -485,7 +486,20 @@ function drawSign(ctx: CanvasRenderingContext2D, icon: string, verb: string, col
 }
 
 /** `happy` (0..1) makes the customer bounce right after a dish is served. */
-export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolean, happy = 0) {
+/** How long the diner takes to eat a served dish before only the empty plate is left (ms). */
+export const EAT_MS = 1800;
+
+/**
+ * The serve table. `happy` (0..1) makes the diner bounce right after a serve; `dish` is the last
+ * dish served and how long ago: it's eaten over EAT_MS, then the empty plate stays on the table.
+ */
+export function drawPass(
+  ctx: CanvasRenderingContext2D,
+  t: number,
+  ready: boolean,
+  happy = 0,
+  dish: { icon: string; age: number } | null = null,
+) {
   const { x, y, r } = KITCHEN.pass;
   ctx.save();
   ctx.translate(x, y);
@@ -501,28 +515,57 @@ export function drawPass(ctx: CanvasRenderingContext2D, t: number, ready: boolea
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  drawCustomer(ctx, t, happy, -r + 2);
+  const eating = !!dish && dish.age < EAT_MS;
+  drawCustomer(ctx, t, happy, -r + 2, eating);
   ctx.beginPath();
   ctx.arc(0, 6, r, 0, Math.PI * 2);
   outlined(ctx, '#8a5a2f', 4);
   ctx.beginPath();
   ctx.arc(0, 0, r, 0, Math.PI * 2);
   outlined(ctx, '#f6f1ea', 4);
-  // bell
-  ctx.beginPath();
-  ctx.arc(0, 6, 18, Math.PI, 0);
-  ctx.lineTo(18, 8);
-  ctx.lineTo(-18, 8);
-  outlined(ctx, '#ffd23f', 3);
-  ctx.beginPath();
-  ctx.arc(0, -14, 4, 0, Math.PI * 2);
-  outlined(ctx, '#ffd23f', 2);
+  if (dish) drawPlate(ctx, dish.icon, dish.age, t);
   drawSign(ctx, '🔔', 'SERVE', '#3fbf2f', r + 8);
   ctx.restore();
 }
 
+/** Plate in front of the diner: food slides in, gets eaten bite by bite, then the empty plate stays. */
+function drawPlate(ctx: CanvasRenderingContext2D, icon: string, age: number, t: number) {
+  const slide = Math.min(1, age / 250);
+  const px = 0;
+  const py = -20 + (1 - slide) * 30;
+  // plate
+  ctx.beginPath();
+  ctx.ellipse(px, py + 4, 24, 11, 0, 0, Math.PI * 2);
+  outlined(ctx, '#ffffff', 3);
+  ctx.beginPath();
+  ctx.ellipse(px, py + 4, 16, 7, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(43,26,18,0.15)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  if (age < EAT_MS) {
+    // the dish shrinks in bites while the diner chomps
+    const eaten = Math.max(0, (age - 300) / (EAT_MS - 300));
+    const bites = Math.floor(eaten * 4);
+    const size = 30 * (1 - bites * 0.2) * (1 + Math.max(0, Math.sin(t * 16)) * 0.04);
+    emoji(ctx, icon, px, py - 4, size);
+    // crumbs fly on each bite
+    ctx.fillStyle = '#d9a066';
+    for (let i = 0; i < bites; i++) {
+      ctx.beginPath();
+      ctx.arc(px - 18 + i * 12, py + 8 + Math.sin(t * 9 + i) * 1.5, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    // empty plate: a little sauce smear left behind
+    ctx.beginPath();
+    ctx.ellipse(px + 4, py + 4, 7, 3, 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(232,67,47,0.35)';
+    ctx.fill();
+  }
+}
+
 /** Cosmetic diner seated at the serve table, peeking over its far edge. */
-function drawCustomer(ctx: CanvasRenderingContext2D, t: number, happy: number, baseY: number) {
+function drawCustomer(ctx: CanvasRenderingContext2D, t: number, happy: number, baseY: number, eating: boolean) {
   const hop = happy > 0 ? Math.abs(Math.sin(t * 14)) * 8 * happy : 0;
   const sway = Math.sin(t * 1.6) * 1.5;
   ctx.save();
@@ -562,11 +605,18 @@ function drawCustomer(ctx: CanvasRenderingContext2D, t: number, happy: number, b
     }
   }
   ctx.beginPath();
-  if (happy > 0.05) ctx.arc(0, -40, 5, 0.1 * Math.PI, 0.9 * Math.PI);
-  else ctx.arc(0, -37, 2.5, 0, Math.PI * 2);
-  ctx.lineWidth = 2.5;
-  ctx.strokeStyle = INK;
-  ctx.stroke();
+  if (eating) {
+    // chomp chomp
+    ctx.ellipse(0, -38, 4, 1 + Math.abs(Math.sin(t * 16)) * 3.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = INK;
+    ctx.fill();
+  } else {
+    if (happy > 0.05) ctx.arc(0, -40, 5, 0.1 * Math.PI, 0.9 * Math.PI);
+    else ctx.arc(0, -37, 2.5, 0, Math.PI * 2);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+  }
   // fork and knife, waiting for food
   const wave = happy > 0 ? Math.sin(t * 16) * 6 * happy : Math.sin(t * 3) * 1.5;
   for (const s of [-1, 1]) {
@@ -596,13 +646,24 @@ export interface ChefView extends ChefSnap {
   bounce: number;
   /** In first place right now. */
   crown?: boolean;
+  /** End of the game: the winner dances, the rest look sad. */
+  mood?: 'dance' | 'sad';
 }
 
 /**
  * Eyes, mouth and the chosen face cosmetic. (cx, cy) is the centre between the eyes.
  * Rows, top to bottom: eyes (cy), moustache (cy+7), mouth (just under the moustache), beard (wraps the chin).
  */
-function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy: number, fx: number, fy: number, busy: boolean) {
+function drawFace(
+  ctx: CanvasRenderingContext2D,
+  face: ChefFace,
+  cx: number,
+  cy: number,
+  fx: number,
+  fy: number,
+  busy: boolean,
+  sad = false,
+) {
   const HAIR = '#5a3a26';
   const stache = face === 'beard' || face === 'handlebar';
   const mouthY = stache ? cy + 10 : cy + 6;
@@ -707,9 +768,10 @@ function drawFace(ctx: CanvasRenderingContext2D, face: ChefFace, cx: number, cy:
     ctx.stroke();
   }
 
-  // mouth: concentrating "o" while working, smile otherwise
+  // mouth: concentrating "o" while working, frown when sad, smile otherwise
   ctx.beginPath();
   if (busy) ctx.ellipse(cx, mouthY + 2, 3.5, 3, 0, 0, Math.PI * 2);
+  else if (sad) ctx.arc(cx, mouthY + 5, 4.5, 1.15 * Math.PI, 1.85 * Math.PI);
   else ctx.arc(cx, mouthY - 1, 4.5, 0.15 * Math.PI, 0.85 * Math.PI);
   ctx.lineWidth = 2.5;
   ctx.strokeStyle = INK;
@@ -840,6 +902,17 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.translate(0, -bob);
   ctx.scale(1 / squash, squash);
 
+  // Taken out by a hazard: slipped / knocked down chefs lie on the floor, feathered ones shake.
+  const stuck = c.stuck;
+  const lying = stuck?.kind === 'slip' || stuck?.kind === 'bonk';
+  if (lying) ctx.rotate((c.seed % 2 > 1 ? 1 : -1) * 1.25);
+  if (stuck?.kind === 'feathers') ctx.translate(Math.sin(t * 40) * 2.5, 0);
+  // End-of-game moods: the winner dances, everyone else droops.
+  if (c.mood === 'dance') {
+    ctx.translate(0, -Math.abs(Math.sin(t * 7)) * 8);
+    ctx.rotate(Math.sin(t * 7) * 0.18);
+  } else if (c.mood === 'sad') ctx.translate(0, 2);
+
   // feet
   for (const s of [-1, 1]) {
     ctx.beginPath();
@@ -860,7 +933,8 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   const work = c.working;
 
   // face first, so hands held up in front of it (stirring, chopping) stay on top
-  if (fy > -0.7) drawFace(ctx, c.face, fx * 7, bodyY - 8, fx, fy, !!work);
+  const sad = c.mood === 'sad';
+  if (fy > -0.7) drawFace(ctx, c.face, fx * 7, bodyY - 8, fx, sad ? 1.2 : fy, !!work || !!stuck, sad);
 
   // arms: animated by station gesture
   const since = work ? work.sinceRep : 9999;
@@ -910,6 +984,25 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
           break;
       }
     }
+    if (stuck?.kind === 'fire') {
+      // fanning the flames
+      hx = s * 12 + fx * 10 + Math.sin(t * 14) * 10;
+      hy = shY - 6;
+    } else if (lying) {
+      // flailing on the floor
+      hx = shX + s * 10;
+      hy = shY - 8 + Math.sin(t * 10 + s) * 8;
+    } else if (stuck?.kind === 'feathers') {
+      hx = shX + s * 6;
+      hy = shY - 12 + Math.sin(t * 20 + s * 2) * 6;
+    } else if (c.mood === 'dance') {
+      // arms up, waving in turn
+      hx = shX + s * 10;
+      hy = shY - 18 + Math.sin(t * 7 + (s > 0 ? Math.PI : 0)) * 8;
+    } else if (sad) {
+      hx = shX + s * 2;
+      hy = shY + 18;
+    }
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(shX, shY);
@@ -958,6 +1051,8 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   // leader's crown sits on top of the hat
   if (c.crown) drawCrown(ctx, 0, hatY - 27 + Math.sin(t * 4) * 1.5, Math.sin(t * 2) * 0.08);
   ctx.restore();
+
+  if (stuck) drawStuckBadge(ctx, c.x, c.y - bob - (c.crown ? 132 : 110), stuck, t);
 
   // carried ingredients bob above the head (higher when there's a crown in the way)
   const headTop = c.y - bob - (c.crown ? 104 : 80);

@@ -17,6 +17,7 @@ export function KitchenResults({ results, room, code }: Props) {
   const captain = room.players.find((p) => p.id === captainId);
   const need = Math.max(0, room.minPlayers - room.players.filter((p) => p.connected).length);
   const winners = results.results.filter((r) => results.winnerIds.includes(r.id));
+  const losers = results.results.filter((r) => !results.winnerIds.includes(r.id));
   const awards = awardsFor(results.results);
   const dishes = results.results.reduce((n, r) => n + r.served, 0);
   const headline =
@@ -25,10 +26,20 @@ export function KitchenResults({ results, room, code }: Props) {
   return (
     <div className="kresults">
       <div className="kresults__hero">
-        <div className="kresults__winners">
-          {winners.map((w) => (
-            <ChefPortrait key={w.id} color={w.color} face={w.face} size={150} />
-          ))}
+        {/* Winner up front with a crown, dancing; everyone else further back, faded and sad. */}
+        <div className="kresults__stage">
+          {losers.length > 0 && (
+            <div className="kresults__crowd">
+              {losers.map((l) => (
+                <ChefPortrait key={l.id} color={l.color} face={l.face} size={90} mood="sad" />
+              ))}
+            </div>
+          )}
+          <div className="kresults__winners">
+            {winners.map((w) => (
+              <ChefPortrait key={w.id} color={w.color} face={w.face} size={170} crown mood="dance" />
+            ))}
+          </div>
         </div>
         <h1 className="kresults__title" style={{ color: winners[0]?.color ?? '#fff' }}>
           {headline}

@@ -9,10 +9,14 @@ interface Props {
   /** Show the chef busy at a station (animated arms). */
   station?: StationId | null;
   dim?: boolean;
+  /** Winner's crown on top of the hat. */
+  crown?: boolean;
+  /** End-of-game mood: the winner dances, the rest look sad. */
+  mood?: 'dance' | 'sad';
 }
 
 /** Small animated chef for lobby slots, results and the phone header. */
-export function ChefPortrait({ color, face = 'plain', size = 80, station = null, dim = false }: Props) {
+export function ChefPortrait({ color, face = 'plain', size = 80, station = null, dim = false, crown = false, mood }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -28,8 +32,9 @@ export function ChefPortrait({ color, face = 'plain', size = 80, station = null,
       raf = requestAnimationFrame(loop);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
-      const s = size / 110;
-      ctx.translate(size / 2, size * 0.82);
+      // Leave headroom for a crown (and the dance bounce).
+      const s = size / (crown || mood === 'dance' ? 136 : 110);
+      ctx.translate(size / 2, size * (crown || mood === 'dance' ? 0.86 : 0.82));
       ctx.scale(s, s);
       const view: ChefView = {
         id: 'p',
@@ -48,14 +53,17 @@ export function ChefPortrait({ color, face = 'plain', size = 80, station = null,
         have: [],
         working: station ? { station, ingredient: '', progress: 0.5, sinceRep: (now % 500) } : null,
         near: null,
+        stuck: null,
         seed,
         bounce: 0,
+        crown,
+        mood,
       };
       drawChef(ctx, view, now / 1000, false);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [color, face, size, station]);
+  }, [color, face, size, station, crown, mood]);
 
   return <canvas ref={ref} style={{ width: size, height: size, opacity: dim ? 0.4 : 1 }} aria-hidden />;
 }

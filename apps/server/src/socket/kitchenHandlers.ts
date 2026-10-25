@@ -33,6 +33,12 @@ export function registerKitchenHandlers(io: IOServer, rooms: RoomManager): void 
       if (found) found.room.engine.rep(found.binding.playerId, payload.good === true);
     });
 
+    socket.on('kitchen:recover', (payload) => {
+      if (!reps.take() || !isPlainObject(payload)) return;
+      const found = me();
+      if (found) found.room.engine.recover(found.binding.playerId, payload.good === true);
+    });
+
     socket.on('kitchen:cancel', () => {
       if (!control.take()) return;
       const found = me();

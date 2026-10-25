@@ -86,6 +86,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
           <li>Do the motion: chop, flip, stir, knead, mix or pour!</li>
           <li>Bring all 4 to the SERVE table in the middle and hit SERVE. Most points in {minutes}:00 wins.</li>
           <li>The last 30 seconds are RUSH HOUR: double points!</li>
+          <li>Watch out! Spills, fires, a loose chicken, meatball meteors and runaway cheese get wilder as the shift goes on. If one gets you, your phone shows the move to get back up.</li>
         </ol>
 
         <p className="klobby__start">

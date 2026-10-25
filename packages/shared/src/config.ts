@@ -29,6 +29,9 @@ export const GAME_CONFIG = {
   normalValue: 1,
   goldenValue: 3,
 
+  /** Kitchen chaos (spills, fires, meteors...): 1 = on, 0 = off (tests turn it off). */
+  hazards: 1,
+
   /** Room limits. */
   minPlayers: 2,
   maxPlayers: 8,

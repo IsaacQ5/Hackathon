@@ -34,6 +34,39 @@ export interface ChefWork {
   sinceRep: number;
 }
 
+// ------------------------------------------------------------------ kitchen chaos (environmental hazards)
+
+export type HazardKind = 'spill' | 'chicken' | 'fire' | 'meteor' | 'cheese';
+
+/** What a chef has to do with their phone before they can move again. */
+export type StuckKind = 'slip' | 'bonk' | 'feathers' | 'fire';
+
+export interface ChefStuck {
+  kind: StuckKind;
+  /** 0..1 */
+  progress: number;
+}
+
+export interface HazardSnap {
+  id: number;
+  kind: HazardKind;
+  /** Centre (meteor: impact point; cheese: current x and lane y; fire: the station). */
+  x: number;
+  y: number;
+  /** Radius of effect. */
+  r: number;
+  /** ms until it lands / starts rolling; > 0 means "warning" on the big screen. */
+  warnMs: number;
+  /** Fire only. */
+  station: StationId | null;
+  /** 0..1 how much has been cleaned / put out. */
+  progress: number;
+  /** Direction of travel (chicken, cheese): -1 left, 1 right. */
+  dir: number;
+  /** Landed meteor: ms left before the meatball disappears (0 otherwise). */
+  ttl: number;
+}
+
 export interface ChefSnap {
   id: string;
   nickname: string;
@@ -53,13 +86,21 @@ export interface ChefSnap {
   working: ChefWork | null;
   /** Station (or the pass) the chef is standing at. */
   near: StationId | 'pass' | null;
+  /** Knocked down / slipped / feathered / fighting a fire. */
+  stuck: ChefStuck | null;
 }
 
 export type KitchenEvent =
   | { type: 'rep'; chef: string; station: StationId; good: boolean }
   | { type: 'made'; chef: string; station: StationId; ingredient: string }
   | { type: 'served'; chef: string; recipeId: string; points: number; fast: boolean }
-  | { type: 'rush' };
+  | { type: 'rush' }
+  /** A hazard appeared (meteor/cheese start their warning now). */
+  | { type: 'hazard'; kind: HazardKind; x: number; y: number; station: StationId | null }
+  /** Meteor landed / cheese started rolling. */
+  | { type: 'impact'; kind: HazardKind; x: number; y: number }
+  | { type: 'stuck'; chef: string; kind: StuckKind }
+  | { type: 'recovered'; chef: string; kind: StuckKind };
 
 export interface GameSnapshot {
   tick: number;
@@ -73,6 +114,7 @@ export interface GameSnapshot {
   /** Final stretch: double points. */
   rush: boolean;
   chefs: ChefSnap[];
+  hazards: HazardSnap[];
   events: KitchenEvent[];
 }
 
@@ -86,6 +128,10 @@ export interface KitchenStatus {
   canInteract: boolean;
   /** Can press SEND right now (all four made and standing at the pass). */
   canServe: boolean;
+  /** The station you're standing at is on fire (INTERACT starts fanning it out). */
+  fireHere: boolean;
+  /** Your phone is taken over until you do the recovery motion. */
+  stuck: ChefStuck | null;
   score: number;
   served: number;
   rank: number;

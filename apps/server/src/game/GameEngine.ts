@@ -1,9 +1,12 @@
 import {
   GAME_CONFIG,
+  HAZARDS,
   INGREDIENTS,
   KITCHEN,
   RECIPES,
   SCORING,
+  STATION_IDS,
+  STUCK,
   recipeById,
   stationById,
   type ChefFace,
@@ -12,14 +15,17 @@ import {
   type GameConfig,
   type GamePhase,
   type GameSnapshot,
+  type HazardKind,
+  type HazardSnap,
   type KitchenEvent,
   type KitchenStatus,
   type MatchResults,
   type PlayerInput,
   type PublicPlayer,
   type StationId,
+  type StuckKind,
 } from '@tilt-mayhem/shared';
-import type { Chef, InputResult, InteractResult, Standing, UpdateResult } from './types.js';
+import type { Chef, Hazard, InputResult, InteractResult, Standing, UpdateResult } from './types.js';
 
 const R = KITCHEN.chefR;
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -51,6 +57,11 @@ export class GameEngine {
   private countdownEndsAt = 0;
   private roundEndsAt = 0;
   private scoresDirty = false;
+
+  private hazards: Hazard[] = [];
+  private nextHazardId = 1;
+  /** playMs when the next random hazard appears (0 = not scheduled yet). */
+  private nextHazardAt = 0;
 
   constructor(config: Partial<GameConfig> = {}, random: () => number = Math.random) {
     this.config = { ...GAME_CONFIG, ...config };
@@ -136,6 +147,8 @@ export class GameEngine {
     this.rush = false;
     this.lastResults = null;
     this.pendingEvents = [];
+    this.hazards = [];
+    this.nextHazardAt = 0;
     for (const old of [...this.chefs.values()]) {
       const c = this.blankChef(old.id, old.nickname, old.color, old.face);
       c.connected = old.connected;
@@ -205,9 +218,15 @@ export class GameEngine {
   interact(id: string): InteractResult {
     const c = this.chefs.get(id);
     if (!c || this._phase !== 'playing') return 'phase';
-    if (c.working) return 'busy';
+    if (c.working || c.stuck) return 'busy';
     if (!c.near || c.near === 'pass') return 'not-near';
     const station = c.near;
+    // A burning station has to be fanned out before anyone can cook there.
+    const fire = this.fireAt(station);
+    if (fire) {
+      this.setStuck(c, 'fire', fire.id);
+      return 'ok';
+    }
     const ingredient = this.neededAt(c, station);
     if (!ingredient) return c.have.size && this.recipeNeedsStation(c, station) ? 'already-have' : 'not-needed';
     c.working = { station, ingredient, reps: c.partial.get(ingredient) ?? 0, lastRepAt: -1e9 };
@@ -258,10 +277,33 @@ export class GameEngine {
     c.working = null;
   }
 
+  /** One recovery motion from a stuck chef's phone. Returns true if it counted. */
+  recover(id: string, good: boolean): boolean {
+    const c = this.chefs.get(id);
+    if (!c || !c.stuck || this._phase !== 'playing' || !good) return false;
+    const s = c.stuck;
+    const def = STUCK[s.kind];
+    if (this.playMs - s.lastRepAt < stationById(def.gesture).minRepMs) return false;
+    s.lastRepAt = this.playMs;
+    s.reps++;
+    const h = s.hazardId === null ? undefined : this.hazards.find((x) => x.id === s.hazardId);
+    const cleans = s.kind === 'slip' || s.kind === 'fire';
+    if (h && cleans) h.progress = Math.max(h.progress, s.reps / def.reps);
+    if (s.reps >= def.reps) {
+      if (h && cleans) {
+        // Spill mopped / fire out: gone for everyone, and anyone else stuck on it is free too.
+        this.hazards = this.hazards.filter((x) => x !== h);
+        for (const o of this.chefs.values()) if (o !== c && o.stuck?.hazardId === h.id) this.free(o);
+      }
+      this.free(c);
+    }
+    return true;
+  }
+
   /** Send the finished dish. Returns points scored (0 if not possible). */
   serve(id: string): number {
     const c = this.chefs.get(id);
-    if (!c || this._phase !== 'playing' || c.working) return 0;
+    if (!c || this._phase !== 'playing' || c.working || c.stuck) return 0;
     const recipe = recipeById(c.recipeId);
     if (!recipe || c.near !== 'pass' || !recipe.ingredients.every((i) => c.have.has(i))) return 0;
     const took = this.playMs - c.ticketAt;
@@ -315,7 +357,7 @@ export class GameEngine {
     const pass = KITCHEN.pass;
 
     for (const c of list) {
-      if (c.working || !c.connected) {
+      if (c.working || c.stuck || !c.connected) {
         c.vx *= 0.5;
         c.vy *= 0.5;
       } else {
@@ -338,13 +380,15 @@ export class GameEngine {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const d = Math.hypot(dx, dy);
-        if (d > 0 && d < R * 1.9 && !(a.working && b.working)) {
+        const aFixed = !!(a.working || a.stuck);
+        const bFixed = !!(b.working || b.stuck);
+        if (d > 0 && d < R * 1.9 && !(aFixed && bFixed)) {
           const push = (R * 1.9 - d) / 2;
-          if (!a.working) {
+          if (!aFixed) {
             a.x -= (dx / d) * push;
             a.y -= (dy / d) * push;
           }
-          if (!b.working) {
+          if (!bFixed) {
             b.x += (dx / d) * push;
             b.y += (dy / d) * push;
           }
@@ -356,21 +400,262 @@ export class GameEngine {
       // Walls / counters.
       c.x = clamp(c.x, f.x0 + R, f.x1 - R);
       c.y = clamp(c.y, f.y0 + R, f.y1 - R);
-      // The pass table in the middle is solid.
-      const dx = c.x - pass.x;
-      const dy = c.y - pass.y;
-      const d = Math.hypot(dx, dy);
-      const min = pass.r + R;
-      if (d < min) {
-        const ux = d > 0.01 ? dx / d : 1;
-        const uy = d > 0.01 ? dy / d : 0;
-        c.x = pass.x + ux * min;
-        c.y = pass.y + uy * min;
+      // The serve table in the middle and the diner sitting at it are solid.
+      for (const ob of [pass, KITCHEN.customer]) {
+        const dx = c.x - ob.x;
+        const dy = c.y - ob.y;
+        const d = Math.hypot(dx, dy);
+        const min = ob.r + R;
+        if (d < min) {
+          const ux = d > 0.01 ? dx / d : 0;
+          const uy = d > 0.01 ? dy / d : 1;
+          c.x = ob.x + ux * min;
+          c.y = ob.y + uy * min;
+        }
       }
       c.near = this.nearOf(c);
       // If somehow moved away from the station, stop working (keep progress).
       if (c.working && c.near !== c.working.station) this.cancel(c.id);
     }
+
+    this.updateHazards(dt * 1000);
+  }
+
+  // ================================================================ kitchen chaos
+
+  private fireAt(station: StationId): Hazard | undefined {
+    return this.hazards.find((h) => h.kind === 'fire' && h.station === station);
+  }
+
+  private setStuck(c: Chef, kind: StuckKind, hazardId: number | null) {
+    if (c.working) this.cancel(c.id);
+    c.stuck = { kind, reps: 0, hazardId, lastRepAt: -1e9 };
+    c.vx = 0;
+    c.vy = 0;
+    c.input = { x: 0, y: 0 };
+    this.pendingEvents.push({ type: 'stuck', chef: c.id, kind });
+  }
+
+  private free(c: Chef) {
+    if (!c.stuck) return;
+    this.pendingEvents.push({ type: 'recovered', chef: c.id, kind: c.stuck.kind });
+    c.stuck = null;
+    c.immuneUntil = this.playMs + 2000;
+  }
+
+  /** Can this chef be taken out by a hazard right now? */
+  private hittable(c: Chef): boolean {
+    return !c.stuck && c.connected && this.playMs >= c.immuneUntil;
+  }
+
+  /** Spawn schedule + per-hazard behaviour. Called every tick while playing. */
+  private updateHazards(dtMs: number) {
+    const dur = this.config.roundDurationMs;
+    const p = Math.min(1, this.playMs / dur);
+    if (this.nextHazardAt === 0) this.nextHazardAt = dur * HAZARDS.startAt;
+    // `hazards: 0` turns off random spawning; hazards placed by hand still behave normally.
+    if (this.config.hazards && this.playMs >= this.nextHazardAt) {
+      this.spawnRandomHazard(p);
+      const base = HAZARDS.intervalStartMs + (HAZARDS.intervalEndMs - HAZARDS.intervalStartMs) * p;
+      this.nextHazardAt = this.playMs + base * (this.rush ? 0.8 : 1) * (0.75 + this.random() * 0.5);
+    }
+
+    const f = KITCHEN.floor;
+    const chefs = [...this.chefs.values()];
+    for (const h of [...this.hazards]) {
+      switch (h.kind) {
+        case 'spill':
+          for (const c of chefs) {
+            if (!c.working && this.hittable(c) && Math.hypot(c.x - h.x, c.y - h.y) < h.r) this.setStuck(c, 'slip', h.id);
+          }
+          break;
+        case 'meteor':
+          if (h.warnMs > 0) {
+            h.warnMs -= dtMs;
+            if (h.warnMs <= 0) {
+              h.warnMs = 0;
+              h.ttl = HAZARDS.meteor.landedMs;
+              this.pendingEvents.push({ type: 'impact', kind: 'meteor', x: h.x, y: h.y });
+              for (const c of chefs) if (this.hittable(c) && Math.hypot(c.x - h.x, c.y - h.y) < h.r + R * 0.5) this.setStuck(c, 'bonk', null);
+            }
+          } else {
+            h.ttl -= dtMs;
+            if (h.ttl <= 0) this.removeHazard(h);
+          }
+          break;
+        case 'cheese':
+          if (h.warnMs > 0) {
+            h.warnMs -= dtMs;
+            if (h.warnMs <= 0) {
+              h.warnMs = 0;
+              this.pendingEvents.push({ type: 'impact', kind: 'cheese', x: h.x, y: h.y });
+            }
+            break;
+          }
+          h.x += (h.dir * HAZARDS.cheese.speed * dtMs) / 1000;
+          for (const c of chefs) {
+            if (h.hit.has(c.id) || !this.hittable(c)) continue;
+            if (Math.abs(c.x - h.x) < h.r + R && Math.abs(c.y - h.y) < h.r + R * 0.6) {
+              h.hit.add(c.id);
+              this.setStuck(c, 'bonk', null);
+            }
+          }
+          if (h.x < f.x0 - 120 || h.x > f.x1 + 120) this.removeHazard(h);
+          break;
+        case 'chicken': {
+          h.age += dtMs;
+          if (h.age >= h.turnAt) {
+            const a = this.random() * Math.PI * 2;
+            h.vx = Math.cos(a) * HAZARDS.chicken.speed;
+            h.vy = Math.sin(a) * HAZARDS.chicken.speed * 0.7;
+            h.turnAt = h.age + 700 + this.random() * 900;
+          }
+          h.x += (h.vx * dtMs) / 1000;
+          h.y += (h.vy * dtMs) / 1000;
+          if (h.x < f.x0 + h.r) h.vx = Math.abs(h.vx);
+          if (h.x > f.x1 - h.r) h.vx = -Math.abs(h.vx);
+          if (h.y < f.y0 + h.r) h.vy = Math.abs(h.vy);
+          if (h.y > f.y1 - h.r) h.vy = -Math.abs(h.vy);
+          h.x = clamp(h.x, f.x0 + h.r, f.x1 - h.r);
+          h.y = clamp(h.y, f.y0 + h.r, f.y1 - h.r);
+          for (const ob of [KITCHEN.pass, KITCHEN.customer]) {
+            const d = Math.hypot(h.x - ob.x, h.y - ob.y);
+            if (d < ob.r + h.r && d > 0.01) {
+              h.x = ob.x + ((h.x - ob.x) / d) * (ob.r + h.r);
+              h.y = ob.y + ((h.y - ob.y) / d) * (ob.r + h.r);
+              h.vx = -h.vx;
+              h.vy = -h.vy;
+            }
+          }
+          if (Math.abs(h.vx) > 1) h.dir = Math.sign(h.vx);
+          for (const c of chefs) {
+            if (!c.working && this.hittable(c) && Math.hypot(c.x - h.x, c.y - h.y) < h.r + R) this.setStuck(c, 'feathers', null);
+          }
+          if (h.age > HAZARDS.chicken.lifeMs) this.removeHazard(h);
+          break;
+        }
+        case 'fire':
+          break;
+      }
+    }
+  }
+
+  private removeHazard(h: Hazard) {
+    this.hazards = this.hazards.filter((x) => x !== h);
+  }
+
+  /** Pick what happens next. Bigger events unlock as the shift goes on. */
+  private spawnRandomHazard(p: number) {
+    const count = (k: HazardKind) => this.hazards.filter((h) => h.kind === k).length;
+    const bigOne = count('meteor') + count('cheese') > 0;
+    const options: [HazardKind, number][] = [];
+    if (count('spill') < 1 + Math.floor(p * 3)) options.push(['spill', HAZARDS.spill.weight]);
+    if (p >= HAZARDS.chicken.unlockAt && count('chicken') === 0) options.push(['chicken', HAZARDS.chicken.weight]);
+    if (p >= HAZARDS.fire.unlockAt && count('fire') < (p > 0.75 ? 2 : 1)) options.push(['fire', HAZARDS.fire.weight]);
+    if (p >= HAZARDS.meteor.unlockAt && !bigOne) options.push(['meteor', HAZARDS.meteor.weight]);
+    if (p >= HAZARDS.cheese.unlockAt && !bigOne) options.push(['cheese', HAZARDS.cheese.weight]);
+    const total = options.reduce((n, o) => n + o[1], 0);
+    if (!total) return;
+    let roll = this.random() * total;
+    for (const [kind, w] of options) {
+      roll -= w;
+      if (roll <= 0) {
+        this.spawnHazard(kind);
+        return;
+      }
+    }
+  }
+
+  /** A random open floor spot (away from the serve table and, optionally, the stations). */
+  private floorPoint(margin: number, avoidStations: boolean): { x: number; y: number } {
+    const f = KITCHEN.floor;
+    let pt = { x: f.x0 + margin, y: f.y0 + margin };
+    for (let i = 0; i < 25; i++) {
+      pt = { x: f.x0 + margin + this.random() * (f.x1 - f.x0 - margin * 2), y: f.y0 + margin + this.random() * (f.y1 - f.y0 - margin * 2) };
+      const nearPass = Math.hypot(pt.x - KITCHEN.pass.x, pt.y - KITCHEN.pass.y) < KITCHEN.pass.serveR + margin;
+      const nearStation = avoidStations && KITCHEN.spots.some((s) => Math.hypot(pt.x - s.fx, pt.y - s.fy) < 60);
+      if (!nearPass && !nearStation) break;
+    }
+    return pt;
+  }
+
+  /** Start a hazard now. Random placement unless a spot (or station, for fire) is given. Returns its id. */
+  spawnHazard(kind: HazardKind, at?: { x: number; y: number }, station?: StationId): number {
+    const f = KITCHEN.floor;
+    const h: Hazard = {
+      id: this.nextHazardId++,
+      kind,
+      x: 0,
+      y: 0,
+      r: 0,
+      warnMs: 0,
+      station: null,
+      progress: 0,
+      dir: 1,
+      ttl: 0,
+      vx: 0,
+      vy: 0,
+      age: 0,
+      turnAt: 0,
+      hit: new Set(),
+    };
+    switch (kind) {
+      case 'spill': {
+        const pt = at ?? this.floorPoint(HAZARDS.spill.r + 10, true);
+        Object.assign(h, pt, { r: HAZARDS.spill.r });
+        break;
+      }
+      case 'meteor': {
+        // Aim near a random chef so it matters, but never dead-on.
+        const targets = [...this.chefs.values()].filter((c) => c.connected && !c.stuck);
+        const t = targets[Math.floor(this.random() * targets.length)];
+        const pt = at ?? (t
+          ? { x: clamp(t.x + (this.random() - 0.5) * 120, f.x0 + 40, f.x1 - 40), y: clamp(t.y + (this.random() - 0.5) * 120, f.y0 + 40, f.y1 - 40) }
+          : this.floorPoint(60, false));
+        Object.assign(h, pt, { r: HAZARDS.meteor.r, warnMs: HAZARDS.warnMs });
+        break;
+      }
+      case 'cheese': {
+        const dir = this.random() < 0.5 ? 1 : -1;
+        const y = at?.y ?? (this.random() < 0.5 ? f.y0 + 32 : f.y1 - 32);
+        Object.assign(h, { x: at?.x ?? (dir > 0 ? f.x0 - 60 : f.x1 + 60), y, dir, r: HAZARDS.cheese.r, warnMs: HAZARDS.warnMs });
+        break;
+      }
+      case 'chicken': {
+        const dir = this.random() < 0.5 ? 1 : -1;
+        const pt = at ?? { x: dir > 0 ? f.x0 + 30 : f.x1 - 30, y: f.y0 + 60 + this.random() * (f.y1 - f.y0 - 120) };
+        Object.assign(h, pt, { dir, r: HAZARDS.chicken.r, vx: dir * HAZARDS.chicken.speed, vy: 0, turnAt: 900 });
+        break;
+      }
+      case 'fire': {
+        const free = STATION_IDS.filter((s) => !this.fireAt(s));
+        const st = station ?? free[Math.floor(this.random() * free.length)];
+        if (!st) return -1;
+        const spot = KITCHEN.spots.find((s) => s.id === st)!;
+        Object.assign(h, { x: spot.x, y: spot.y, r: 50, station: st });
+        // Whoever was cooking there jumps back (their progress is kept).
+        for (const c of this.chefs.values()) if (c.working?.station === st) this.cancel(c.id);
+        break;
+      }
+    }
+    this.hazards.push(h);
+    this.pendingEvents.push({ type: 'hazard', kind, x: Math.round(h.x), y: Math.round(h.y), station: h.station });
+    return h.id;
+  }
+
+  private hazardSnap(h: Hazard): HazardSnap {
+    return {
+      id: h.id,
+      kind: h.kind,
+      x: round1(h.x),
+      y: round1(h.y),
+      r: h.r,
+      warnMs: Math.max(0, Math.round(h.warnMs)),
+      station: h.station,
+      progress: Math.round(h.progress * 100) / 100,
+      dir: h.dir,
+      ttl: Math.max(0, Math.round(h.ttl)),
+    };
   }
 
   private nearOf(c: Chef): StationId | 'pass' | null {
@@ -420,6 +705,8 @@ export class GameEngine {
       partial: new Map(),
       working: null,
       near: null,
+      stuck: null,
+      immuneUntil: 0,
       served: 0,
       stats: { gestures: 0, oops: 0, perStation: {}, fastestMs: null },
     };
@@ -433,7 +720,9 @@ export class GameEngine {
     for (const c of list) {
       c.input = { x: 0, y: 0 };
       c.working = null;
+      c.stuck = null;
     }
+    this.hazards = [];
     const sorted = [...list].sort((a, b) => b.score - a.score || b.served - a.served);
     const results: ChefResult[] = [];
     sorted.forEach((c, i) => {
@@ -488,10 +777,16 @@ export class GameEngine {
     const ranked = [...this.chefs.values()].sort((a, b) => b.score - a.score);
     const rank = 1 + ranked.filter((o) => o.score > c.score).length;
     const recipe = recipeById(c.recipeId);
-    const canInteract =
-      this._phase === 'playing' && !c.working && !!c.near && c.near !== 'pass' && this.neededAt(c, c.near) !== null;
+    const atStation = this._phase === 'playing' && !c.working && !c.stuck && !!c.near && c.near !== 'pass';
+    const fireHere = atStation && !!this.fireAt(c.near as StationId);
+    const canInteract = atStation && (fireHere || this.neededAt(c, c.near as StationId) !== null);
     const canServe =
-      this._phase === 'playing' && !c.working && c.near === 'pass' && !!recipe && recipe.ingredients.every((i) => c.have.has(i));
+      this._phase === 'playing' &&
+      !c.working &&
+      !c.stuck &&
+      c.near === 'pass' &&
+      !!recipe &&
+      recipe.ingredients.every((i) => c.have.has(i));
     return {
       recipeId: c.recipeId,
       have: [...c.have],
@@ -499,12 +794,18 @@ export class GameEngine {
       near: c.near,
       canInteract,
       canServe,
+      fireHere,
+      stuck: this.stuckSnap(c),
       score: c.score,
       served: c.served,
       rank,
       timeLeftMs: this.timeLeft(now),
       rush: this.rush,
     };
+  }
+
+  private stuckSnap(c: Chef) {
+    return c.stuck ? { kind: c.stuck.kind, progress: Math.min(1, c.stuck.reps / STUCK[c.stuck.kind].reps) } : null;
   }
 
   private workSnap(c: Chef) {
@@ -544,6 +845,7 @@ export class GameEngine {
       have: [...c.have],
       working: c.working ? this.workSnap(c) : null,
       near: c.near,
+      stuck: this.stuckSnap(c),
     }));
     return {
       tick: this._tick,
@@ -553,6 +855,7 @@ export class GameEngine {
       countdownMs: this._phase === 'countdown' ? Math.max(0, Math.round(this.countdownEndsAt - now)) : 0,
       rush: this.rush,
       chefs,
+      hazards: this.hazards.map((h) => this.hazardSnap(h)),
       events,
     };
   }

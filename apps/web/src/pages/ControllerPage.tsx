@@ -18,6 +18,7 @@ import { CustomizeCard } from '../components/CustomizeCard';
 import { HeadChefCard } from '../components/HeadChefCard';
 import { JoinForm } from '../components/JoinForm';
 import { RecipeBar } from '../components/RecipeBar';
+import { RecoveryPanel } from '../components/RecoveryPanel';
 import { StationPanel } from '../components/StationPanel';
 import { TiltIndicator } from '../components/TiltIndicator';
 import { TouchPad } from '../components/TouchPad';
@@ -181,7 +182,8 @@ export function ControllerPage({ code }: { code: string }) {
 
   // ------------------------------------------------------------ input loop
 
-  const working = !!status?.working;
+  // Stand still while cooking or while a hazard has you.
+  const working = !!status?.working || !!status?.stuck;
   useEffect(() => {
     if (joinState !== 'joined' || phase !== 'playing' || !connected || working) return;
     const id = window.setInterval(() => {
@@ -407,6 +409,7 @@ export function ControllerPage({ code }: { code: string }) {
             <li>{mode === 'tilt' ? 'Tilt' : 'Use the stick'} to walk to a station. Your phone buzzes when you're there.</li>
             <li>Tap the button under the circle, then do the motion shown on screen.</li>
             <li>Got all 4? Walk to the SERVE table in the middle and hit SERVE!</li>
+            <li>Kitchen chaos! If a spill, chicken, meteor or fire gets you, your phone takes over: do the move it shows to get back up.</li>
           </ol>
         </section>
         <footer className="kctrl__foot">{settingsPanel}</footer>
@@ -426,6 +429,18 @@ export function ControllerPage({ code }: { code: string }) {
           <h2>GET READY!</h2>
           <p>{mode === 'tilt' ? 'Hold your phone flat and still: calibrating…' : 'Thumbs on the controls!'}</p>
         </section>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------ render: hit by a hazard
+
+  // Slipped / knocked down / feathered / fighting a fire: the whole phone is taken over until you recover.
+  if (status?.stuck) {
+    return (
+      <div className="kctrl kctrl--work" style={colorVar(color)}>
+        {header}
+        <RecoveryPanel stuck={status.stuck} motionAllowed={motionAllowed} />
       </div>
     );
   }
@@ -456,6 +471,7 @@ export function ControllerPage({ code }: { code: string }) {
 
   let action: { label: string; cls: string; onClick?: () => void } = { label: 'Walk to a station', cls: 'is-idle' };
   if (canServe) action = { label: '🔔 SERVE!', cls: 'is-serve', onClick: () => kitchenApi.serve() };
+  else if (canInteract && nearDef && status?.fireHere) action = { label: `🔥 PUT OUT THE FIRE!`, cls: 'is-go is-fire', onClick: () => kitchenApi.interact() };
   else if (canInteract && nearDef) action = { label: `${nearDef.icon} ${nearDef.verb} ${neededIcon}`, cls: 'is-go', onClick: () => kitchenApi.interact() };
   else if (nearDef) action = { label: `${nearDef.icon} Nothing needed here`, cls: 'is-no' };
   else if (near === 'pass') action = { label: 'Make all 4 first!', cls: 'is-no' };

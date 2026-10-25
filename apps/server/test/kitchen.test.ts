@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  HAZARDS,
   KITCHEN,
   RECIPES,
+  STUCK,
   SCORING,
   STATIONS,
   createDetector,
@@ -130,8 +132,8 @@ describe('Gesture detectors', () => {
 
 const TICK = 1000 / 30;
 
-function kitchen(ids = ['a', 'b'], cfg: { roundDurationMs?: number } = {}) {
-  const e = new GameEngine({ countdownMs: 100, roundDurationMs: cfg.roundDurationMs ?? 180_000 }, () => 0.3);
+function kitchen(ids = ['a', 'b'], cfg: { roundDurationMs?: number; hazards?: number } = {}) {
+  const e = new GameEngine({ countdownMs: 100, roundDurationMs: cfg.roundDurationMs ?? 180_000, hazards: cfg.hazards ?? 0 }, () => 0.3);
   ids.forEach((id, i) => e.addPlayer(id, id.toUpperCase(), ['#ff3d7f', '#2de2e6', '#ffd23f'][i]!));
   let now = 1000;
   e.startCountdown(now);
@@ -333,5 +335,76 @@ describe('Kitchen engine: sharing', () => {
     const ax = e.peek('a')!.x;
     const bx = e.peek('b')!.x;
     assert.ok(Math.abs(ax - bx) >= 50, `${ax} vs ${bx}`);
+  });
+});
+
+describe('Kitchen engine: chaos', () => {
+  it('a spill makes you slip; mopping (stir circles) cleans it and frees you', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.spawnHazard('spill', { x: 300, y: 300 });
+    run(100);
+    assert.equal(e.peek('a')!.stuck?.kind, 'slip');
+    assert.equal(e.interact('a'), 'busy', 'no cooking while stuck');
+    for (let i = 0; i < STUCK.slip.reps; i++) {
+      run(stationById(STUCK.slip.gesture).minRepMs + 10);
+      assert.equal(e.recover('a', true), true);
+    }
+    assert.equal(e.peek('a')!.stuck, null);
+    assert.equal(e.snapshot(0).hazards.length, 0, 'spill cleaned up');
+  });
+
+  it('a meatball meteor warns first, then knocks down whoever is under it', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.setPlayerPosition('b', 800, 300);
+    e.spawnHazard('meteor', { x: 300, y: 300 });
+    assert.ok(e.snapshot(0).hazards[0]!.warnMs > 0, 'warning first');
+    run(1000);
+    assert.equal(e.peek('a')!.stuck, null, 'not yet');
+    run(HAZARDS.warnMs);
+    assert.equal(e.peek('a')!.stuck?.kind, 'bonk');
+    assert.equal(e.peek('b')!.stuck, null, 'far away chefs are fine');
+  });
+
+  it('a station fire blocks cooking until someone fans it out', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'chop');
+    e.spawnHazard('fire', undefined, 'chop');
+    assert.equal(e.status('a', 0)!.fireHere, true);
+    assert.equal(e.interact('a'), 'ok');
+    assert.equal(e.peek('a')!.stuck?.kind, 'fire');
+    for (let i = 0; i < STUCK.fire.reps; i++) {
+      run(stationById(STUCK.fire.gesture).minRepMs + 10);
+      e.recover('a', true);
+    }
+    assert.equal(e.peek('a')!.stuck, null);
+    assert.equal(e.status('a', 0)!.fireHere, false);
+    assert.equal(e.interact('a'), 'ok', 'can cook again');
+    assert.equal(e.peek('a')!.working?.station, 'chop');
+  });
+
+  it('nobody can walk through the diner at the serve table', () => {
+    const { e, run } = kitchen(['a']);
+    const cu = KITCHEN.customer;
+    e.setPlayerPosition('a', cu.x, cu.y - 80);
+    let seq = 0;
+    for (let i = 0; i < 60; i++) {
+      e.applyInput('a', { seq: ++seq, x: 0, y: 1 });
+      run(TICK);
+    }
+    const c = e.peek('a')!;
+    assert.ok(Math.hypot(c.x - cu.x, c.y - cu.y) >= cu.r + KITCHEN.chefR - 1, 'pushed out of the diner');
+  });
+
+  it('random hazards start tame and only appear once the shift is underway', () => {
+    const { e, run } = kitchen(['a', 'b'], { hazards: 1, roundDurationMs: 100_000 });
+    run(10_000);
+    assert.equal(e.snapshot(0).hazards.length, 0, 'calm start');
+    run(10_000);
+    const first = e.snapshot(0).hazards;
+    assert.ok(first.length >= 1, 'something happened');
+    assert.ok(first.every((h) => h.kind === 'spill'), 'early hazards are tame');
   });
 });
