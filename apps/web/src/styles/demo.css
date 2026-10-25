@@ -1,0 +1,514 @@
+/* ---------------------------------------------------------------- 3D motion demos (phone)
+ * A little 3D phone doing the motion over the matching kitchen setup. See GestureDemo.tsx.
+ * (The pour scene reuses the kpour-phone / kpour-stream keyframes from sizzle.css.)
+ */
+.kdemo {
+  position: relative;
+  height: 150px;
+  perspective: 360px;
+  overflow: visible;
+}
+.kdemo > * {
+  position: absolute;
+  left: 50%;
+}
+.kdemo__shadow {
+  bottom: 4px;
+  width: 90px;
+  height: 12px;
+  margin-left: -45px;
+  border-radius: 50%;
+  background: rgba(43, 26, 18, 0.18);
+}
+.kdemo__phone {
+  top: 22px;
+  width: 40px;
+  height: 74px;
+  margin-left: -20px;
+  transform-style: preserve-3d;
+  z-index: 2;
+}
+.kdemo__front,
+.kdemo__back {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  border: 3px solid var(--ink);
+}
+.kdemo__front {
+  background: #3b3b46;
+  transform: translateZ(4px);
+  padding: 6px 4px;
+}
+.kdemo__back {
+  background: #1d1d24;
+  transform: translateZ(-4px);
+}
+.kdemo__screen {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(160deg, #8ec5ff, #b26bff);
+}
+.kdemo .emo {
+  position: absolute;
+}
+
+/* --- CHOP: phone on its edge like a knife, chopping a carrot on a board */
+.kdemo__board {
+  bottom: 10px;
+  width: 140px;
+  height: 30px;
+  margin-left: -70px;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: repeating-linear-gradient(90deg, #e3a96b 0 18px, #d99a5a 18px 20px);
+}
+.kdemo__veg {
+  left: 10px;
+  top: -14px;
+  font-size: 2rem;
+  transform: rotate(-70deg);
+}
+.kdemo--chop .kdemo__phone {
+  animation: kd-chop 0.6s ease-in infinite;
+}
+@keyframes kd-chop {
+  0%,
+  100% {
+    transform: translateY(-14px) rotateZ(90deg) rotateY(62deg);
+  }
+  45%,
+  60% {
+    transform: translateY(30px) rotateZ(90deg) rotateY(62deg);
+  }
+}
+.kdemo__slice {
+  bottom: 38px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: #ff9a2e;
+  box-shadow: inset 0 0 0 3px #ffc27a;
+  opacity: 0;
+  animation: kd-slice 0.6s ease-out infinite;
+}
+.kdemo__slice--1 {
+  margin-left: 14px;
+  --sx: 26px;
+}
+.kdemo__slice--2 {
+  margin-left: 18px;
+  --sx: 44px;
+  animation-delay: 0.05s;
+}
+.kdemo__slice--3 {
+  margin-left: 10px;
+  --sx: 12px;
+  animation-delay: 0.1s;
+}
+@keyframes kd-slice {
+  0%,
+  45% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx), -26px) rotate(140deg);
+  }
+}
+
+/* --- FLIP: phone flat like a pan, front flicks up, the bacon flips */
+.kdemo__flame {
+  bottom: 12px;
+  width: 70px;
+  height: 22px;
+  margin-left: -35px;
+  border-radius: 50% 50% 40% 40%;
+  background: radial-gradient(ellipse at 50% 100%, #ffb02e 0 40%, #ff5a2a 60%, transparent 72%);
+  animation: kd-flicker 0.3s ease-in-out infinite alternate;
+}
+@keyframes kd-flicker {
+  to {
+    transform: scaleY(1.25);
+  }
+}
+.kdemo--fry .kdemo__phone {
+  top: 40px;
+  animation: kd-flip 1s ease-in-out infinite;
+}
+@keyframes kd-flip {
+  0%,
+  45%,
+  100% {
+    transform: rotateX(64deg);
+  }
+  18% {
+    transform: translateY(-6px) rotateX(22deg);
+  }
+}
+.kdemo__toss {
+  top: 42px;
+  margin-left: -16px;
+  font-size: 2rem;
+  z-index: 3;
+  animation: kd-toss 1s ease-in-out infinite;
+}
+@keyframes kd-toss {
+  0%,
+  10%,
+  70%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  40% {
+    transform: translateY(-46px) rotate(180deg);
+  }
+}
+
+/* --- STIR: flat phone circling over a pot of soup that swirls with it */
+.kdemo__pot,
+.kdemo__bowl,
+.kdemo__puddle {
+  bottom: 8px;
+  width: 130px;
+  height: 46px;
+  margin-left: -65px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+}
+.kdemo__pot {
+  background: #7b7f8c;
+}
+.kdemo__soup {
+  position: absolute;
+  inset: 6px 10px 10px;
+  border-radius: 50%;
+  background: #e8432f;
+  overflow: hidden;
+}
+.kdemo__swirl {
+  position: absolute;
+  inset: 4px 20px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255, 255, 255, 0.7);
+  animation: kd-spin 1.2s linear infinite;
+}
+@keyframes kd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.kdemo--stir .kdemo__phone,
+.kdemo--slip .kdemo__phone {
+  top: 30px;
+  animation: kd-circle 1.2s linear infinite;
+}
+@keyframes kd-circle {
+  0%,
+  100% {
+    transform: translate(26px, 0) rotateX(64deg);
+  }
+  25% {
+    transform: translate(0, 10px) rotateX(64deg);
+  }
+  50% {
+    transform: translate(-26px, 0) rotateX(64deg);
+  }
+  75% {
+    transform: translate(0, -10px) rotateX(64deg);
+  }
+}
+
+/* --- KNEAD: phone pushes forward and pulls back, the dough squishes */
+.kdemo__slab {
+  bottom: 8px;
+  width: 140px;
+  height: 34px;
+  margin-left: -70px;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 20% 40%, #fff 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, #fff 0 2px, transparent 3px),
+    #f3e2c4;
+}
+.kdemo__dough {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 60px;
+  height: 22px;
+  margin-left: -30px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: #fbe7c0;
+  animation: kd-squish 0.9s ease-in-out infinite;
+}
+@keyframes kd-squish {
+  0%,
+  100% {
+    transform: scale(1.25, 0.8);
+  }
+  50% {
+    transform: scale(0.85, 1.15);
+  }
+}
+.kdemo--knead .kdemo__phone,
+.kdemo--feathers .kdemo__phone {
+  top: 26px;
+  animation: kd-push 0.9s ease-in-out infinite;
+}
+@keyframes kd-push {
+  0%,
+  100% {
+    transform: translateY(16px) scale(1.08) rotateX(64deg);
+  }
+  50% {
+    transform: translateY(-12px) scale(0.88) rotateX(64deg);
+  }
+}
+
+/* --- MIX: phone shakes side to side over a bowl, batter splashing */
+.kdemo__bowl {
+  background: #8ec5ff;
+  border-radius: 10px 10px 65px 65px;
+}
+.kdemo__batter {
+  position: absolute;
+  inset: 4px 8px auto;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffe3a6;
+  animation: kd-wobble 0.35s ease-in-out infinite alternate;
+}
+@keyframes kd-wobble {
+  to {
+    transform: skewX(12deg);
+  }
+}
+.kdemo--mix .kdemo__phone,
+.kdemo--fire .kdemo__phone {
+  top: 30px;
+  animation: kd-shake 0.35s ease-in-out infinite;
+}
+@keyframes kd-shake {
+  0%,
+  100% {
+    transform: translateX(-24px) rotateX(64deg) rotateZ(-8deg);
+  }
+  50% {
+    transform: translateX(24px) rotateX(64deg) rotateZ(8deg);
+  }
+}
+.kdemo__drop {
+  bottom: 50px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: #ffe3a6;
+  opacity: 0;
+  animation: kd-splash 0.7s ease-out infinite;
+}
+.kdemo__drop--1 {
+  margin-left: -40px;
+  --sx: -18px;
+}
+.kdemo__drop--2 {
+  margin-left: 34px;
+  --sx: 18px;
+  animation-delay: 0.35s;
+}
+@keyframes kd-splash {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx), -22px);
+  }
+}
+
+/* --- POUR: tilt sideways (juice pours into the glass), then back upright */
+.kdemo--juice .kdemo__phone {
+  margin-left: -44px;
+  animation: kpour-phone 3.2s ease-in-out infinite;
+}
+.kdemo__glass {
+  bottom: 6px;
+  margin-left: 6px;
+  font-size: 2.6rem;
+}
+.kdemo__stream {
+  top: 60px;
+  margin-left: 22px;
+  width: 7px;
+  height: 0;
+  border-radius: 4px;
+  background: linear-gradient(#ffb02e, #ff8a3d);
+  animation: kpour-stream 3.2s ease-in-out infinite;
+}
+
+/* --- hazards: wipe the puddle (circles), get up (lift), shake off feathers, spray the fire */
+.kdemo__puddle {
+  background: rgba(110, 190, 255, 0.85);
+  border-color: #2f86d6;
+  overflow: hidden;
+  animation: kd-shrink 2.4s ease-in-out infinite;
+}
+@keyframes kd-shrink {
+  50% {
+    transform: scale(0.75);
+  }
+}
+.kdemo__bubble {
+  bottom: 40px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #2f86d6;
+  background: rgba(255, 255, 255, 0.9);
+  animation: kd-rise 1.2s ease-out infinite;
+}
+.kdemo__bubble--1 {
+  margin-left: -30px;
+}
+.kdemo__bubble--2 {
+  margin-left: 24px;
+  animation-delay: 0.6s;
+}
+@keyframes kd-rise {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-30px) scale(1.2);
+  }
+}
+.kdemo__floor {
+  bottom: 10px;
+  width: 140px;
+  height: 10px;
+  margin-left: -70px;
+  border-radius: 5px;
+  background: repeating-linear-gradient(90deg, #9fe3ec 0 20px, #e6fbff 20px 40px);
+  border: 2px solid var(--ink);
+}
+.kdemo--bonk .kdemo__phone {
+  animation: kd-lift 0.7s ease-in-out infinite;
+}
+@keyframes kd-lift {
+  0%,
+  100% {
+    transform: translateY(26px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.kdemo__stars {
+  top: 4px;
+  width: 0;
+  height: 0;
+  animation: kd-spin 1.4s linear infinite;
+}
+.kdemo__stars .emo {
+  font-size: 1.1rem;
+}
+.kdemo__stars .emo:nth-child(1) {
+  transform: translate(40px, -8px);
+}
+.kdemo__stars .emo:nth-child(2) {
+  transform: translate(-50px, -8px);
+}
+.kdemo__stars .emo:nth-child(3) {
+  transform: translate(-6px, 30px);
+}
+.kdemo__feather {
+  font-size: 1.4rem;
+  bottom: 30px;
+  animation: kd-float 1.4s ease-out infinite;
+}
+.kdemo__feather--1 {
+  margin-left: -50px;
+  --sx: -24px;
+}
+.kdemo__feather--2 {
+  margin-left: 30px;
+  --sx: 24px;
+  animation-delay: 0.45s;
+}
+.kdemo__feather--3 {
+  margin-left: -10px;
+  --sx: 6px;
+  animation-delay: 0.9s;
+}
+@keyframes kd-float {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--sx), 30px) rotate(160deg);
+  }
+}
+.kdemo__fire {
+  bottom: 6px;
+  margin-left: -26px;
+  font-size: 3rem;
+  animation: kd-dying 2.4s ease-in-out infinite;
+}
+@keyframes kd-dying {
+  0% {
+    transform: scale(1);
+  }
+  80%,
+  100% {
+    transform: scale(0.4);
+    opacity: 0.4;
+  }
+}
+.kdemo__foam {
+  bottom: 30px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #9ab8cc;
+  background: #fff;
+  opacity: 0;
+  animation: kd-foam 0.7s ease-out infinite;
+}
+.kdemo__foam--1 {
+  margin-left: -36px;
+}
+.kdemo__foam--2 {
+  margin-left: -6px;
+  animation-delay: 0.23s;
+}
+.kdemo__foam--3 {
+  margin-left: 22px;
+  animation-delay: 0.46s;
+}
+@keyframes kd-foam {
+  0% {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.4);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.8;
+    transform: translateY(0) scale(1.3);
+  }
+}

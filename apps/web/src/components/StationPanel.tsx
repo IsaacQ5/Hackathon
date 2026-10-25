@@ -4,6 +4,7 @@ import { useMotionGesture } from '../hooks/useMotionGesture';
 import { kitchenApi } from '../network/socket';
 import { colorVar } from '../utils/style';
 import { TouchStation } from './TouchStation';
+import { GestureDemo } from './GestureDemo';
 import { Emoji } from './Emoji';
 
 interface Props {
@@ -68,9 +69,11 @@ export function StationPanel({ work, motionAllowed }: Props) {
   }, [liveRef, showButtons]);
 
   // Progress: the server's number, nudged forward by gestures it hasn't confirmed yet.
-  const serverReps = Math.round(work.progress * def.reps);
+  // The server says how many this station needs (falls back to our copy of the station data).
+  const reps = work.need || def.reps;
+  const serverReps = Math.round(work.progress * reps);
   useEffect(() => setLocalReps(serverReps), [serverReps]);
-  const progress = Math.min(1, Math.max(work.progress, localReps / def.reps));
+  const progress = Math.min(1, Math.max(work.progress, localReps / reps));
   const recent = flash && performance.now() - flash.at < 350;
 
   return (
@@ -85,30 +88,13 @@ export function StationPanel({ work, motionAllowed }: Props) {
         </div>
       </header>
 
-      {work.station === 'juice' ? (
-        // A real 3D phone: tilt it sideways (juice pours), then back upright.
-        <div className="kpour3d" aria-hidden>
-          <div className="kpour3d__shadow" />
-          <div className="kpour3d__phone">
-            <div className="kpour3d__back" />
-            <div className="kpour3d__front">
-              <div className="kpour3d__screen" />
-            </div>
-          </div>
-          <div className="kpour3d__stream" />
-          <Emoji ch="🥛" className="kpour3d__glass" />
-        </div>
-      ) : (
-        <div className={`kgesture kgesture--${work.station}`} aria-hidden>
-          <Emoji ch="📱" />
-        </div>
-      )}
+      <GestureDemo scene={work.station} />
       <p className="kpanel__how">{def.howTo}</p>
 
       <div className="kprog">
         <div className="kprog__fill" style={{ width: `${progress * 100}%` }} />
         <span className="kprog__label">
-          {def.verb} {Math.min(def.reps, Math.round(progress * def.reps))} / {def.reps}
+          {def.verb} {Math.min(reps, Math.round(progress * reps))} / {reps}
         </span>
       </div>
 

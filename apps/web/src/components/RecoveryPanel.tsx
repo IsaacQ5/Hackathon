@@ -3,6 +3,7 @@ import { STUCK, stationById, type ChefStuck } from '@tilt-mayhem/shared';
 import { useMotionGesture } from '../hooks/useMotionGesture';
 import { kitchenApi } from '../network/socket';
 import { TouchStation } from './TouchStation';
+import { GestureDemo } from './GestureDemo';
 import { Emoji } from './Emoji';
 
 interface Props {
@@ -69,9 +70,7 @@ export function RecoveryPanel({ stuck, motionAllowed }: Props) {
       </div>
       <h2>{def.title}</h2>
       <p className="krecover__how">{def.howTo}</p>
-      <div className={`kgesture kgesture--${def.gesture}`} aria-hidden>
-        <Emoji ch="📱" />
-      </div>
+      <GestureDemo scene={stuck.kind} />
       <div className="kprog">
         <div className="kprog__fill" style={{ width: `${stuck.progress * 100}%` }} />
         <span className="kprog__label">{Math.round(stuck.progress * 100)}%</span>

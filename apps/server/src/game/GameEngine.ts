@@ -828,6 +828,7 @@ export class GameEngine {
       station: w.station,
       ingredient: w.ingredient,
       progress: Math.min(1, w.reps / stationById(w.station).reps),
+      need: stationById(w.station).reps,
       sinceRep: Math.max(0, Math.round(this.playMs - w.lastRepAt)),
     };
   }

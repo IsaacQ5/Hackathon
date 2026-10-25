@@ -30,6 +30,8 @@ export interface ChefWork {
   ingredient: string;
   /** 0..1 */
   progress: number;
+  /** Good gestures this station needs (the server's number, so every phone agrees). */
+  need: number;
   /** ms since the last counted gesture (drives the station animation). */
   sinceRep: number;
 }

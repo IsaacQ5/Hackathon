@@ -29,15 +29,31 @@ export function TouchStation({ station, onRep }: Props) {
     case 'mix':
       return <Alternate onRep={onRep} a="⬅️ LEFT" b="RIGHT ➡️" />;
     case 'juice':
-      return <Alternate onRep={onRep} a="↪ SIDEWAYS" b="↩ BACK UP" />;
+      // A pour is the full there-and-back, same as with motion: only coming back up counts.
+      return <Alternate onRep={onRep} a="↪ SIDEWAYS" b="↩ BACK UP" pairs />;
   }
 }
 
-/** Two buttons that must be pressed alternately (knead / mix). */
-function Alternate({ onRep, a, b, vertical = false }: { onRep: (g: boolean) => void; a: string; b: string; vertical?: boolean }) {
+/**
+ * Two buttons that must be pressed alternately. Knead/mix count every press (each stroke);
+ * with `pairs` only the a -> b round trip counts, so it matches one motion gesture.
+ */
+function Alternate({
+  onRep,
+  a,
+  b,
+  vertical = false,
+  pairs = false,
+}: {
+  onRep: (g: boolean) => void;
+  a: string;
+  b: string;
+  vertical?: boolean;
+  pairs?: boolean;
+}) {
   const last = useRef<'a' | 'b' | null>(null);
   const press = (k: 'a' | 'b') => () => {
-    if (last.current !== k) onRep(true);
+    if (last.current !== k && (!pairs || (k === 'b' && last.current === 'a'))) onRep(true);
     last.current = k;
   };
   return (
