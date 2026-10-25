@@ -1,24 +1,28 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { createDetector, PourDetector, stationById, type MotionSample, type PourStage, type StationId } from '@tilt-mayhem/shared';
+import { createDetector, PourDetector, type MotionSample, type PourStage, type StationId } from '@tilt-mayhem/shared';
 
-/**
- * How closely the motion has to match the station's (the detector's live 0..1 meter) for effort to
- * count toward an assisted rep. Holding still or doing a different motion stays below this.
- */
-const ASSIST_MIN_ENERGY = 0.3;
+/** How long a recognised (clean) motion keeps accuracy at the top, in ms. */
+const CLEAN_PULSE_MS = 450;
+/** The match meter alone tops out here; clean, recognised motions are what reach 100%. */
+const MATCH_WEIGHT = 0.8;
 
 export interface GestureLive {
   energy: number;
+  /**
+   * 0..1 how accurate the motion is right now (smoothed): the station's match meter (up to 80%)
+   * plus a jump to 100% for each clean, recognised motion. Drives accuracy-based cooking.
+   */
+  accuracy: number;
   prompt: string;
   stage?: PourStage;
   tilt?: number;
 }
 
 /**
- * Feeds DeviceMotion samples into the station's gesture detector and calls
- * onRep for each recognised gesture. Live meter values sit in a ref (no
- * re-renders at 60 Hz). `sensorOk` becomes false if no motion data arrives,
- * so the UI can switch to on-screen buttons.
+ * Feeds DeviceMotion samples into the station's gesture detector, calls onRep for each
+ * recognised gesture, and keeps a live accuracy score. Live values sit in a ref (no
+ * re-renders at 60 Hz). `sensorOk` becomes false if no motion data arrives, so the UI
+ * can switch to on-screen buttons.
  */
 export function useMotionGesture(
   station: StationId | null,
@@ -26,7 +30,7 @@ export function useMotionGesture(
   onRep: (good: boolean) => void,
 ): { sensorOk: boolean | null; liveRef: MutableRefObject<GestureLive> } {
   const [sensorOk, setSensorOk] = useState<boolean | null>(null);
-  const liveRef = useRef<GestureLive>({ energy: 0, prompt: '' });
+  const liveRef = useRef<GestureLive>({ energy: 0, accuracy: 0, prompt: '' });
   const onRepRef = useRef(onRep);
   onRepRef.current = onRep;
 
@@ -34,14 +38,11 @@ export function useMotionGesture(
     if (!station || !enabled) return;
     setSensorOk(null);
     const det = createDetector(station);
-    liveRef.current = { energy: 0, prompt: det.prompt() };
+    liveRef.current = { energy: 0, accuracy: 0, prompt: det.prompt() };
     let gravity: [number, number, number] | null = null;
     let got = false;
-    // Assist: time spent doing roughly the right motion without it registering. Every
-    // `assistMs` of honest effort counts one rep (slower than doing it properly).
-    const assistMs = stationById(station).assistMs;
-    let effortMs = 0;
-    let lastT = 0;
+    let cleanAt = -1e9;
+    let accuracy = 0;
 
     const onMotion = (e: DeviceMotionEvent) => {
       const inc = e.accelerationIncludingGravity;
@@ -95,25 +96,20 @@ export function useMotionGesture(
         rg: rr?.gamma ?? 0,
       };
       const r = det.push(s);
+      if (r === 'good') cleanAt = s.t;
+      // Accuracy: how well the motion matches (capped below 100%), topped up to 100% for a moment
+      // by each clean, recognised motion; smoothed so the meter fills steadily, not in jumps.
+      const pulse = Math.max(0, 1 - (s.t - cleanAt) / CLEAN_PULSE_MS);
+      const target = Math.max(det.energy() * MATCH_WEIGHT, pulse);
+      accuracy += (target - accuracy) * 0.2;
       liveRef.current = {
         energy: det.energy(),
+        accuracy,
         prompt: det.prompt(),
         stage: det instanceof PourDetector ? det.getStage() : undefined,
         tilt: det instanceof PourDetector ? det.tilt : undefined,
       };
       if (r) onRepRef.current(r === 'good');
-
-      const dt = lastT ? Math.min(100, s.t - lastT) : 0;
-      lastT = s.t;
-      if (r) effortMs = 0;
-      else if (det.energy() >= ASSIST_MIN_ENERGY) {
-        // Moving the right way, just not cleanly enough to count: build up toward a free rep.
-        effortMs += dt;
-        if (effortMs >= assistMs) {
-          effortMs = 0;
-          onRepRef.current(true);
-        }
-      }
     };
 
     window.addEventListener('devicemotion', onMotion);

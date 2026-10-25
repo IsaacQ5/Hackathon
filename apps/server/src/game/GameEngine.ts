@@ -1,5 +1,6 @@
 import {
   GAME_CONFIG,
+  EFFORT,
   HAZARDS,
   INGREDIENTS,
   KITCHEN,
@@ -246,7 +247,7 @@ export class GameEngine {
     }
     const ingredient = this.neededAt(c, station);
     if (!ingredient) return c.have.size && this.recipeNeedsStation(c, station) ? 'already-have' : 'not-needed';
-    c.working = { station, ingredient, reps: c.partial.get(ingredient) ?? 0, lastRepAt: -1e9 };
+    c.working = { station, ingredient, reps: c.partial.get(ingredient) ?? 0, lastRepAt: -1e9, lastEffortAt: this.playMs };
     c.vx = 0;
     c.vy = 0;
     // Two cooks can share a station: step into a free spot so nobody overlaps.
@@ -277,13 +278,46 @@ export class GameEngine {
       c.stats.oops++;
     }
     this.pendingEvents.push({ type: 'rep', chef: c.id, station: w.station, good });
-    if (w.reps >= def.reps) {
-      c.have.add(w.ingredient);
-      c.partial.delete(w.ingredient);
-      c.working = null;
-      this.pendingEvents.push({ type: 'made', chef: c.id, station: w.station, ingredient: w.ingredient });
-    }
+    if (w.reps >= def.reps) this.finishWork(c);
     return true;
+  }
+
+  /**
+   * Accuracy-based cooking (motion): fill the meter by accuracy x elapsed time / fillMs. The time
+   * is measured here (capped per message), so sending messages faster can't fill it faster, and
+   * sloppy-but-trying motion still fills slowly. Below EFFORT.minAccuracy nothing happens.
+   */
+  effort(id: string, accuracy: number): boolean {
+    const c = this.chefs.get(id);
+    if (!c || !c.working || this._phase !== 'playing') return false;
+    const w = c.working;
+    const def = stationById(w.station);
+    const dt = Math.min(EFFORT.maxGapMs, Math.max(0, this.playMs - w.lastEffortAt));
+    w.lastEffortAt = this.playMs;
+    const a = Number.isFinite(accuracy) ? Math.min(1, accuracy) : 0;
+    if (a < EFFORT.minAccuracy || dt === 0) return false;
+    // `reps` is kept in rep units (fractional here) so buttons and motion share one meter.
+    const before = Math.floor(w.reps);
+    w.reps = Math.min(def.reps, w.reps + ((a * dt) / def.fillMs) * def.reps);
+    if (Math.floor(w.reps) > before) {
+      // Each whole step: station animation pulse + a sound/word on the TV.
+      w.lastRepAt = this.playMs;
+      c.stats.gestures++;
+      c.stats.perStation[w.station] = (c.stats.perStation[w.station] ?? 0) + 1;
+      this.pendingEvents.push({ type: 'rep', chef: c.id, station: w.station, good: true });
+    }
+    if (w.reps >= def.reps) this.finishWork(c);
+    return true;
+  }
+
+  /** The ingredient is done: into the chef's hands, station freed. */
+  private finishWork(c: Chef) {
+    const w = c.working;
+    if (!w) return;
+    c.have.add(w.ingredient);
+    c.partial.delete(w.ingredient);
+    c.working = null;
+    this.pendingEvents.push({ type: 'made', chef: c.id, station: w.station, ingredient: w.ingredient });
   }
 
   /** Step away from the station; partial progress is remembered. */

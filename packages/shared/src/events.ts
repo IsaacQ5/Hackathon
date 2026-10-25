@@ -104,6 +104,8 @@ export interface ClientToServerEvents {
   'kitchen:interact': (payload: EmptyPayload) => void;
   /** One recognised gesture at your station (good, or a messed-up one). */
   'kitchen:rep': (payload: { good: boolean }) => void;
+  /** ~10x/s while working with motion: how accurate the motion is right now (0..1). Fills the meter. */
+  'kitchen:effort': (payload: { a: number }) => void;
   /** Step away from the station (progress is kept). */
   'kitchen:cancel': (payload: EmptyPayload) => void;
   /** One recovery motion while stuck (mop / get up / shake off feathers / fan the fire). */

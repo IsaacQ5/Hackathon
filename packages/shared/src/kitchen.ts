@@ -27,14 +27,13 @@ export interface StationDef {
   color: string;
   /** What the player does with the phone. */
   howTo: string;
-  /** Good gestures needed to fill the meter. */
+  /** On-screen button taps needed to fill the meter (phones without motion). */
   reps: number;
   /**
-   * Help for players who are trying but whose motion isn't registering: while they keep doing
-   * roughly the right motion, one rep is counted for them every this many ms. Set so that
-   * finishing purely on assists takes ~12 s (doing it properly is several times faster).
+   * With motion, the meter fills smoothly at a speed set by how accurate the motion is:
+   * at 100% accuracy it takes this many ms; at 50% twice as long; below EFFORT.minAccuracy, never.
    */
-  assistMs: number;
+  fillMs: number;
   /** Server-side minimum ms between counted gestures (anti-mash). */
   minRepMs: number;
   /** Progress lost on a messed-up gesture, in reps. */
@@ -51,7 +50,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#7cd651',
     howTo: 'Hold your phone sideways like a knife and chop straight down.',
     reps: 8,
-    assistMs: 1500,
+    fillMs: 2500,
     minRepMs: 140,
     badPenalty: 0,
     ingredients: [
@@ -68,9 +67,9 @@ export const STATIONS: readonly StationDef[] = [
     verb: 'FLIP',
     icon: '🍳',
     color: '#ff8a3d',
-    howTo: 'Hold your phone like a pan and flick the front up to toss the food.',
+    howTo: 'Hold your phone flat like a pan, then lift the top edge up to flip. Back to flat, and again!',
     reps: 5,
-    assistMs: 2400,
+    fillMs: 3500,
     minRepMs: 250,
     badPenalty: 1,
     ingredients: [
@@ -89,7 +88,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#ff3d5a',
     howTo: 'Hold your phone flat and move it in big, full circles.',
     reps: 4,
-    assistMs: 3000,
+    fillMs: 4500,
     minRepMs: 300,
     badPenalty: 0,
     ingredients: [
@@ -108,7 +107,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#e0a458',
     howTo: 'Push your phone forward and pull it back, over and over.',
     reps: 12,
-    assistMs: 1000,
+    fillMs: 4500,
     minRepMs: 200,
     badPenalty: 0,
     ingredients: [
@@ -127,7 +126,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#b26bff',
     howTo: 'Shake your phone gently side to side, left-right-left-right.',
     reps: 12,
-    assistMs: 1000,
+    fillMs: 3000,
     minRepMs: 90,
     badPenalty: 0,
     ingredients: [
@@ -146,7 +145,7 @@ export const STATIONS: readonly StationDef[] = [
     color: '#ffd23f',
     howTo: 'Tilt your phone sideways, then back upright. Repeat!',
     reps: 4,
-    assistMs: 3000,
+    fillMs: 4000,
     minRepMs: 350,
     badPenalty: 0,
     ingredients: [
@@ -349,6 +348,19 @@ export const PUSH = {
   speed: 640,
   /** How long the shoved chef can't steer. */
   knockMs: 260,
+} as const;
+
+/**
+ * Accuracy-based cooking: while working with motion, the phone sends how accurate the motion is
+ * (0..1) about `sendHz` times a second; the server fills the meter by accuracy x time / fillMs.
+ * The server measures the time itself (capped at `maxGapMs` per message), so sending faster
+ * can't fill it faster.
+ */
+export const EFFORT = {
+  /** Below this accuracy the meter doesn't move (no progress for holding still / wrong motions). */
+  minAccuracy: 0.2,
+  maxGapMs: 250,
+  sendHz: 10,
 } as const;
 
 export const SCORING = {

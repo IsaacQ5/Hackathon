@@ -66,7 +66,23 @@ describe('Gesture detectors', () => {
     assert.equal(run('chop', 3000, (t) => ({ az: wave(t, 600, 3) })).good, 0, 'walking jiggle');
   });
 
-  it('FLIP counts each flick once (the return swing is ignored); slow tilts and twists do nothing', () => {
+  it('FLIP: phone flat, lift the top edge up = one flip; back to flat for the next', () => {
+    // Lift the top edge 40 degrees and lower it again, once every 800 ms.
+    const lift = (deg: number) => ({ gy: G * Math.sin((deg * Math.PI) / 180), gz: G * Math.cos((deg * Math.PI) / 180) });
+    const lifts = run('fry', 4000, (t) => {
+      const p = t % 800;
+      return lift(p < 150 ? (p / 150) * 40 : p < 400 ? 40 - ((p - 150) / 250) * 40 : 0);
+    });
+    assert.equal(lifts.good, 5, `flips ${lifts.good}`);
+    // Holding it tipped up is still one flip until it comes back to flat.
+    assert.equal(run('fry', 3000, (t) => lift(t > 200 ? 40 : 0)).good, 1, 'must come back to flat');
+    // A small wobble isn't a flip.
+    assert.equal(run('fry', 3000, (t) => lift(t % 800 < 400 ? 12 : 0)).good, 0, 'small wobble');
+    // Not flat to begin with (held upright): nothing until it's laid flat.
+    assert.equal(run('fry', 2000, (t) => ({ gx: 0, gy: G, gz: 0, rb: t % 600 < 80 ? 380 : 0 })).good, 0, 'must start flat');
+  });
+
+  it('FLIP gyro shortcut: a quick top-edge-up rotation counts once (the return swing is ignored)', () => {
     const flips = run('fry', 4000, (t) => {
       const p = t % 800;
       return { rb: p < 90 ? 380 : p < 180 ? -260 : 0 };
@@ -86,11 +102,11 @@ describe('Gesture detectors', () => {
     assert.ok(noGyro.good >= 4, `flicks seen from the tilt alone: ${noGyro.good}`);
     const slow = run('fry', 3000, (t) => ({ rb: wave(t, 2000, 60) }));
     assert.deepEqual(slow, { good: 0, bad: 0 });
-    // Flicking a side or a corner up counts too (rotation about y, or x and y together).
+    // It's the top edge that lifts: tipping a side up (rotation about y) is not a flip.
     const side = run('fry', 4000, (t) => ({ rg: t % 800 < 90 ? 380 : 0 }));
-    assert.equal(side.good, 5, `side flicks ${side.good}`);
+    assert.equal(side.good, 0, `side flicks ${side.good}`);
     const corner = run('fry', 4000, (t) => ({ rb: t % 800 < 90 ? 200 : 0, rg: t % 800 < 90 ? 200 : 0 }));
-    assert.equal(corner.good, 5, `corner flicks ${corner.good}`);
+    assert.equal(corner.good, 5, `top corner lifts ${corner.good}`);
     // Spinning the phone flat like a steering wheel (rotation about z) is not a flip.
     const twist = run('fry', 2000, (t) => ({ ra: t % 600 < 80 ? 600 : 0, rb: t % 600 < 80 ? 100 : 0 }));
     assert.equal(twist.good, 0, 'twisting the phone is not a pan flip');
@@ -325,6 +341,44 @@ describe('Kitchen engine', () => {
     assert.equal(e.applyInput('a', { seq: 1, x: 2, y: 0 }), 'invalid');
     assert.equal(e.applyInput('a', { seq: 3, x: 0.5, y: 0 }), 'ok');
     assert.equal(e.applyInput('a', { seq: 3, x: 0.5, y: 0 }), 'stale');
+  });
+});
+
+describe('Kitchen engine: accuracy-based cooking', () => {
+  it('fills by accuracy x time: sloppy does nothing, half accuracy fills at half speed, perfect finishes it', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'chop');
+    assert.equal(e.interact('a'), 'ok');
+    const def = stationById('chop');
+    for (let t = 0; t < 2000; t += 100) {
+      run(100);
+      e.effort('a', 0.1);
+    }
+    assert.equal(e.peek('a')!.working!.reps, 0, 'too inaccurate: no free progress');
+    for (let t = 0; t < def.fillMs / 2; t += 100) {
+      run(100);
+      e.effort('a', 0.5);
+    }
+    const quarter = e.peek('a')!.working!.reps / def.reps;
+    assert.ok(Math.abs(quarter - 0.25) < 0.05, `half accuracy for half the time = a quarter: ${quarter}`);
+    for (let t = 0; t < def.fillMs && e.peek('a')!.working; t += 100) {
+      run(100);
+      e.effort('a', 1);
+    }
+    assert.equal(e.peek('a')!.working, null, 'done');
+    assert.ok(e.peek('a')!.have.has('lettuce'));
+  });
+
+  it('sending accuracy faster does not fill it faster (the server keeps the time)', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setRecipe('a', 'burger');
+    at(e, 'a', 'chop');
+    e.interact('a');
+    run(100);
+    for (let i = 0; i < 50; i++) e.effort('a', 1);
+    const filled = e.peek('a')!.working!.reps / stationById('chop').reps;
+    assert.ok(filled <= 120 / stationById('chop').fillMs, `only ~100 ms worth: ${filled}`);
   });
 });
 

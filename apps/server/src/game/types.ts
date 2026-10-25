@@ -45,7 +45,8 @@ export interface Chef extends EnginePlayer {
   have: Set<string>;
   /** Partly made ingredients survive stepping away from a station. */
   partial: Map<string, number>;
-  working: { station: StationId; ingredient: string; reps: number; lastRepAt: number } | null;
+  /** `reps` is in rep units; motion fills it fractionally (see GameEngine.effort). */
+  working: { station: StationId; ingredient: string; reps: number; lastRepAt: number; lastEffortAt: number } | null;
   near: StationId | 'pass' | null;
   /** Taken out by a hazard until the phone does the recovery motion. */
   stuck: { kind: StuckKind; reps: number; hazardId: number | null; lastRepAt: number } | null;

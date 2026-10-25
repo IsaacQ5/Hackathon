@@ -112,60 +112,67 @@ export class ChopDetector implements GestureDetector {
   }
 }
 
-// ------------------------------------------------------------------ 2. FLIP: flick the front of the phone up
+// ------------------------------------------------------------------ 2. FLIP: phone flat, lift the top edge up
 
-/** Flick strength (deg/s-ish) that counts as a flip, and what counts as settled again. */
-const FLIP_AT = 120;
-const FLIP_SETTLED = 70;
+/** Lifting the top edge this far from flat is a flip; back within FLIP_FLAT_DEG gets ready for the next. */
+const FLIP_LIFT_DEG = 25;
+const FLIP_FLAT_DEG = 12;
+/** Gyro shortcut: a quick top-edge-up rotation (deg/s about the phone's x axis) also counts. */
+const FLIP_PITCH_RATE = 160;
 
 export class FlipDetector implements GestureDetector {
-  private phase: 'idle' | 'cool' = 'idle';
-  private t0 = 0;
+  /** waiting: not flat yet. armed: flat and ready. lifted: just flipped, waiting to come back to flat. */
+  private phase: 'waiting' | 'armed' | 'lifted' = 'waiting';
+  private liftedAt = 0;
   private e = 0;
-  private msg = 'Flick it up!';
-  private prevG: V3 | null = null;
+  private msg = 'Hold your phone flat…';
+  private prevPitch: number | null = null;
   private prevT = 0;
 
   push(s: MotionSample): RepResult {
+    const g = norm([s.gx, s.gy, s.gz]);
+    // How far the top edge is tipped from flat: gravity moving off the screen axis (z) onto the
+    // long axis (y). Sign conventions differ between phones, so only the size is used.
+    const pitch = (Math.atan2(Math.abs(g[1]), Math.abs(g[2])) * 180) / Math.PI;
+    const flat = pitch < FLIP_FLAT_DEG && Math.abs(g[0]) < 0.4;
     const gyro = s.ra !== 0 || s.rb !== 0 || s.rg !== 0;
-    const { v, g } = decompose(s);
-    // Three ways to see a flick, whichever is strongest:
-    //  1. Gyro: rotation about a horizontal axis (front, side or corner coming up). Spinning the
-    //     phone flat like a steering wheel is rotation about z (alpha) and doesn't count.
-    //  2. How fast the phone is actually tipping, measured from the gravity direction. This works
-    //     on every phone, whatever units (or lack of) its gyro reports.
-    //  3. The upward jolt of the flick itself.
-    const rot = gyro ? Math.hypot(s.rb, s.rg) : 0;
-    const spin = gyro ? Math.abs(s.ra) : 0;
+    const pitchRate = gyro ? Math.abs(s.rb) : 0;
+    const otherRate = gyro ? Math.max(Math.abs(s.ra), Math.abs(s.rg)) : 0;
     let tipRate = 0;
-    if (this.prevG && s.t > this.prevT) {
-      const deg = (Math.acos(Math.max(-1, Math.min(1, dot(g, this.prevG)))) * 180) / Math.PI;
-      tipRate = deg / ((s.t - this.prevT) / 1000);
-    }
-    this.prevG = g;
+    if (this.prevPitch !== null && s.t > this.prevT) tipRate = Math.abs(pitch - this.prevPitch) / ((s.t - this.prevT) / 1000);
+    this.prevPitch = pitch;
     this.prevT = s.t;
-    const mag = Math.max(rot >= spin * 0.9 ? rot : 0, tipRate, Math.abs(v) * 22);
-    this.e = Math.max(this.e * 0.9, Math.min(1, mag / 250));
+    this.e = Math.max(this.e * 0.9, Math.min(1, Math.max(tipRate, pitchRate >= otherRate ? pitchRate : 0) / 220));
 
-    if (this.phase === 'cool') {
-      // Wait for the pan to settle (this also swallows the return swing), but not for long.
-      if ((s.t - this.t0 > 180 && mag < FLIP_SETTLED) || s.t - this.t0 > 550) this.phase = 'idle';
-      return null;
-    }
-    if (rot > 2600) {
-      this.phase = 'cool';
-      this.t0 = s.t;
+    if (pitchRate > 2600 && this.phase !== 'lifted') {
+      this.phase = 'lifted';
+      this.liftedAt = s.t;
       this.msg = 'Whoa! Too wild, the food flew off!';
       return 'bad';
     }
-    // Count the flick the moment it happens; a slow tilt or a flat twist doesn't count.
-    if (mag > FLIP_AT) {
-      this.phase = 'cool';
-      this.t0 = s.t;
-      this.msg = 'Nice flip!';
-      return 'good';
+    switch (this.phase) {
+      case 'waiting':
+        if (flat) {
+          this.phase = 'armed';
+          this.msg = 'Lift the top edge up!';
+        }
+        return null;
+      case 'armed':
+        if (pitch > FLIP_LIFT_DEG || (pitchRate > FLIP_PITCH_RATE && pitchRate >= otherRate)) {
+          this.phase = 'lifted';
+          this.liftedAt = s.t;
+          this.msg = 'Nice flip! Back to flat…';
+          return 'good';
+        }
+        return null;
+      case 'lifted':
+        // Back down to flat (and settled) gets it ready for the next flip.
+        if (flat && s.t - this.liftedAt > 200 && pitchRate < 80) {
+          this.phase = 'armed';
+          this.msg = 'Lift the top edge up!';
+        }
+        return null;
     }
-    return null;
   }
   energy() {
     return this.e;
@@ -174,10 +181,10 @@ export class FlipDetector implements GestureDetector {
     return this.msg;
   }
   reset() {
-    this.phase = 'idle';
+    this.phase = 'waiting';
     this.e = 0;
-    this.msg = 'Flick it up!';
-    this.prevG = null;
+    this.msg = 'Hold your phone flat…';
+    this.prevPitch = null;
     this.prevT = 0;
   }
 }
@@ -371,10 +378,19 @@ export class PourDetector implements GestureDetector {
   private stage: PourStage = 'upright';
   /** 0..1 how far the phone is tipped sideways right now. */
   tilt = 0;
+  private e = 0;
+  private prevT = 0;
 
   push(s: MotionSample): RepResult {
     const g = norm([s.gx, s.gy, s.gz]);
-    this.tilt = Math.min(1, Math.abs(g[0]) / POUR.sideways);
+    const tilt = Math.min(1, Math.abs(g[0]) / POUR.sideways);
+    // Match meter: high while tipping over or coming back (about one tilt per half second = full),
+    // fading while held still, so just holding it sideways doesn't count as pouring.
+    const dt = this.prevT ? (s.t - this.prevT) / 1000 : 0;
+    this.prevT = s.t;
+    const rate = dt > 0 ? Math.abs(tilt - this.tilt) / dt : 0;
+    this.e = Math.max(this.e * 0.93, Math.min(1, rate / 2));
+    this.tilt = tilt;
     if (this.stage === 'upright' && Math.abs(g[0]) > POUR.sideways) {
       this.stage = 'sideways';
       return null;
@@ -390,7 +406,7 @@ export class PourDetector implements GestureDetector {
     return this.stage;
   }
   energy() {
-    return this.tilt;
+    return this.e;
   }
   prompt() {
     return this.stage === 'upright' ? 'Tilt it SIDEWAYS…' : '…and back UP!';
@@ -398,6 +414,8 @@ export class PourDetector implements GestureDetector {
   reset() {
     this.stage = 'upright';
     this.tilt = 0;
+    this.e = 0;
+    this.prevT = 0;
   }
 }
 

@@ -14,6 +14,7 @@ type IOSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEv
 export function registerKitchenHandlers(io: IOServer, rooms: RoomManager): void {
   io.on('connection', (socket: IOSocket) => {
     const reps = new TokenBucket(20, 14); // gestures; the engine also rate-limits per station
+    const efforts = new TokenBucket(20, 15); // accuracy updates (~10/s); the engine times them itself
     const control = new TokenBucket(10, 5);
 
     const me = () => {
@@ -31,6 +32,12 @@ export function registerKitchenHandlers(io: IOServer, rooms: RoomManager): void 
       if (!reps.take() || !isPlainObject(payload)) return;
       const found = me();
       if (found) found.room.engine.rep(found.binding.playerId, payload.good === true);
+    });
+
+    socket.on('kitchen:effort', (payload) => {
+      if (!efforts.take() || !isPlainObject(payload) || typeof payload.a !== 'number') return;
+      const found = me();
+      if (found) found.room.engine.effort(found.binding.playerId, payload.a);
     });
 
     socket.on('kitchen:recover', (payload) => {
