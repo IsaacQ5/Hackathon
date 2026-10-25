@@ -4,6 +4,7 @@ import { STATIONS, type RoomState } from '@tilt-mayhem/shared';
 import { captainIdOf, roundMinutesOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
+import { Emoji, EmojiText } from './Emoji';
 
 interface Props {
   room: RoomState;
@@ -64,7 +65,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
               </li>
             ) : (
               <li key={`e${i}`} className="kslot">
-                <span className="kslot__q">🧑‍🍳</span>
+                <Emoji ch="🧑‍🍳" className="kslot__q" />
               </li>
             ),
           )}
@@ -73,7 +74,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
         <div className="kstations">
           {STATIONS.map((s) => (
             <div key={s.id} className="kstation" style={colorVar(s.color)}>
-              <span className="kstation__icon">{s.icon}</span>
+              <Emoji ch={s.icon} className="kstation__icon" />
               <b>{s.verb}</b>
               <span>{s.name}</span>
             </div>
@@ -92,7 +93,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
         <p className="klobby__start">
           {need > 0
             ? `Need ${need} more chef${need === 1 ? '' : 's'}`
-            : `📱 ${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`}
+            : <EmojiText text={`📱 ${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`} />}
           <span className="kpill">{minutes} min shift</span>
         </p>
       </section>

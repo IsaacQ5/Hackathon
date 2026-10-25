@@ -990,27 +990,27 @@ html body {
   place-items: center;
   font-size: 3.4rem;
 }
-.kgesture span {
+.kgesture .emo {
   display: inline-block;
 }
-.kgesture--chop span {
+.kgesture--chop .emo {
   animation: g-chop 0.5s ease-in infinite;
   transform-origin: center;
 }
-.kgesture--fry span {
+.kgesture--fry .emo {
   animation: g-flip 0.9s ease-in-out infinite;
   transform-origin: bottom center;
 }
-.kgesture--stir span {
+.kgesture--stir .emo {
   animation: g-stir 1.1s linear infinite;
 }
-.kgesture--knead span {
+.kgesture--knead .emo {
   animation: g-knead 0.9s ease-in-out infinite;
 }
-.kgesture--mix span {
+.kgesture--mix .emo {
   animation: g-mix 0.35s ease-in-out infinite;
 }
-.kgesture--juice span {
+.kgesture--juice .emo {
   animation: g-pour 2.6s ease-in-out infinite;
   transform-origin: center;
 }
@@ -1173,7 +1173,7 @@ html body {
   inset: 0;
   pointer-events: none;
 }
-.kstir__spoon span {
+.kstir__spoon .emo {
   position: absolute;
   right: 6%;
   top: 50%;
@@ -1458,4 +1458,37 @@ html body {
 .kresults__stage .kresults__winners {
   position: relative;
   z-index: 1;
+}
+
+/* 3D emoji models (see game/emoji3d.ts); sized like the text around them */
+.emo {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.22em;
+  object-fit: contain;
+  user-select: none;
+}
+.emo--txt {
+  width: auto;
+  height: auto;
+  vertical-align: baseline;
+}
+
+/* home: background chef-vs-cheese chase, behind everything and faded */
+.home {
+  position: relative;
+}
+.home > :not(.home__chase) {
+  position: relative;
+  z-index: 1;
+}
+.home__chase {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.4;
+  z-index: 0;
 }

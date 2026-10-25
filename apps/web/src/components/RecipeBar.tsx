@@ -1,5 +1,6 @@
 import { INGREDIENTS, recipeById, stationById } from '@tilt-mayhem/shared';
 import { colorVar } from '../utils/style';
+import { Emoji } from './Emoji';
 
 interface Props {
   recipeId: string;
@@ -14,7 +15,7 @@ export function RecipeBar({ recipeId, have, workingIngredient }: Props) {
   return (
     <section className="krecipe">
       <p className="krecipe__dish">
-        <span>{recipe.icon}</span> {recipe.name}
+        <Emoji ch={recipe.icon} /> {recipe.name}
       </p>
       <div className="krecipe__slots">
         {recipe.ingredients.map((id) => {
@@ -24,9 +25,9 @@ export function RecipeBar({ recipeId, have, workingIngredient }: Props) {
           const active = workingIngredient === id;
           return (
             <div key={id} className={`krecipe__slot ${done ? 'is-done' : ''} ${active ? 'is-active' : ''}`} style={colorVar(st.color)}>
-              <span className="krecipe__sym">{st.icon}</span>
+              <Emoji ch={st.icon} className="krecipe__sym" />
               <span className="krecipe__verb">{st.verb}</span>
-              <span className="krecipe__food">{info.ingredient.icon}</span>
+              <Emoji ch={info.ingredient.icon} className="krecipe__food" />
               <span className="krecipe__name">{info.ingredient.name.replace(/^(Chopped|Sliced|Diced|Cooked|Fried|Grilled) /, '')}</span>
               {done && <span className="krecipe__tick">✔</span>}
             </div>

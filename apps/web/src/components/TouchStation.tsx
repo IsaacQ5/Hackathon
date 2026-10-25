@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { POUR, type StationId } from '@tilt-mayhem/shared';
+import { Emoji, EmojiText } from './Emoji';
 
 interface Props {
   station: StationId;
@@ -16,7 +17,7 @@ export function TouchStation({ station, onRep }: Props) {
     case 'chop':
       return (
         <button className="ktouch ktouch--big" onPointerDown={() => onRep(true)}>
-          🔪 CHOP!
+          <EmojiText text="🔪 CHOP!" />
         </button>
       );
     case 'fry':
@@ -81,7 +82,7 @@ function FlipTiming({ onRep }: { onRep: (g: boolean) => void }) {
         <div className="kflip__mark" ref={markRef} />
       </div>
       <button className="ktouch ktouch--big" onPointerDown={tap}>
-        🍳 FLIP!
+        <EmojiText text="🍳 FLIP!" />
       </button>
       <p className="khint">Tap when the marker is in the green zone. Bad timing spills!</p>
     </div>
@@ -126,7 +127,7 @@ function StirPad({ onRep }: { onRep: (g: boolean) => void }) {
         onPointerCancel={() => (prev.current = null)}
       >
         <div className="kstir__spoon" ref={spoonRef}>
-          <span>🥄</span>
+          <Emoji ch="🥄" />
         </div>
       </div>
       <p className="khint">Drag your finger round and round the pot</p>
@@ -186,7 +187,9 @@ function HoldPour({ onRep }: { onRep: (g: boolean) => void }) {
         onLostPointerCapture={up}
       >
         <span className="kpour__fill" ref={fillRef} />
-        <span className="kpour__label">🧃 {label}</span>
+        <span className="kpour__label">
+          <Emoji ch="🧃" /> {label}
+        </span>
       </button>
       <p className="khint">Hold until it says RELEASE, then let go. Hold too long and it spills.</p>
     </div>

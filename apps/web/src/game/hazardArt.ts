@@ -153,6 +153,19 @@ export function drawFires(ctx: CanvasRenderingContext2D, hazards: HazardSnap[], 
       ctx.stroke();
     }
     emoji(ctx, '🔥', Math.sin(t * 5) * 6, -18, 44 * k);
+    // extinguisher foam piles up as it's being put out
+    const foam = Math.ceil(h.progress * 14);
+    for (let i = 0; i < foam; i++) {
+      const fx = -56 + ((i * 37) % 112);
+      const fy = 14 - ((i * 23) % 34) + Math.sin(t * 3 + i) * 1.5;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 7 + (i % 3) * 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(150,180,200,0.8)';
+      ctx.stroke();
+    }
     // smoke puffs
     for (let i = 0; i < 3; i++) {
       const p = (t * 0.7 + i / 3) % 1;
@@ -219,7 +232,7 @@ function drawMeatball(ctx: CanvasRenderingContext2D, x: number, y: number, r: nu
   ctx.restore();
 }
 
-function drawCheeseWheel(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, spin: number) {
+export function drawCheeseWheel(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, spin: number) {
   ctx.save();
   ctx.translate(x, y - r * 0.3);
   ctx.fillStyle = 'rgba(40,20,10,0.25)';
@@ -254,14 +267,21 @@ function drawChicken(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number) {
   const hop = Math.abs(Math.sin(t * 14 + h.id)) * 6;
   ctx.save();
   ctx.translate(h.x, h.y);
-  ctx.fillStyle = 'rgba(40,20,10,0.25)';
+  // bright danger ring on the floor so it's easy to spot on the light tiles
   ctx.beginPath();
-  ctx.ellipse(0, 4, 18, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 4, 26, 9, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,138,61,0.45)';
   ctx.fill();
-  ctx.translate(0, -16 - hop);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#ff5a2a';
+  ctx.stroke();
+  ctx.translate(0, -22 - hop);
   // The emoji faces left; mirror it when running right.
   ctx.scale(h.dir > 0 ? -1 : 1, 1);
-  emoji(ctx, '🐔', 0, 0, 40);
+  // dark outline around the model (ignored on browsers without canvas filters)
+  ctx.filter = 'drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 0 1.5px #2b1a12) drop-shadow(0 3px 2px rgba(0,0,0,0.35))';
+  emoji(ctx, '🐔', 0, 0, 50);
+  ctx.filter = 'none';
   ctx.restore();
   // loose feathers trailing behind
   for (let i = 0; i < 2; i++) {

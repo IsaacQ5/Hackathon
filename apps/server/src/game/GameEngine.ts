@@ -62,6 +62,8 @@ export class GameEngine {
   private nextHazardId = 1;
   /** playMs when the next random hazard appears (0 = not scheduled yet). */
   private nextHazardAt = 0;
+  /** Kinds that have appeared this shift (each one is guaranteed to appear once). */
+  private seenHazards = new Set<HazardKind>();
 
   constructor(config: Partial<GameConfig> = {}, random: () => number = Math.random) {
     this.config = { ...GAME_CONFIG, ...config };
@@ -149,6 +151,7 @@ export class GameEngine {
     this.pendingEvents = [];
     this.hazards = [];
     this.nextHazardAt = 0;
+    this.seenHazards.clear();
     for (const old of [...this.chefs.values()]) {
       const c = this.blankChef(old.id, old.nickname, old.color, old.face);
       c.connected = old.connected;
@@ -224,6 +227,8 @@ export class GameEngine {
     // A burning station has to be fanned out before anyone can cook there.
     const fire = this.fireAt(station);
     if (fire) {
+      // Turn to face the flames (the TV shows the extinguisher spraying that way).
+      c.facing = Math.atan2(fire.y - c.y, fire.x - c.x);
       this.setStuck(c, 'fire', fire.id);
       return 'ok';
     }
@@ -547,13 +552,21 @@ export class GameEngine {
   /** Pick what happens next. Bigger events unlock as the shift goes on. */
   private spawnRandomHazard(p: number) {
     const count = (k: HazardKind) => this.hazards.filter((h) => h.kind === k).length;
-    const bigOne = count('meteor') + count('cheese') > 0;
     const options: [HazardKind, number][] = [];
     if (count('spill') < 1 + Math.floor(p * 3)) options.push(['spill', HAZARDS.spill.weight]);
     if (p >= HAZARDS.chicken.unlockAt && count('chicken') === 0) options.push(['chicken', HAZARDS.chicken.weight]);
     if (p >= HAZARDS.fire.unlockAt && count('fire') < (p > 0.75 ? 2 : 1)) options.push(['fire', HAZARDS.fire.weight]);
-    if (p >= HAZARDS.meteor.unlockAt && !bigOne) options.push(['meteor', HAZARDS.meteor.weight]);
-    if (p >= HAZARDS.cheese.unlockAt && !bigOne) options.push(['cheese', HAZARDS.cheese.weight]);
+    // Meteors can double up late in the shift; the cheese wheel always has the floor to itself.
+    if (p >= HAZARDS.meteor.unlockAt && count('cheese') === 0 && count('meteor') < (p > 0.75 ? 2 : 1)) {
+      options.push(['meteor', HAZARDS.meteor.weight]);
+    }
+    if (p >= HAZARDS.cheese.unlockAt && count('cheese') === 0 && count('meteor') === 0) options.push(['cheese', HAZARDS.cheese.weight]);
+    // Every kind shows up at least once a shift: anything unlocked but not seen yet goes first.
+    const unseen = options.find(([k]) => !this.seenHazards.has(k));
+    if (unseen) {
+      this.spawnHazard(unseen[0]);
+      return;
+    }
     const total = options.reduce((n, o) => n + o[1], 0);
     if (!total) return;
     let roll = this.random() * total;
@@ -639,6 +652,7 @@ export class GameEngine {
       }
     }
     this.hazards.push(h);
+    this.seenHazards.add(kind);
     this.pendingEvents.push({ type: 'hazard', kind, x: Math.round(h.x), y: Math.round(h.y), station: h.station });
     return h.id;
   }

@@ -407,4 +407,14 @@ describe('Kitchen engine: chaos', () => {
     assert.ok(first.length >= 1, 'something happened');
     assert.ok(first.every((h) => h.kind === 'spill'), 'early hazards are tame');
   });
+
+  it('every kind of hazard shows up at least once in a shift', () => {
+    const { e, run } = kitchen(['a', 'b'], { hazards: 1, roundDurationMs: 100_000 });
+    const seen = new Set<string>();
+    for (let ms = 0; ms < 100_000; ms += 500) {
+      run(500);
+      for (const ev of e.snapshot(0).events) if (ev.type === 'hazard') seen.add(ev.kind);
+    }
+    assert.deepEqual([...seen].sort(), ['cheese', 'chicken', 'fire', 'meteor', 'spill']);
+  });
 });

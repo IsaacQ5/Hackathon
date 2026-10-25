@@ -4,6 +4,7 @@ import { useMotionGesture } from '../hooks/useMotionGesture';
 import { kitchenApi } from '../network/socket';
 import { colorVar } from '../utils/style';
 import { TouchStation } from './TouchStation';
+import { Emoji } from './Emoji';
 
 interface Props {
   work: ChefWork;
@@ -75,11 +76,11 @@ export function StationPanel({ work, motionAllowed }: Props) {
   return (
     <div className={`kpanel kpanel--${work.station}`} style={colorVar(def.color)}>
       <header className="kpanel__head">
-        <span className="kpanel__icon">{def.icon}</span>
+        <Emoji ch={def.icon} className="kpanel__icon" />
         <div>
           <h2>{def.name}</h2>
           <p>
-            Making <b>{ing?.icon} {ing?.name}</b>
+            Making <b>{ing && <Emoji ch={ing.icon} />} {ing?.name}</b>
           </p>
         </div>
       </header>
@@ -95,11 +96,11 @@ export function StationPanel({ work, motionAllowed }: Props) {
             </div>
           </div>
           <div className="kpour3d__stream" />
-          <span className="kpour3d__glass">🥛</span>
+          <Emoji ch="🥛" className="kpour3d__glass" />
         </div>
       ) : (
         <div className={`kgesture kgesture--${work.station}`} aria-hidden>
-          <span>📱</span>
+          <Emoji ch="📱" />
         </div>
       )}
       <p className="kpanel__how">{def.howTo}</p>

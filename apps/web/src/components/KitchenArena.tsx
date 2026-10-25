@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   INGREDIENTS,
   KITCHEN,
+  RECIPES,
   STATIONS,
   recipeById,
   stationById,
@@ -11,6 +12,7 @@ import {
   type StationId,
   type StuckKind,
 } from '@tilt-mayhem/shared';
+import { preloadEmoji } from '../game/emoji3d';
 import { Fx } from '../game/fx';
 import { drawFires, drawHazardsBack, drawHazardsFront } from '../game/hazardArt';
 import type { Frame, KitchenBuffer } from '../game/kbuffer';
@@ -68,10 +70,17 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
     ro.observe(wrap);
     resize();
 
+    // Start fetching every 3D emoji model the kitchen draws.
+    preloadEmoji([
+      ...STATIONS.flatMap((s) => [s.icon, ...s.ingredients.map((i) => i.icon)]),
+      ...RECIPES.map((r) => r.icon),
+      ...['🥇', '🥈', '🥉', '✔', '🔔', '🚨', '🔥', '🐔', '🪶', '⭐', '⚠️', '💦', '💫', '☄️', '🧀', '🧯', '🧽', '🍽️'],
+    ]);
+
     const fx = new Fx();
     const seeds = new Map<string, { seed: number; bounce: number }>();
     const chefPos = new Map<string, { x: number; y: number; color: string; name: string }>();
-    let banner: { text: string; color: string; at: number } | null = null;
+    let banner: { text: string; color: string; at: number; icon?: string } | null = null;
     let rushAt = -1e9;
     let lastServeAt = -1e9;
     /** Last dish served: the diner eats it, then the empty plate stays on the table. */
@@ -102,14 +111,15 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       }
       if (e.type === 'hazard') {
         const where = e.station ? stationById(e.station).name.toUpperCase() : '';
-        const text: Record<HazardKind, string> = {
-          spill: '💦 SPILL ON THE FLOOR! DON’T SLIP!',
-          chicken: '🐔 A CHICKEN GOT LOOSE!',
-          fire: `🔥 FIRE AT THE ${where}!`,
-          meteor: '☄️ MEATBALL INCOMING! MOVE!',
-          cheese: '🧀 RUNAWAY CHEESE WHEEL! CLEAR THE LANE!',
+        const text: Record<HazardKind, [string, string]> = {
+          spill: ['💦', 'SPILL ON THE FLOOR! DON’T SLIP!'],
+          chicken: ['🐔', 'A CHICKEN GOT LOOSE!'],
+          fire: ['🔥', `FIRE AT THE ${where}!`],
+          meteor: ['☄️', 'MEATBALL INCOMING! MOVE!'],
+          cheese: ['🧀', 'RUNAWAY CHEESE WHEEL! CLEAR THE LANE!'],
         };
-        banner = { text: text[e.kind], color: e.kind === 'spill' ? '#7fd0ff' : '#ff8a3d', at: now };
+        const [icon, words] = text[e.kind];
+        banner = { text: words, icon, color: e.kind === 'spill' ? '#7fd0ff' : '#ff8a3d', at: now };
         // Big ones get an alarm so everyone looks up.
         if (e.kind === 'meteor' || e.kind === 'cheese' || e.kind === 'fire') {
           sfx.warn();
@@ -133,7 +143,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       const p = chefPos.get(e.chef);
       if (!p) return;
       if (e.type === 'stuck') {
-        const words: Record<StuckKind, string> = { slip: 'WHOOPS!', bonk: 'BONK!', feathers: 'BAWK!', fire: 'FAN IT!' };
+        const words: Record<StuckKind, string> = { slip: 'WHOOPS!', bonk: 'BONK!', feathers: 'BAWK!', fire: 'SPRAY IT!' };
         fx.word(words[e.kind], p.x, p.y - 90, '#ff3d5a', 34);
         if (e.kind === 'slip') sfx.slip();
         else if (e.kind === 'bonk') sfx.fall();
@@ -164,8 +174,8 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
           juice(e.chef).bounce = 1;
         }
       } else if (e.type === 'made') {
-        const icon = INGREDIENTS.get(e.ingredient)?.ingredient.icon ?? '';
-        fx.word(`+${icon}`, p.x, p.y - 100, '#2b1a12', 34);
+        // (the new ingredient pops into the 3D bubbles over their head)
+        fx.word('GOT IT!', p.x, p.y - 100, '#2b1a12', 30);
         fx.stars(p.x, p.y - 60, 6);
         sfx.powerup();
       } else if (e.type === 'served') {
@@ -319,16 +329,18 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       let lx = 16;
       top3.forEach((c, i) => {
         ctx.font = '600 15px Fredoka, system-ui, sans-serif';
-        const txt = `${['🥇', '🥈', '🥉'][i]} ${c.nickname} ${c.score}`;
-        const w = ctx.measureText(txt).width + 20;
+        const txt = `${c.nickname} ${c.score}`;
+        const w = ctx.measureText(txt).width + 44;
         if (lx + w > cw / 2 - 90) return;
         roundRect(ctx, lx, 8, w, 28, 14);
         ctx.fillStyle = 'rgba(43,26,18,0.8)';
         ctx.fill();
+        emoji(ctx, ['🥇', '🥈', '🥉'][i] ?? '', lx + 18, 22, 20);
+        ctx.font = '600 15px Fredoka, system-ui, sans-serif';
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(txt, lx + 10, 23);
+        ctx.fillText(txt, lx + 34, 23);
         lx += w + 8;
       });
 
@@ -336,7 +348,16 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       const alarming = rush && sinceRush < ALARM_MS + FLY_MS;
       if (rush && !alarming) comic(ctx, cw / 2 + 170, 30, 'x2 RUSH!', '#ffe14d', 28);
 
-      if (banner && now - banner.at < 2600 && !alarming) comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
+      if (banner && now - banner.at < 2600 && !alarming) {
+        comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
+        if (banner.icon) {
+          // 3D emoji on both ends of the banner
+          ctx.font = '30px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
+          const half = ctx.measureText(banner.text).width / 2 + 26;
+          emoji(ctx, banner.icon, cw / 2 - half, TOP + 26, 34);
+          emoji(ctx, banner.icon, cw / 2 + half, TOP + 26, 34);
+        }
+      }
 
       if (phase === 'countdown') {
         const s = Math.max(1, Math.ceil(frame.countdownMs / 1000));
@@ -497,10 +518,7 @@ function drawTicket(ctx: CanvasRenderingContext2D, c: ChefSnap, w: number) {
       ctx.fillRect(sx + 6, sy + 54, (slotW - 12) * c.working.progress, 4);
     }
     if (done) {
-      ctx.font = '700 14px Fredoka, system-ui, sans-serif';
-      ctx.fillStyle = '#2bb02b';
-      ctx.textAlign = 'right';
-      ctx.fillText('✔', sx + slotW - 6, sy + 10);
+      emoji(ctx, '✔', sx + slotW - 12, sy + 10, 14);
     }
   });
   if (!c.connected) {

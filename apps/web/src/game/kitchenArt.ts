@@ -8,6 +8,7 @@ import {
   type ChefWork,
   type StationId,
 } from '@tilt-mayhem/shared';
+import { emojiImage } from './emoji3d';
 import { drawStuckBadge } from './hazardArt';
 
 export const INK = '#2b1a12';
@@ -29,10 +30,17 @@ export function shade(hex: string, amt: number): string {
   return `rgb(${f((n >> 16) & 255)},${f((n >> 8) & 255)},${f(n & 255)})`;
 }
 
+/** Draw an emoji as its 3D model (see emoji3d.ts), or as text until/unless the model loads. */
 export function emoji(ctx: CanvasRenderingContext2D, ch: string, x: number, y: number, size: number) {
-  ctx.font = `${size}px ${EMOJI_FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  const img = emojiImage(ch);
+  if (img) {
+    const s = size * 1.18;
+    ctx.drawImage(img, x - s / 2, y - s / 2, s, s);
+    return;
+  }
+  ctx.font = `${size}px ${EMOJI_FONT}`;
   ctx.fillText(ch, x, y);
 }
 
@@ -74,8 +82,144 @@ export function drawKitchen(ctx: CanvasRenderingContext2D, t: number) {
     ctx.fillStyle = 'rgba(255,255,255,0.18)';
     roundRect(ctx, 32, y + 8, 936, 14, 7);
     ctx.fill();
+    // wood grain
+    ctx.strokeStyle = 'rgba(120,70,30,0.18)';
+    ctx.lineWidth = 2;
+    for (const gy of [y + 40, y + 62, y + 84]) {
+      ctx.beginPath();
+      ctx.moveTo(40, gy);
+      ctx.bezierCurveTo(300, gy - 6, 700, gy + 6, 960, gy - 2);
+      ctx.stroke();
+    }
   }
-  void t;
+  drawDecor(ctx, t);
+}
+
+/** Small set dressing: wall shelves, pans, a clock, station mats, a drain, counter bits. */
+function drawDecor(ctx: CanvasRenderingContext2D, t: number) {
+  const f = KITCHEN.floor;
+  // non-slip mats where chefs stand at each station
+  for (const s of KITCHEN.spots) {
+    const my = s.fy + (s.fy < 300 ? -2 : 2);
+    roundRect(ctx, s.fx - 62, my - 16, 124, 32, 10);
+    ctx.fillStyle = 'rgba(46,92,70,0.28)';
+    ctx.fill();
+    ctx.fillStyle = 'rgba(46,92,70,0.25)';
+    for (let i = 0; i < 10; i++) {
+      ctx.beginPath();
+      ctx.arc(s.fx - 50 + i * 11, my, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // floor drain
+  ctx.beginPath();
+  ctx.arc(f.x1 - 40, f.y1 - 34, 13, 0, Math.PI * 2);
+  outlined(ctx, '#b8c4cc', 2.5);
+  ctx.strokeStyle = 'rgba(43,26,18,0.5)';
+  ctx.lineWidth = 2;
+  for (const d of [-6, 0, 6]) {
+    ctx.beginPath();
+    ctx.moveTo(f.x1 - 48, f.y1 - 34 + d);
+    ctx.lineTo(f.x1 - 32, f.y1 - 34 + d);
+    ctx.stroke();
+  }
+
+  // left wall: two spice shelves
+  for (const sy of [210, 330]) {
+    roundRect(ctx, -22, sy, 56, 8, 3);
+    outlined(ctx, '#8d5a2b', 2.5);
+    ['#ff5a2a', '#ffd23f', '#7cd651'].forEach((col, i) => {
+      roundRect(ctx, -16 + i * 17, sy - 22, 13, 22, 3);
+      outlined(ctx, 'rgba(255,255,255,0.85)', 2);
+      ctx.fillStyle = col;
+      ctx.fillRect(-14 + i * 17, sy - 12, 9, 10);
+      roundRect(ctx, -16 + i * 17, sy - 26, 13, 5, 2);
+      outlined(ctx, '#6b3e1f', 1.5);
+    });
+  }
+  // right wall: hanging pans + a ticking clock
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(962, 196);
+  ctx.lineTo(1022, 196);
+  ctx.stroke();
+  for (const [px, pr] of [
+    [976, 13],
+    [1006, 10],
+  ] as const) {
+    const swing = Math.sin(t * 1.3 + px) * 0.06;
+    ctx.save();
+    ctx.translate(px, 196);
+    ctx.rotate(swing);
+    roundRect(ctx, -3, 0, 6, 22, 3);
+    outlined(ctx, '#2a2a30', 2);
+    ctx.beginPath();
+    ctx.arc(0, 22 + pr, pr, 0, Math.PI * 2);
+    outlined(ctx, '#55555f', 2.5);
+    ctx.restore();
+  }
+  ctx.beginPath();
+  ctx.arc(992, 340, 22, 0, Math.PI * 2);
+  outlined(ctx, '#fffaf2', 3);
+  for (const [len, turns, w] of [
+    [10, t / 60, 3],
+    [16, t / 5, 2],
+  ] as const) {
+    ctx.beginPath();
+    ctx.moveTo(992, 340);
+    ctx.lineTo(992 + Math.sin(turns * Math.PI * 2) * len, 340 - Math.cos(turns * Math.PI * 2) * len);
+    ctx.lineWidth = w;
+    ctx.strokeStyle = INK;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // counter bits between the stations
+  // top: herb pot + salt & pepper
+  ctx.beginPath();
+  ctx.moveTo(340, 70);
+  ctx.lineTo(360, 70);
+  ctx.lineTo(356, 92);
+  ctx.lineTo(344, 92);
+  ctx.closePath();
+  outlined(ctx, '#d9744a', 2.5);
+  for (const [lx, ly, a] of [
+    [344, 62, -0.5],
+    [350, 56, 0],
+    [356, 62, 0.5],
+  ] as const) {
+    ctx.beginPath();
+    ctx.ellipse(lx, ly, 4, 9, a, 0, Math.PI * 2);
+    outlined(ctx, '#3fbf2f', 1.5);
+  }
+  for (const [sx, col] of [
+    [642, '#ffffff'],
+    [658, '#3b3b46'],
+  ] as const) {
+    roundRect(ctx, sx - 5, 68, 10, 20, 4);
+    outlined(ctx, col, 2);
+  }
+  // bottom: utensil crock + stack of plates
+  roundRect(ctx, 340, 528, 22, 26, 5);
+  outlined(ctx, '#8ec5ff', 2.5);
+  ctx.strokeStyle = '#a36b3d';
+  ctx.lineWidth = 3;
+  for (const [ux, top] of [
+    [345, 510],
+    [351, 506],
+    [357, 512],
+  ] as const) {
+    ctx.beginPath();
+    ctx.moveTo(ux, 530);
+    ctx.lineTo(ux + (ux - 351) * 0.4, top);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.ellipse(650, 552 - i * 5, 18, 6, 0, 0, Math.PI * 2);
+    outlined(ctx, '#ffffff', 2);
+  }
 }
 
 // ====================================================================== stations
@@ -849,6 +993,68 @@ function drawJug(ctx: CanvasRenderingContext2D, x: number, y: number, rot: numbe
   ctx.restore();
 }
 
+/** Blue cleaning cloth with a few soapy bubbles, for wiping up spills. */
+function drawCloth(ctx: CanvasRenderingContext2D, x: number, y: number, t: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(t * 9) * 0.3);
+  roundRect(ctx, -10, -5, 20, 10, 3);
+  outlined(ctx, '#4fb3ff', 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1.5;
+  for (const dx of [-4, 1, 6]) {
+    ctx.beginPath();
+    ctx.moveTo(dx, -4);
+    ctx.lineTo(dx - 3, 4);
+    ctx.stroke();
+  }
+  ctx.restore();
+  for (let i = 0; i < 3; i++) {
+    const p = (t * 1.2 + i / 3) % 1;
+    ctx.beginPath();
+    ctx.arc(x + Math.sin(i * 2.4) * 14, y - p * 16, 2 + p * 2, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${0.9 - p * 0.8})`;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(47,134,214,${0.8 - p * 0.7})`;
+    ctx.stroke();
+  }
+}
+
+/** Red extinguisher pointed along `aim` (radians), spraying white foam. */
+function drawExtinguisher(ctx: CanvasRenderingContext2D, x: number, y: number, aim: number, t: number) {
+  // foam spray first, so the extinguisher sits on top of it
+  for (let i = 0; i < 9; i++) {
+    const p = (t * 2.2 + i / 9) % 1;
+    const spread = (Math.sin(i * 1.9) * 0.35 + Math.sin(t * 7) * 0.1) * p;
+    const d = 14 + p * 56;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(aim + spread) * d, y + Math.sin(aim + spread) * d - 6, 3 + p * 6, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${0.95 - p * 0.6})`;
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(160,190,210,${0.8 - p * 0.6})`;
+    ctx.stroke();
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  roundRect(ctx, -6, -12, 12, 22, 5);
+  outlined(ctx, '#e8303f', 2.5);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillRect(-3.5, -9, 2.5, 15);
+  roundRect(ctx, -3, -16, 6, 5, 2);
+  outlined(ctx, '#2b2b33', 2);
+  // nozzle pointing at the fire
+  ctx.rotate(aim);
+  ctx.beginPath();
+  ctx.moveTo(4, -2);
+  ctx.lineTo(16, -2);
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.restore();
+}
+
 /** Gold crown; (x, y) is the middle of its bottom edge. */
 function drawCrown(ctx: CanvasRenderingContext2D, x: number, y: number, rot: number) {
   ctx.save();
@@ -902,11 +1108,22 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.translate(0, -bob);
   ctx.scale(1 / squash, squash);
 
-  // Taken out by a hazard: slipped / knocked down chefs lie on the floor, feathered ones shake.
+  // Taken out by a hazard. Each one shows the chef sorting it out as their phone progress fills:
+  //  slip: just fell (lying) -> kneeling, rubbing the puddle with a cloth
+  //  bonk: lying flat -> pushing themselves up, a little more upright with every rep
+  //  feathers: shaking hard while the feathers fly off
+  //  fire: spraying the station with an extinguisher
   const stuck = c.stuck;
-  const lying = stuck?.kind === 'slip' || stuck?.kind === 'bonk';
-  if (lying) ctx.rotate((c.seed % 2 > 1 ? 1 : -1) * 1.25);
-  if (stuck?.kind === 'feathers') ctx.translate(Math.sin(t * 40) * 2.5, 0);
+  const prog = stuck?.progress ?? 0;
+  const scrubbing = stuck?.kind === 'slip' && prog > 0;
+  const lying = (stuck?.kind === 'slip' && prog === 0) || stuck?.kind === 'bonk';
+  if (lying) ctx.rotate((c.seed % 2 > 1 ? 1 : -1) * 1.25 * (stuck?.kind === 'bonk' ? 1 - prog * 0.8 : 1));
+  if (scrubbing) {
+    // kneeling down: lower and a bit squat, rocking with the scrubbing
+    ctx.translate(Math.sin(t * 9) * 1.5, 7);
+    ctx.scale(1.06, 0.84);
+  }
+  if (stuck?.kind === 'feathers') ctx.translate(Math.sin(t * 40) * 2.5 * (1 - prog * 0.5), 0);
   // End-of-game moods: the winner dances, everyone else droops.
   if (c.mood === 'dance') {
     ctx.translate(0, -Math.abs(Math.sin(t * 7)) * 8);
@@ -950,6 +1167,14 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     jugX + lx * Math.cos(jugRot) - ly * Math.sin(jugRot),
     jugY + lx * Math.sin(jugRot) + ly * Math.cos(jugRot),
   ];
+  // Cleaning a spill: a cloth on the floor in front, moving in little circles.
+  const clothX = fx * 12 + Math.cos(t * 9) * 7;
+  const clothY = 2 + Math.sin(t * 9) * 3;
+  if (scrubbing) drawCloth(ctx, clothX, clothY, t);
+  // Putting out a fire: extinguisher held in front, sweeping side to side.
+  const sweep = Math.sin(t * 7) * 0.45;
+  const exX = fx * 14;
+  const exY = bodyY + 4;
   for (const s of [-1, 1]) {
     const shX = s * R * 0.9;
     const shY = bodyY - 2;
@@ -985,9 +1210,17 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
       }
     }
     if (stuck?.kind === 'fire') {
-      // fanning the flames
-      hx = s * 12 + fx * 10 + Math.sin(t * 14) * 10;
-      hy = shY - 6;
+      // both hands on the extinguisher, sweeping it side to side
+      hx = exX + s * 6;
+      hy = exY - 2 + (s > 0 ? -6 : 4);
+    } else if (scrubbing) {
+      // both hands on the cloth, rubbing in circles
+      hx = clothX + s * 5;
+      hy = clothY - 3;
+    } else if (lying && stuck?.kind === 'bonk' && prog > 0) {
+      // push-ups: palms on the floor, elbows pumping
+      hx = shX + s * 12;
+      hy = shY + 12 + Math.sin(t * 9) * 6;
     } else if (lying) {
       // flailing on the floor
       hx = shX + s * 10;
@@ -1018,6 +1251,7 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     outlined(ctx, '#ffe0c7', 2.5);
   }
   if (work?.station === 'juice') drawJug(ctx, jugX, jugY, jugRot, tip, jugDir);
+  if (stuck?.kind === 'fire') drawExtinguisher(ctx, exX, exY, Math.atan2(fy, fx) + sweep, t);
 
   // chef hat (toque): outline every piece first, then fill them all, so the
   // puffs read as one clean shape instead of overlapping circles
@@ -1053,6 +1287,15 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.restore();
 
   if (stuck) drawStuckBadge(ctx, c.x, c.y - bob - (c.crown ? 132 : 110), stuck, t);
+  // feathers flying off as they shake (fewer left the closer they are to done)
+  if (stuck?.kind === 'feathers') {
+    const left = Math.max(1, Math.round((1 - prog) * 6));
+    for (let i = 0; i < left; i++) {
+      const p = (t * 1.6 + i / left) % 1;
+      const a = i * 2.1 + c.seed;
+      emoji(ctx, '🪶', c.x + Math.cos(a) * (14 + p * 40), c.y - 40 - p * 30 + p * p * 60, 14);
+    }
+  }
 
   // carried ingredients bob above the head (higher when there's a crown in the way)
   const headTop = c.y - bob - (c.crown ? 104 : 80);

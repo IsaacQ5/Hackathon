@@ -283,7 +283,7 @@ export const HAZARDS = {
   spill: { r: 34, unlockAt: 0, weight: 3 },
   chicken: { r: 20, unlockAt: 0.3, weight: 2, speed: 170, lifeMs: 12_000 },
   fire: { unlockAt: 0.35, weight: 2 },
-  meteor: { r: 58, unlockAt: 0.5, weight: 3, landedMs: 1_500 },
+  meteor: { r: 58, unlockAt: 0.5, weight: 4, landedMs: 1_500 },
   cheese: { r: 30, unlockAt: 0.6, weight: 2, speed: 480 },
 } as const;
 
@@ -300,7 +300,7 @@ export interface StuckDef {
 export const STUCK: Record<StuckKind, StuckDef> = {
   slip: {
     title: 'You slipped in a spill!',
-    howTo: 'MOP IT UP: hold your phone flat and move it in big circles to clean the floor.',
+    howTo: 'WIPE IT UP: hold your phone flat and scrub in big circles. Your chef rubs the puddle away with a cloth.',
     gesture: 'stir',
     reps: 3,
     icon: '💦',
@@ -321,10 +321,10 @@ export const STUCK: Record<StuckKind, StuckDef> = {
   },
   fire: {
     title: 'This station is on fire!',
-    howTo: 'FAN IT OUT: wave your phone side to side like a fan.',
+    howTo: 'PUT IT OUT: sweep your phone side to side to spray the fire extinguisher back and forth.',
     gesture: 'mix',
     reps: 10,
-    icon: '🔥',
+    icon: '🧯',
   },
 };
 

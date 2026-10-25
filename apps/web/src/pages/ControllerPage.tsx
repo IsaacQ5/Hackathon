@@ -15,6 +15,7 @@ import {
 } from '@tilt-mayhem/shared';
 import { ChefPortrait } from '../components/ChefPortrait';
 import { CustomizeCard } from '../components/CustomizeCard';
+import { Emoji, EmojiText } from '../components/Emoji';
 import { HeadChefCard } from '../components/HeadChefCard';
 import { JoinForm } from '../components/JoinForm';
 import { RecipeBar } from '../components/RecipeBar';
@@ -302,7 +303,7 @@ export function ControllerPage({ code }: { code: string }) {
       </span>
       {phase === 'playing' && (
         <span className={`kctrl__timer ${status?.rush ? 'is-rush' : ''}`}>
-          {status?.rush ? '🔥x2 ' : ''}
+          {status?.rush ? <EmojiText text="🔥x2 " /> : ''}
           {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
         </span>
       )}
@@ -313,7 +314,7 @@ export function ControllerPage({ code }: { code: string }) {
   const settingsPanel = (
     <>
       <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => setShowSettings(!showSettings)}>
-        {showSettings ? 'Hide controls' : '⚙️ Controls'}
+        <EmojiText text={showSettings ? 'Hide controls' : '⚙️ Controls'} />
       </button>
       {showSettings && (
         <div className="kcard ksettings">
@@ -353,7 +354,7 @@ export function ControllerPage({ code }: { code: string }) {
       <div className="kcard ksetup">
         <p>{TILT_HELP[tilt.status]}</p>
         <button className="kbtn kbtn--go" onClick={() => void tilt.enable()} disabled={tilt.status === 'requesting'}>
-          📱 Enable motion controls
+          <EmojiText text="📱 Enable motion controls" />
         </button>
       </div>
     ) : null;
@@ -377,7 +378,9 @@ export function ControllerPage({ code }: { code: string }) {
         {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
         {phase === 'results' && (
           <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 ? 'kplace--win' : ''}`}>
-            <h2>{title}</h2>
+            <h2>
+              <EmojiText text={title} />
+            </h2>
             {mine && (
               <p className="kplace__stats">
                 {mine.score} pts · {mine.served} dish{mine.served === 1 ? '' : 'es'}
@@ -386,7 +389,7 @@ export function ControllerPage({ code }: { code: string }) {
             )}
             {myAwards.map((a) => (
               <p key={a.title} className="kaward">
-                {a.emoji} {a.title} <small>({a.why})</small>
+                <Emoji ch={a.emoji} /> {a.title} <small>({a.why})</small>
               </p>
             ))}
           </section>
@@ -491,12 +494,12 @@ export function ControllerPage({ code }: { code: string }) {
         )}
       </div>
       <button className={`kact ${action.cls}`} disabled={!action.onClick} onClick={action.onClick}>
-        {action.label}
+        <EmojiText text={action.label} />
       </button>
       <footer className="kctrl__foot kctrl__foot--row">
         {mode === 'tilt' && tiltReady && (
           <button className="kbtn kbtn--ghost kbtn--sm" onClick={recenter}>
-            🎯 Recenter
+            <EmojiText text="🎯 Recenter" />
           </button>
         )}
         {status && (

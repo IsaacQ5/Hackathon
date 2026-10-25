@@ -2,6 +2,7 @@ import { stationById, type MatchResults, type RoomState } from '@tilt-mayhem/sha
 import { captainIdOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
+import { Emoji, EmojiText } from './Emoji';
 import { awardsFor, fmtSecs, ordinal } from '../game/kawards';
 
 interface Props {
@@ -64,7 +65,7 @@ export function KitchenResults({ results, room, code }: Props) {
         <tbody>
           {results.results.map((r) => (
             <tr key={r.id} style={colorVar(r.color)}>
-              <td className="ktable__place">{MEDAL[r.placement - 1] ?? ordinal(r.placement)}</td>
+              <td className="ktable__place">{MEDAL[r.placement - 1] ? <Emoji ch={MEDAL[r.placement - 1]!} /> : ordinal(r.placement)}</td>
               <td>
                 <div className="ktable__who">
                   <ChefPortrait color={r.color} face={r.face} size={44} />
@@ -74,12 +75,12 @@ export function KitchenResults({ results, room, code }: Props) {
               <td className="ktable__pts">{r.score}</td>
               <td>{r.served}</td>
               <td>{r.fastestMs === null ? '–' : fmtSecs(r.fastestMs)}</td>
-              <td>{r.favoriteStation ? `${stationById(r.favoriteStation).icon} ${stationById(r.favoriteStation).verb}` : '–'}</td>
+              <td>{r.favoriteStation ? <EmojiText text={`${stationById(r.favoriteStation).icon} ${stationById(r.favoriteStation).verb}`} /> : '–'}</td>
               <td>
                 <div className="ktable__awards">
                   {(awards.get(r.id) ?? []).map((a) => (
                     <span key={a.title} className="kaward" title={a.why}>
-                      {a.emoji} {a.title}
+                      <Emoji ch={a.emoji} /> {a.title}
                     </span>
                   ))}
                 </div>
@@ -91,7 +92,7 @@ export function KitchenResults({ results, room, code }: Props) {
 
       <div className="kresults__next">
         <p className="klobby__start">
-          {need > 0 ? 'Need more chefs for another shift' : `📱 ${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`}
+          <EmojiText text={need > 0 ? 'Need more chefs for another shift' : `📱 ${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`} />
         </p>
         <p className="klobby__hint">
           New chefs can join now with code <b>{code}</b>.

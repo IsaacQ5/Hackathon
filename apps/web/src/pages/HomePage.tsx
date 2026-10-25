@@ -6,6 +6,7 @@ import { api } from '../network/socket';
 import { navigate } from '../utils/router';
 import { sfx } from '../utils/sound';
 import { ChefPortrait } from '../components/ChefPortrait';
+import { HomeChase } from '../components/HomeChase';
 import '../styles/sizzle.css';
 
 export function HomePage() {
@@ -65,6 +66,7 @@ export function HomePage() {
 
   return (
     <div className="home">
+      <HomeChase />
       <header className="home__hero">
         <h1 className="klogo">
           SIZZLE <span>SCRAMBLE</span>
