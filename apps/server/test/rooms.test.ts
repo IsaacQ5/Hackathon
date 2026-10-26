@@ -190,7 +190,9 @@ describe('RoomManager', () => {
         e.setPlayerPosition(p.player.id, spot.fx, spot.fy);
         e.interact(p.player.id);
         for (let i = 0; i < 20 && e.peek(p.player.id)!.working; i++) {
-          e.update((t += 400));
+          // Two updates: one 400 ms jump would exceed the engine's catch-up cap.
+          e.update((t += 200));
+          e.update((t += 200));
           e.rep(p.player.id, true);
         }
       }

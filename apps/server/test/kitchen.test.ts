@@ -169,7 +169,8 @@ function kitchen(ids = ['a', 'b'], cfg: { roundDurationMs?: number; hazards?: nu
   assert.equal(e.phase, 'playing');
   const run = (ms: number) => {
     const end = now + ms;
-    while (now < end) {
+    // The epsilon stops float drift in TICK from sneaking in an extra tick.
+    while (now < end - 1e-6) {
       now += TICK;
       e.update(now);
     }
