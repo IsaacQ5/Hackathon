@@ -15,7 +15,7 @@ import {
 } from '@tilt-mayhem/shared';
 import { INK, outlined, roundRect, shade } from './draw';
 import { drawStuckBadge } from './hazardArt';
-import { drawOutfitOver, drawOutfitTop, drawOutfitUnder, handColor, outfitLook } from './outfitArt';
+import { drawOutfitHelmet, drawOutfitOver, drawOutfitTop, drawOutfitUnder, handColor, outfitLook } from './outfitArt';
 import { drawSign } from './sign';
 export { drawPass, EAT_MS } from './dinerArt';
 import { icon } from './icons';
@@ -981,6 +981,9 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   if (work?.station === 'juice') drawJug(ctx, jugX, jugY, jugRot, tip, jugDir);
   if (stuck?.kind === 'fire') drawExtinguisher(ctx, exX, exY, Math.atan2(fy, fx) + sweep, t);
 
+  // space bubble helmet goes on first, so the chef hat sits on top of it
+  drawOutfitHelmet(ctx, look, bodyY, fx);
+
   // chef hat (toque): outline every piece first, then fill them all, so the
   // puffs read as one clean shape instead of overlapping circles
   const hatY = bodyY - R * 1.1 + 2;
@@ -1010,10 +1013,10 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  drawOutfitTop(ctx, look, t, bodyY, R, fx, c.seed, front);
+  drawOutfitTop(ctx, look, bodyY, R, fx, front);
 
-  // leader's crown sits on top of the hat (or the helmet)
-  if (c.crown) drawCrown(ctx, 0, hatY - 27 - (look === 'space' ? 8 : 0) + Math.sin(t * 4) * 1.5, Math.sin(t * 2) * 0.08);
+  // leader's crown sits on top of the hat
+  if (c.crown) drawCrown(ctx, 0, hatY - 27 + Math.sin(t * 4) * 1.5, Math.sin(t * 2) * 0.08);
   ctx.restore();
 
   if (stuck) drawStuckBadge(ctx, c.x, c.y - bob - (c.crown ? 132 : 110), stuck, t);

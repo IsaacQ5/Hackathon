@@ -3,10 +3,10 @@ import { circle, ellipse, INK, outlined, roundRect, shade, shine } from './draw'
 
 /**
  * Map outfits: every chef gets dressed for the map they're on (the chef hat always stays).
- *  - pirate: striped shirt, red neckerchief, gold earring and a parrot on the shoulder
- *  - space: clear astronaut helmet over head and hat, collar ring, chest controls, white gloves
+ *  - pirate: striped shirt, red neckerchief, gold earring and a cutlass at the hip
+ *  - space: clear bubble helmet round the face (chef hat on top), chest controls, white gloves
  *  - jungle: khaki explorer vest with pockets, a flower lei and a leaf in the hat band
- *  - arctic: puffy quilted coat with a fur-trimmed hood, a striped scarf, mittens and earmuffs
+ *  - arctic: puffy quilted coat with a fur-trimmed hood, a striped scarf and mittens
  *
  * The chef is one round blob (face on the top half, apron on the bottom). Coordinates match
  * drawChef: body centre (0, bodyY), radius R; the hat band sits at hatY.
@@ -39,6 +39,7 @@ export function drawOutfitOver(ctx: G, look: Look, color: string, bodyY: number,
   const nx = fx * 3;
   switch (look) {
     case 'pirate': {
+      drawCutlass(ctx, bodyY, R, fx);
       if (!front) return;
       // red neckerchief knotted at the front
       ctx.beginPath();
@@ -134,76 +135,17 @@ export function drawOutfitOver(ctx: G, look: Look, color: string, bodyY: number,
   }
 }
 
-/** After the hat: helmets, earmuffs, the parrot. */
-export function drawOutfitTop(ctx: G, look: Look, t: number, bodyY: number, R: number, fx: number, seed: number, front: boolean) {
+/** After the hat: earring, leaf in the hat band. */
+export function drawOutfitTop(ctx: G, look: Look, bodyY: number, R: number, fx: number, front: boolean) {
   switch (look) {
     case 'pirate': {
-      if (front) {
-        // gold hoop earring
-        ctx.beginPath();
-        ctx.arc(fx * 7 + (fx >= 0 ? -15 : 15), bodyY - 1, 3, 0, Math.PI * 2);
-        ctx.lineWidth = 1.8;
-        ctx.strokeStyle = '#ffd23f';
-        ctx.stroke();
-      }
-      // parrot on the shoulder, bobbing its head
-      const bob = Math.sin(t * 3 + seed) * 1.5;
-      const px = -R * 0.85;
-      const py = bodyY - R * 0.75;
-      ctx.save();
-      ctx.translate(px, py + bob);
+      if (!front) return;
+      // gold hoop earring
       ctx.beginPath();
-      ctx.moveTo(2, 4);
-      ctx.lineTo(10, 16);
-      ctx.lineTo(4, 16);
-      ctx.closePath();
-      outlined(ctx, '#3d8bff', 1.5);
-      ellipse(ctx, 0, 2, 6, 8);
-      outlined(ctx, '#3fbf2f', 2);
-      circle(ctx, -1, -7, 5.5);
-      outlined(ctx, '#e8303f', 2);
-      ctx.beginPath();
-      ctx.moveTo(-6, -8);
-      ctx.quadraticCurveTo(-11, -6, -7, -3);
-      ctx.closePath();
-      outlined(ctx, '#ffd23f', 1.4);
-      circle(ctx, -2, -8, 1.3);
-      ctx.fillStyle = INK;
-      ctx.fill();
-      ctx.restore();
-      break;
-    }
-    case 'space': {
-      // clear dome over head and hat, with a metal collar ring and a blinking tip light
-      const cy = bodyY - 22;
-      const r = 34;
-      circle(ctx, 0, cy, r);
-      ctx.fillStyle = 'rgba(190,230,255,0.22)';
-      ctx.fill();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = INK;
+      ctx.arc(fx * 7 + (fx >= 0 ? -15 : 15), bodyY - 1, 3, 0, Math.PI * 2);
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = '#ffd23f';
       ctx.stroke();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-      circle(ctx, 0, cy, r - 3);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, cy, r - 7, Math.PI * 1.15, Math.PI * 1.45);
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.stroke();
-      shine(ctx, 16, cy + 10, 4, 7, 0.4, 0.5);
-      // collar ring where the dome meets the suit (just the rim, so the face stays visible)
-      ellipse(ctx, 0, cy + r - 2, 25, 6);
-      ctx.lineWidth = 7;
-      ctx.strokeStyle = INK;
-      ctx.stroke();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#c4ccd8';
-      ctx.stroke();
-      const on = Math.sin(t * 4 + seed) > 0;
-      circle(ctx, 0, cy - r - 2, 3);
-      outlined(ctx, on ? '#ff3d5a' : '#7a2b33', 1.5);
       break;
     }
     case 'jungle': {
@@ -220,19 +162,81 @@ export function drawOutfitTop(ctx: G, look: Look, t: number, bodyY: number, R: n
       ctx.restore();
       break;
     }
-    case 'arctic': {
-      if (!front) return;
-      // fuzzy earmuffs on the sides of the hood
-      for (const s of [-1, 1]) {
-        circle(ctx, s * (R - 1), bodyY - 10, 6);
-        outlined(ctx, '#ff8fb0', 2);
-        circle(ctx, s * (R - 1) - 1.5, bodyY - 11.5, 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.fill();
-      }
-      break;
-    }
     default:
       break;
   }
+}
+
+/**
+ * Space: a clear bubble helmet round the face only, drawn BEFORE the hat so the chef hat sits on
+ * top of it. `fx` shifts it a little toward where the chef is looking, like the face.
+ */
+export function drawOutfitHelmet(ctx: G, look: Look, bodyY: number, fx: number) {
+  if (look !== 'space') return;
+  const cx = fx * 4;
+  const cy = bodyY - 8;
+  const r = 19;
+  circle(ctx, cx, cy, r);
+  ctx.fillStyle = 'rgba(190,230,255,0.25)';
+  ctx.fill();
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 4, Math.PI * 1.1, Math.PI * 1.45);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.stroke();
+  shine(ctx, cx + 10, cy + 7, 2.5, 4.5, 0.4, 0.55);
+  // collar ring where the bubble meets the suit (just the rim, so the face stays visible)
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r - 3, 15, 4.5, 0, 0.05 * Math.PI, 0.95 * Math.PI);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = '#c4ccd8';
+  ctx.stroke();
+}
+
+/** Pirate cutlass in its scabbard, hanging at the hip on the side away from where the chef faces. */
+function drawCutlass(ctx: G, bodyY: number, R: number, fx: number) {
+  const side = fx > 0.3 ? -1 : 1;
+  ctx.save();
+  ctx.translate(side * (R - 3), bodyY + 12);
+  ctx.rotate(side * 0.45);
+  // belt strap across the body
+  ctx.beginPath();
+  ctx.moveTo(0, -4);
+  ctx.lineTo(-side * R * 1.4, -16);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#6b3e1f';
+  ctx.stroke();
+  // curved scabbard
+  ctx.beginPath();
+  ctx.moveTo(-3, 0);
+  ctx.quadraticCurveTo(side * 4, 10, side * 2, 19);
+  ctx.lineTo(side * 7, 17);
+  ctx.quadraticCurveTo(side * 9, 9, 3, 0);
+  ctx.closePath();
+  outlined(ctx, '#5c2a1a', 2);
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(-3, 2, 6, 2.5);
+  // brass guard and grip sticking out the top
+  ctx.beginPath();
+  ctx.arc(0, -2, 5, Math.PI, Math.PI * 2);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = '#ffd23f';
+  ctx.stroke();
+  roundRect(ctx, -2, -11, 4, 9, 2);
+  outlined(ctx, '#3b3b46', 1.5);
+  circle(ctx, 0, -12, 2.2);
+  outlined(ctx, '#ffd23f', 1.2);
+  ctx.restore();
 }
