@@ -5,7 +5,9 @@ import {
   HAZARDS,
   INGREDIENTS,
   KITCHEN,
+  LOBBY_LAYOUT,
   MAPS,
+  ZONE_FOOTING,
   PUSH,
   RECIPES,
   SCORING,
@@ -103,8 +105,16 @@ export class GameEngine {
 
   addPlayer(id: string, nickname: string, color: string, face: ChefFace = 'plain'): void {
     if (this.chefs.has(id)) return;
-    this.chefs.set(id, this.blankChef(id, nickname, color, face));
-    this.layout();
+    const c = this.blankChef(id, nickname, color, face);
+    this.chefs.set(id, c);
+    if (this._phase === 'lobby') {
+      // walk in at the apartment door; nobody else gets moved around
+      const s = this.L.spawn ?? this.L.pass;
+      c.x = s.x + (this.random() - 0.5) * 80;
+      c.y = s.y + (this.random() - 0.5) * 80;
+      this.pushOut(c, R);
+      c.near = this.nearOf(c);
+    } else this.layout();
   }
 
   /** Lobby customisation: new colour and/or face. */
@@ -135,7 +145,7 @@ export class GameEngine {
   applyInput(id: string, input: PlayerInput): InputResult {
     const c = this.chefs.get(id);
     if (!c) return 'unknown';
-    if (this._phase !== 'playing') return 'phase';
+    if (!this.moving) return 'phase';
     const { seq, x, y } = input;
     if (!Number.isSafeInteger(seq) || seq < 0) return 'invalid';
     if (!Number.isFinite(x) || !Number.isFinite(y)) return 'invalid';
@@ -200,12 +210,12 @@ export class GameEngine {
   setMap(map: MapId): void {
     if (this._phase !== 'lobby' && this._phase !== 'results') return;
     this._map = map;
-    this.layout();
   }
 
   /** Where everything is on the current map. */
   private get L(): Layout {
-    return MAPS[this._map].layout;
+    // before the first shift everyone hangs out in the apartment
+    return this._phase === 'lobby' ? LOBBY_LAYOUT : MAPS[this._map].layout;
   }
 
   get chaos(): ChaosLevel {
@@ -222,7 +232,7 @@ export class GameEngine {
 
   update(now: number): UpdateResult {
     const result: UpdateResult = { ticks: 0, phaseChanged: null, scoresChanged: false };
-    if (this._phase === 'lobby' || this._phase === 'results') {
+    if (this._phase === 'results') {
       this.lastUpdateAt = now;
       return result;
     }
@@ -264,7 +274,7 @@ export class GameEngine {
   /** Start working at the station the chef is standing at. */
   interact(id: string): InteractResult {
     const c = this.chefs.get(id);
-    if (!c || this._phase !== 'playing') return 'phase';
+    if (!c || !this.moving) return 'phase';
     if (c.working || c.stuck) return 'busy';
     if (!c.near || c.near === 'pass') return 'not-near';
     const station = c.near;
@@ -276,7 +286,9 @@ export class GameEngine {
       this.setStuck(c, 'fire', fire.id);
       return 'ok';
     }
-    const ingredient = this.neededAt(c, station);
+    // lobby practice: any station, any of its ingredients, nothing kept
+    const ingredient =
+      this._phase === 'lobby' ? stationById(station).ingredients[Math.floor(this.random() * 5)]!.id : this.neededAt(c, station);
     if (!ingredient) return c.have.size && this.recipeNeedsStation(c, station) ? 'already-have' : 'not-needed';
     c.working = { station, ingredient, reps: c.partial.get(ingredient) ?? 0, lastRepAt: -1e9, lastEffortAt: this.playMs };
     c.vx = 0;
@@ -294,7 +306,7 @@ export class GameEngine {
   /** One gesture from the phone. Rate-limited per station so mashing doesn't help. */
   rep(id: string, good: boolean): boolean {
     const c = this.chefs.get(id);
-    if (!c || !c.working || this._phase !== 'playing') return false;
+    if (!c || !c.working || !this.moving) return false;
     const w = c.working;
     const def = stationById(w.station);
     const t = this.playMs;
@@ -321,7 +333,7 @@ export class GameEngine {
    */
   effort(id: string, accuracy: number): boolean {
     const c = this.chefs.get(id);
-    if (!c || this._phase !== 'playing') return false;
+    if (!c || !this.moving) return false;
     if (c.stuck) return this.recoverEffort(c, Number.isFinite(accuracy) ? Math.min(1, accuracy) : 0);
     if (!c.working) return false;
     const w = c.working;
@@ -348,7 +360,7 @@ export class GameEngine {
   private finishWork(c: Chef) {
     const w = c.working;
     if (!w) return;
-    c.have.add(w.ingredient);
+    if (this._phase !== 'lobby') c.have.add(w.ingredient);
     c.partial.delete(w.ingredient);
     c.working = null;
     this.pendingEvents.push({ type: 'made', chef: c.id, station: w.station, ingredient: w.ingredient });
@@ -488,9 +500,14 @@ export class GameEngine {
 
   // ================================================================ simulation
 
+  /** Chefs can walk and cook: during a shift, and in the lobby apartment (practice). */
+  private get moving(): boolean {
+    return this._phase === 'playing' || this._phase === 'lobby';
+  }
+
   private step(dt: number): void {
     this._tick++;
-    if (this._phase !== 'playing') return;
+    if (!this.moving) return;
     this.playMs += dt * 1000;
     const list = [...this.chefs.values()];
     const f = this.L.floor;
@@ -521,6 +538,15 @@ export class GameEngine {
       }
       c.x += c.vx * dt;
       c.y += c.vy * dt;
+      // moving walkways / currents carry anyone on their feet
+      if (!c.working && !c.stuck && c.connected) {
+        for (const z of this.L.zones ?? []) {
+          if (z.kind === 'belt' && c.x > z.x0 && c.x < z.x1 && c.y > z.y0 && c.y < z.y1) {
+            c.x += (z.vx ?? 0) * dt;
+            c.y += (z.vy ?? 0) * dt;
+          }
+        }
+      }
     }
 
     // Chefs bump each other a little.
@@ -572,7 +598,7 @@ export class GameEngine {
       if (c.working && c.near !== c.working.station) this.cancel(c.id);
     }
 
-    this.updateHazards(dt * 1000);
+    if (this._phase === 'playing') this.updateHazards(dt * 1000);
   }
 
   // ================================================================ kitchen chaos
@@ -756,6 +782,14 @@ export class GameEngine {
   private footing(c: Chef): { speed: number; grip: number } {
     let speed = 1;
     let grip = 12;
+    for (const z of this.L.zones ?? []) {
+      if (c.x < z.x0 || c.x > z.x1 || c.y < z.y0 || c.y > z.y1) continue;
+      if (z.kind === 'mud') speed *= ZONE_FOOTING.mud.speed;
+      else if (z.kind === 'ice') {
+        speed *= ZONE_FOOTING.ice.speed;
+        grip = Math.min(grip, ZONE_FOOTING.ice.grip);
+      }
+    }
     for (const h of this.hazards) {
       if (h.warnMs > 0) continue;
       if (h.kind === 'sprinkler') speed *= HAZARDS.sprinkler.slow;
@@ -1029,11 +1063,12 @@ export class GameEngine {
 
   private layout() {
     const list = [...this.chefs.values()];
+    const s = this.L.spawn ?? this.L.pass;
     list.forEach((c, i) => {
       const a = -Math.PI / 2 + (i * Math.PI * 2) / Math.max(1, list.length);
-      c.x = this.L.pass.x + Math.cos(a) * 190;
-      c.y = this.L.pass.y + Math.sin(a) * 110;
-      c.facing = Math.atan2(this.L.pass.y - c.y, this.L.pass.x - c.x);
+      c.x = s.x + Math.cos(a) * (this.L.spawn ? 90 : 190);
+      c.y = s.y + Math.sin(a) * (this.L.spawn ? 70 : 110);
+      c.facing = Math.atan2(s.y - c.y, s.x - c.x);
       this.pushOut(c, R);
       c.near = this.nearOf(c);
     });
@@ -1136,9 +1171,12 @@ export class GameEngine {
     const ranked = [...this.chefs.values()].sort((a, b) => b.score - a.score);
     const rank = 1 + ranked.filter((o) => o.score > c.score).length;
     const recipe = recipeById(c.recipeId);
-    const atStation = this._phase === 'playing' && !c.working && !c.stuck && !!c.near && c.near !== 'pass';
+    const atStation = this.moving && !c.working && !c.stuck && !!c.near && c.near !== 'pass';
     const fireHere = atStation && !!this.fireAt(c.near as StationId);
-    const canInteract = atStation && (fireHere || this.neededAt(c, c.near as StationId) !== null);
+    // in the lobby every station is open for practice
+    const canInteract = atStation && (this._phase === 'lobby' || fireHere || this.neededAt(c, c.near as StationId) !== null);
+    const dress = this._phase === 'lobby' ? this.L.dressing : undefined;
+    const atWardrobe = !!dress && !c.working && Math.hypot(c.x - dress.x, c.y - dress.y) < dress.r;
     const canServe =
       this._phase === 'playing' &&
       !c.working &&
@@ -1155,6 +1193,7 @@ export class GameEngine {
       canServe,
       fireHere,
       stuck: this.stuckSnap(c),
+      atWardrobe,
       pushReadyInMs: Math.max(0, Math.round(c.pushReadyAt - this.playMs)),
       // the phone shows "X pushed you" for a few seconds after a shove
       pushedBy:

@@ -18,7 +18,6 @@ const flashOn = (t: number, hz = 6) => Math.floor(t * hz) % 2 === 0;
 const PUDDLE: Record<MapId, [string, string]> = {
   kitchen: ['rgba(110,190,255,0.8)', '#2f86d6'],
   pirate: ['rgba(90,170,230,0.8)', '#1f6fa8'],
-  pirate2: ['rgba(90,170,230,0.8)', '#1f6fa8'],
   space: ['rgba(124,255,107,0.75)', '#2bb02b'],
   jungle: ['rgba(138,90,50,0.85)', '#5a3a1e'],
   arctic: ['rgba(220,245,255,0.9)', '#6fb4dc'],
@@ -28,7 +27,6 @@ const PUDDLE: Record<MapId, [string, string]> = {
 const SPLAT: Record<MapId, string> = {
   kitchen: 'rgba(232,67,47,0.75)',
   pirate: 'rgba(60,40,30,0.55)',
-  pirate2: 'rgba(60,40,30,0.55)',
   space: 'rgba(90,80,110,0.6)',
   jungle: 'rgba(240,240,220,0.7)',
   arctic: 'rgba(255,255,255,0.9)',
@@ -298,7 +296,6 @@ function drawGust(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: 
   const color: Record<MapId, string> = {
     kitchen: 'rgba(255,255,255,0.6)',
     pirate: 'rgba(140,210,255,0.55)',
-    pirate2: 'rgba(140,210,255,0.55)',
     space: 'rgba(170,220,255,0.55)',
     jungle: 'rgba(200,230,255,0.6)',
     arctic: 'rgba(255,255,255,0.85)',

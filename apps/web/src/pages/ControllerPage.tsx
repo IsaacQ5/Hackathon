@@ -208,7 +208,8 @@ export function ControllerPage({ code }: { code: string }) {
   // Stand still while cooking or while a hazard has you.
   const working = !!status?.working || !!status?.stuck;
   useEffect(() => {
-    if (joinState !== 'joined' || phase !== 'playing' || !connected || working) return;
+    // walk during a shift, and around the lobby apartment before it
+    if (joinState !== 'joined' || (phase !== 'playing' && phase !== 'lobby') || !connected || working) return;
     const id = window.setInterval(() => {
       const v = source === 'tilt' ? tilt.inputRef.current : touchRef.current;
       seqRef.current += 1;
@@ -463,6 +464,17 @@ export function ControllerPage({ code }: { code: string }) {
 
   // ------------------------------------------------------------ render: lobby / results
 
+  // Lobby apartment: practising at a station takes over the phone, like a real shift.
+  if (phase === 'lobby' && status?.working) {
+    return (
+      <div className="kctrl kctrl--work" style={colorVar(color)}>
+        {header}
+        <p className="kpractice">PRACTICE: nothing is kept, just get the feel for it!</p>
+        <StationPanel work={status.working} motionAllowed={motionAllowed} />
+      </div>
+    );
+  }
+
   if (phase === 'lobby' || phase === 'results') {
     const mine = match?.results.find((r) => r.id === session.playerId);
     const myAwards = mine && match ? awardsFor(match.results).get(mine.id) ?? [] : [];
@@ -482,7 +494,8 @@ export function ControllerPage({ code }: { code: string }) {
     return (
       <div className="kctrl" style={colorVar(color)}>
         {header}
-        {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
+        {/* (in the lobby the walk-around pad comes first; the head chef's settings sit below it) */}
+        {isCaptain && room && phase === 'results' && <HeadChefCard room={room} phase={phase} />}
         {phase === 'results' && (
           <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 && !tiedFirst ? 'kplace--win' : ''}`}>
             <h2>
@@ -502,16 +515,53 @@ export function ControllerPage({ code }: { code: string }) {
           </section>
         )}
         <section className="kbanner">
-          <ChefPortrait color={color} face={face} size={110} outfit={room?.map} />
-          <h2>{phase === 'lobby' ? 'You’re on the line!' : 'Another shift?'}</h2>
+          <ChefPortrait color={color} face={face} size={phase === 'lobby' ? 70 : 110} outfit={room?.map} />
+          <h2>{phase === 'lobby' ? 'Welcome to the apartment!' : 'Another shift?'}</h2>
           <p>
             {isCaptain
               ? 'You’re the head chef: you start the shift!'
               : `Waiting for ${captainName ?? 'the head chef'} to start…`}
           </p>
         </section>
-        <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} outfit={room?.map} />
-        {motionSetup}
+        {phase === 'lobby' ? (
+          <>
+            {/* PlateUp style: walk around the apartment on the big screen */}
+            {status?.atWardrobe ? (
+              <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} outfit={room?.map} />
+            ) : (
+              <p className="kcard klobbyhint">
+                <Icon name="chefhat" /> Walk onto the pink rug by the wardrobe to change your look, or into the kitchen to practise.
+              </p>
+            )}
+            <div className="kctrl__move">
+              {mode === 'tilt' && tiltReady ? (
+                <TiltIndicator read={() => tilt.inputRef.current} color={color} />
+              ) : mode === 'joystick' ? (
+                <TouchPad outputRef={touchRef} color={color} />
+              ) : (
+                motionSetup
+              )}
+            </div>
+            {(() => {
+              const near = status?.near && status.near !== 'pass' ? stationById(status.near) : null;
+              return near && status?.canInteract ? (
+                <button className="kact is-go" onClick={() => kitchenApi.interact()}>
+                  <Icon name={near.icon} /> PRACTISE {near.verb}
+                </button>
+              ) : (
+                <button className="kact is-idle" disabled>
+                  {near ? `${near.verb} station` : 'Walk around!'}
+                </button>
+              );
+            })()}
+            {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
+          </>
+        ) : (
+          <>
+            <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} outfit={room?.map} />
+            {motionSetup}
+          </>
+        )}
         <section className="kcard khowto-card">
           <h3>How to cook</h3>
           <ol>

@@ -1777,3 +1777,62 @@ img.krecipe__tick {
   height: 60%;
   vertical-align: middle;
 }
+
+/* ---------------------------------------------------------------- lobby apartment (PlateUp style) */
+.klobby__apartment {
+  position: relative;
+  height: clamp(300px, 46vh, 520px);
+  border: 4px solid var(--ink);
+  border-radius: 16px;
+  overflow: hidden;
+  margin: 0.4rem 0 0.6rem;
+}
+.klobby__apartment .karena {
+  position: absolute;
+  inset: 0;
+}
+.kroster {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.kroster__chef {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.6rem 0.1rem 0.2rem;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 30%, var(--cream));
+  font-weight: 700;
+}
+.kroster__chef.is-away {
+  opacity: 0.5;
+}
+.kroster__boss {
+  font-family: var(--comic);
+  font-weight: 400;
+  font-size: 0.8rem;
+  background: var(--mustard);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 0 0.4em;
+}
+.kctrl .klobbyhint {
+  text-align: center;
+  font-weight: 700;
+  margin: 0;
+}
+.kpractice {
+  margin: 0;
+  text-align: center;
+  font-family: var(--comic);
+  font-size: 1.2rem;
+  background: var(--mustard);
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 0.2rem 0.6rem;
+}

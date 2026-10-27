@@ -152,6 +152,8 @@ export interface KitchenStatus {
   fireHere: boolean;
   /** Your phone is taken over until you do the recovery motion. */
   stuck: ChefStuck | null;
+  /** Lobby apartment: standing on the wardrobe rug (the phone shows the look picker). */
+  atWardrobe: boolean;
   /** ms until you can push again (0 = ready). */
   pushReadyInMs: number;
   /** Someone just shoved you (shown for a few seconds): who, and whether it knocked you off your station. */

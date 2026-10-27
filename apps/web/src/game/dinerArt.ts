@@ -17,7 +17,7 @@ export const EAT_MS = 1800;
 
 type G = CanvasRenderingContext2D;
 type Look = 'kitchen' | 'pirate' | 'space' | 'jungle' | 'arctic';
-const lookOf = (map: MapId): Look => (map === 'pirate2' ? 'pirate' : map);
+const lookOf = (map: MapId): Look => map;
 
 /**
  * The serve table. `happy` (0..1) makes the diner bounce right after a serve; `dish` is the last

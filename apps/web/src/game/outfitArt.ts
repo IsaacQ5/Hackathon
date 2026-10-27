@@ -18,7 +18,7 @@ type Look = 'kitchen' | 'pirate' | 'space' | 'jungle' | 'arctic';
 const OUTFITS_ON = false;
 
 export const outfitLook = (map: MapId | undefined): Look =>
-  !OUTFITS_ON ? 'kitchen' : map === 'pirate2' ? 'pirate' : map ?? 'kitchen';
+  !OUTFITS_ON ? 'kitchen' : map ?? 'kitchen';
 
 /** Colour of the hands (gloves, mittens...). */
 export function handColor(look: Look, color: string): string {

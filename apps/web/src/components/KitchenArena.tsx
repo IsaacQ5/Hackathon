@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import {
   INGREDIENTS,
   MAPS,
+  LOBBY_LAYOUT,
   layoutOf,
   STATIONS,
   recipeById,
@@ -70,7 +71,10 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
     resize();
 
     const theme = MAPS[map];
-    const layout = layoutOf(map);
+    const kitchenLayout = layoutOf(map);
+    /** Before the first shift the snapshots come from the lobby apartment. */
+    let inLobby = false;
+    const layoutNow = () => (inLobby ? LOBBY_LAYOUT : kitchenLayout);
 
     const fx = new Fx();
     const seeds = new Map<string, { seed: number; bounce: number }>();
@@ -147,10 +151,10 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
       const p = chefPos.get(e.chef);
       if (!p) return;
       if (e.type === 'hatch') {
-        // dropped through one trapdoor, popped out of the other
+        // dropped through one trapdoor (or teleporter), popped out of the other
         fx.dust(e.from.x, e.from.y, 8);
         fx.dust(e.to.x, e.to.y, 8);
-        fx.word('WHOOSH!', e.to.x, e.to.y - 70, '#ffd23f', 30);
+        fx.word(map === 'space' ? 'ZAP!' : 'WHOOSH!', e.to.x, e.to.y - 70, map === 'space' ? '#2de2e6' : '#ffd23f', 30);
         juice(e.chef).bounce = 1;
         sfx.boing();
         return;
@@ -182,7 +186,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
       }
       if (e.type === 'rep') {
         const st = stationById(e.station);
-        const spot = layout.spots.find((s) => s.id === e.station)!;
+        const spot = layoutNow().spots.find((s) => s.id === e.station)!;
         if (e.good) {
           fx.sparks(spot.x, spot.y, st.color, 7);
           if (e.station === 'knead' || e.station === 'mix') fx.dust(spot.x, spot.y, 3);
@@ -202,7 +206,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
         fx.stars(p.x, p.y - 60, 6);
         sfx.powerup();
       } else if (e.type === 'served') {
-        const pass = layout.pass;
+        const pass = layoutNow().pass;
         lastServeAt = now;
         fx.word(`+${e.points}!`, pass.x, pass.y - 70, e.points > 150 ? '#ff3d5a' : '#2bb02b', 60);
         if (e.fast) fx.word('SPEEDY!', pass.x, pass.y - 20, '#ff8a3d', 32);
@@ -251,7 +255,9 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
     const ticketW = () => Math.max(170, Math.min(230, cw * 0.13));
 
     const draw = (frame: Frame | null, t: number, now: number) => {
-      drawMapBackdrop(ctx, map, t, cw, ch);
+      inLobby = frame?.snap.phase === 'lobby';
+      const board = inLobby ? 'lobby' : map;
+      drawMapBackdrop(ctx, board, t, cw, ch);
       if (!frame) {
         ctx.fillStyle = '#fff';
         ctx.font = '600 24px Fredoka, system-ui, sans-serif';
@@ -260,17 +266,19 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
         return;
       }
       const chefs = frame.chefs;
-      const half = Math.ceil(chefs.length / 2);
+      // (no order tickets in the lobby: nobody has a recipe yet)
+      const half = inLobby ? 0 : Math.ceil(chefs.length / 2);
       const left = chefs.slice(0, half);
-      const right = chefs.slice(half);
+      const right = inLobby ? [] : chefs.slice(half);
       const tw = ticketW();
       const leftW = left.length ? tw + SIDE_GAP * 2 : 16;
       const rightW = right.length ? tw + SIDE_GAP * 2 : 16;
       const availW = Math.max(100, cw - leftW - rightW);
-      const availH = Math.max(100, ch - TOP - 10);
+      const top = inLobby ? 8 : TOP;
+      const availH = Math.max(100, ch - top - 10);
       const scale = Math.min(availW / (W + EDGE * 2), availH / (H + EDGE * 2));
       const ox = leftW + (availW - W * scale) / 2;
-      const oy = TOP + (availH - H * scale) / 2;
+      const oy = top + (availH - H * scale) / 2;
       const sh = fx.shakeOffset();
 
       ctx.save();
@@ -280,13 +288,13 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
       // the pirate ship rocks, and lurches the way a rogue wave is pushing
       const gust = hazards.find((h) => h.kind === 'gust' && h.warnMs <= 0);
       const lurch = gust ? gust.dir * Math.min(1, (now - gustAt) / 600) : 0;
-      const rock = mapRock(map, t, lurch);
+      const rock = inLobby ? 0 : mapRock(map, t, lurch);
       if (rock) {
         ctx.translate(W / 2, H / 2);
         ctx.rotate(rock);
         ctx.translate(-W / 2, -H / 2);
       }
-      drawKitchen(ctx, t, map);
+      drawKitchen(ctx, t, board);
       drawHazardsBack(ctx, hazards, t, map);
 
       // Station activity + highlight (someone standing there who needs it).
@@ -299,18 +307,21 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
           ingredient: lead?.ingredient ?? null,
           workers: workers.length,
         };
-        const waiting = chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
-        drawStation(ctx, st.id, act, t, waiting ? waiting.color : null, layout);
+        // (in the lobby any station lights up: they're all open for practice)
+        const waiting = chefs.find((c) => !c.working && c.near === st.id && (inLobby || needs(c, st.id)));
+        drawStation(ctx, st.id, act, t, waiting ? waiting.color : null, layoutNow());
       }
       drawFires(ctx, hazards, t, map);
-      drawPass(
-        ctx,
-        t,
-        chefs.some((c) => complete(c)),
-        Math.max(0, 1 - (now - lastServeAt) / 1500),
-        lastDish ? { icon: lastDish.icon, age: now - lastDish.at } : null,
-        map,
-      );
+      if (!inLobby) {
+        drawPass(
+          ctx,
+          t,
+          chefs.some((c) => complete(c)),
+          Math.max(0, 1 - (now - lastServeAt) / 1500),
+          lastDish ? { icon: lastDish.icon, age: now - lastDish.at } : null,
+          map,
+        );
+      }
       fx.drawBack(ctx);
       const best = Math.max(0, ...chefs.map((c) => c.score));
       const over = frame.snap.phase === 'results';
@@ -328,10 +339,11 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
         drawChef(ctx, v, t, true);
       }
       drawHazardsFront(ctx, hazards, t, map);
-      drawMapOverlay(ctx, map, t);
+      if (!inLobby) drawMapOverlay(ctx, map, t);
       fx.drawFront(ctx);
       ctx.restore();
 
+      if (inLobby) return;
       drawTicketColumn(ctx, left, SIDE_GAP, TOP, tw, ch - TOP - 10);
       drawTicketColumn(ctx, right, cw - SIDE_GAP - tw, TOP, tw, ch - TOP - 10);
       drawHud(frame, t, now);

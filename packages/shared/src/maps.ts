@@ -1,8 +1,10 @@
 /**
  * Maps and chaos levels (both picked between shifts by the head chef or the host screen).
  *
- * Every map has the same six stations. Most use the classic layout (KITCHEN); a map can bring
- * its own (Pirate Cove puts the stations down the sides). Hazards keep their rules on every map
+ * Every map has the same six stations in the same places; each themed map adds its own layout
+ * twist on top (Overcooked style): the pirate ship's cargo hold, gangplanks and trapdoors, the
+ * space station's moving walkways and teleporters, the jungle's pillars and mud, the arctic's
+ * frozen ponds. Hazards keep their rules on every map
  * but get a themed skin (on the pirate ship the meteor is a cannonball, the loose chicken is a
  * pirate...). The themed maps also have `gust`, that slides every walking chef sideways, and
  * every map has one `special` event of its own (sprinklers, the kraken, zero gravity...).
@@ -11,7 +13,7 @@
 import { KITCHEN, type StationSpot } from './kitchen.js';
 import type { HazardKind, StuckKind } from './types.js';
 
-export const MAP_IDS = ['kitchen', 'pirate', 'space', 'jungle', 'arctic', 'pirate2'] as const;
+export const MAP_IDS = ['kitchen', 'pirate', 'space', 'jungle', 'arctic'] as const;
 export type MapId = (typeof MAP_IDS)[number];
 
 export function isMapId(v: unknown): v is MapId {
@@ -48,9 +50,35 @@ export interface Layout {
   walls?: readonly { x0: number; y0: number; x1: number; y1: number }[];
   /** Solid round posts (masts, pillars). */
   posts?: readonly { x: number; y: number; r: number }[];
-  /** Two trapdoors: step on one and you pop out of the other. */
+  /** Two trapdoors / teleporters: step on one and you pop out of the other. */
   hatches?: readonly [{ x: number; y: number; r: number }, { x: number; y: number; r: number }];
+  /** Floor areas that change how you move (see Zone). */
+  zones?: readonly Zone[];
+  /** Where chefs appear (defaults to around the serve table). */
+  spawn?: { x: number; y: number };
+  /** Lobby only: stand here to change your look. */
+  dressing?: { x: number; y: number; r: number };
 }
+
+/**
+ * belt: a moving walkway / current, carries anyone walking on it at (vx, vy) per second.
+ * mud: wade through it slowly. ice: skate across it (faster, but hard to steer or stop).
+ */
+export interface Zone {
+  kind: 'belt' | 'mud' | 'ice';
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  vx?: number;
+  vy?: number;
+}
+
+/** How mud and ice change your feet (top-speed multiplier, grip). */
+export const ZONE_FOOTING = {
+  mud: { speed: 0.5 },
+  ice: { speed: 1.15, grip: 1.5 },
+} as const;
 
 export const CLASSIC_LAYOUT: Layout = {
   floor: KITCHEN.floor,
@@ -61,12 +89,12 @@ export const CLASSIC_LAYOUT: Layout = {
 };
 
 /**
- * Pirate Cove: an open cargo hold splits the deck into a top half (chop, fry, stir) and a bottom
+ * Pirate Galley: an open cargo hold splits the deck into a top half (chop, fry, stir) and a bottom
  * half (knead, mix, juice). Every recipe needs both halves, so you keep crossing: over one of the
  * two narrow gangplanks at the ends, or squeezing past the captain's table on the middle bridge.
  * Two masts get in the way, and two trapdoors in opposite corners are a shortcut between decks.
  */
-export const COVE_LAYOUT: Layout = {
+export const PIRATE_LAYOUT: Layout = {
   ...CLASSIC_LAYOUT,
   walls: [
     { x0: 60, y0: 262, x1: 118, y1: 338 },
@@ -82,6 +110,75 @@ export const COVE_LAYOUT: Layout = {
     { x: 92, y: 172, r: 22 },
     { x: 908, y: 428, r: 22 },
   ],
+};
+
+/**
+ * Space Station: two moving walkways run in opposite directions across the deck (ride them, or
+ * fight them), and a pair of teleporter pads on the far left and right zap you across.
+ */
+export const SPACE_LAYOUT: Layout = {
+  ...CLASSIC_LAYOUT,
+  zones: [
+    { kind: 'belt', x0: 240, y0: 200, x1: 760, y1: 244, vx: 120, vy: 0 },
+    { kind: 'belt', x0: 240, y0: 356, x1: 760, y1: 400, vx: -120, vy: 0 },
+  ],
+  hatches: [
+    { x: 100, y: 300, r: 24 },
+    { x: 900, y: 300, r: 24 },
+  ],
+};
+
+/** Jungle Temple: crumbling stone pillars to weave between, and two mud bogs that slow you to a wade. */
+export const JUNGLE_LAYOUT: Layout = {
+  ...CLASSIC_LAYOUT,
+  posts: [
+    { x: 330, y: 228, r: 18 },
+    { x: 670, y: 228, r: 18 },
+    { x: 330, y: 372, r: 18 },
+    { x: 670, y: 372, r: 18 },
+  ],
+  zones: [
+    { kind: 'mud', x0: 96, y0: 250, x1: 236, y1: 350 },
+    { kind: 'mud', x0: 764, y0: 250, x1: 904, y1: 350 },
+  ],
+};
+
+/** Arctic Lodge: two frozen ponds to skate across (fast, slippery) and a couple of snowmen in the way. */
+export const ARCTIC_LAYOUT: Layout = {
+  ...CLASSIC_LAYOUT,
+  zones: [
+    { kind: 'ice', x0: 150, y0: 214, x1: 360, y1: 386 },
+    { kind: 'ice', x0: 640, y0: 214, x1: 850, y1: 386 },
+  ],
+  posts: [
+    { x: 110, y: 196, r: 18 },
+    { x: 890, y: 404, r: 18 },
+  ],
+};
+
+/**
+ * The lobby apartment (PlateUp style): chefs walk around before the first shift. A kitchenette
+ * on the left has all six stations to practise on; the living room on the right has a wardrobe
+ * (stand on its rug to change your look), a couch and a coffee table.
+ */
+export const LOBBY_LAYOUT: Layout = {
+  floor: KITCHEN.floor,
+  // the coffee table: solid, nothing to serve
+  pass: { x: 790, y: 330, r: 0, serveR: 0 },
+  customer: { x: 790, y: 330, r: 0 },
+  spots: [
+    { id: 'chop', x: 150, y: 78, fx: 150, fy: 162, face: 'down' },
+    { id: 'fry', x: 330, y: 78, fx: 330, fy: 162, face: 'down' },
+    { id: 'stir', x: 510, y: 78, fx: 510, fy: 162, face: 'down' },
+    { id: 'knead', x: 150, y: 522, fx: 150, fy: 438, face: 'up' },
+    { id: 'mix', x: 330, y: 522, fx: 330, fy: 438, face: 'up' },
+    { id: 'juice', x: 510, y: 522, fx: 510, fy: 438, face: 'up' },
+  ],
+  lanes: [],
+  walls: [{ x0: 700, y0: 418, x1: 880, y1: 468 }],
+  posts: [{ x: 790, y: 330, r: 30 }],
+  spawn: { x: 560, y: 300 },
+  dressing: { x: 830, y: 186, r: 46 },
 };
 
 export interface MapDef {
@@ -117,7 +214,7 @@ const FIRE_STUCK: StuckText = {
   word: 'SPRAY IT!',
 };
 
-const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
+export const MAPS: Record<MapId, MapDef> = {
   kitchen: {
     id: 'kitchen',
     special: 'sprinkler',
@@ -151,9 +248,9 @@ const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
   pirate: {
     id: 'pirate',
     special: 'kraken',
-    layout: CLASSIC_LAYOUT,
+    layout: PIRATE_LAYOUT,
     name: 'Pirate Galley',
-    blurb: 'Cook on deck! Cannonballs, a rogue pirate, rolling barrels and big waves.',
+    blurb: 'A cargo hold splits the deck: cross the gangplanks or drop through the trapdoors. Cannonballs, a rogue pirate and the kraken!',
     icon: 'anchor',
     backdrop: '#1f6fa8',
     gust: true,
@@ -181,9 +278,9 @@ const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
   space: {
     id: 'space',
     special: 'lowgrav',
-    layout: CLASSIC_LAYOUT,
+    layout: SPACE_LAYOUT,
     name: 'Space Station',
-    blurb: 'Zero-g cooking. Asteroids, a sneaky alien, robot vacuums and airlock breaches.',
+    blurb: 'Ride the moving walkways and zap across on the teleporters. Asteroids, a sneaky alien and zero gravity!',
     icon: 'rocket',
     backdrop: '#141a3a',
     gust: true,
@@ -211,9 +308,9 @@ const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
   jungle: {
     id: 'jungle',
     special: 'quicksand',
-    layout: CLASSIC_LAYOUT,
+    layout: JUNGLE_LAYOUT,
     name: 'Jungle Temple',
-    blurb: 'A kitchen in the ruins. Falling coconuts, a cheeky monkey, rolling boulders and monsoons.',
+    blurb: 'Weave between the old pillars and wade through mud bogs. Coconuts, a cheeky monkey, boulders and quicksand!',
     icon: 'palm',
     backdrop: '#2f7d3a',
     gust: true,
@@ -241,9 +338,9 @@ const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
   arctic: {
     id: 'arctic',
     special: 'freeze',
-    layout: CLASSIC_LAYOUT,
+    layout: ARCTIC_LAYOUT,
     name: 'Arctic Lodge',
-    blurb: 'Ice floors and snow. Giant snowballs, a waddling penguin, rolling snowmen and blizzards.',
+    blurb: 'Skate across the frozen ponds and dodge the snowmen. Giant snowballs, a waddling penguin and flash freezes!',
     icon: 'snowflake',
     backdrop: '#7fb6d9',
     gust: true,
@@ -267,18 +364,6 @@ const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
       fire: FIRE_STUCK,
     },
     impact: { meteor: 'FWUMP!', cheese: 'ROLLING!' },
-  },
-};
-
-export const MAPS: Record<MapId, MapDef> = {
-  ...BASE_MAPS,
-  // A copy of the pirate ship with a different layout, to try it out without touching the original.
-  pirate2: {
-    ...BASE_MAPS.pirate,
-    id: 'pirate2',
-    name: 'Pirate Cove',
-    blurb: 'A cargo hold splits the deck in two: cross the narrow gangplanks, dodge the masts, or drop through the trapdoors.',
-    layout: COVE_LAYOUT,
   },
 };
 

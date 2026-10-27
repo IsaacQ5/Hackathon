@@ -19,14 +19,14 @@ import { drawOutfitHelmet, drawOutfitOver, drawOutfitTop, drawOutfitUnder, handC
 import { drawSign } from './sign';
 export { drawPass, EAT_MS } from './dinerArt';
 import { icon } from './icons';
-import { drawMapBoard } from './mapArt';
+import { drawMapBoard, type BoardId } from './mapArt';
 
 export { icon, INK, outlined, roundRect, shade };
 
 // ====================================================================== floor + counters
 
-/** The map's floor, counters and props (see mapArt.ts). */
-export function drawKitchen(ctx: CanvasRenderingContext2D, t: number, map: MapId = 'kitchen') {
+/** The map's (or the lobby apartment's) floor, counters and props (see mapArt.ts). */
+export function drawKitchen(ctx: CanvasRenderingContext2D, t: number, map: BoardId = 'kitchen') {
   drawMapBoard(ctx, map, t);
 }
 

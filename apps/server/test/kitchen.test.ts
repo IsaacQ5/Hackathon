@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   HAZARDS,
   KITCHEN,
+  LOBBY_LAYOUT,
   MAPS,
   MAP_IDS,
   RECIPES,
@@ -342,9 +343,11 @@ describe('Kitchen engine', () => {
   });
 
   it('rejects invalid, stale and out-of-phase input', () => {
-    const lobby = new GameEngine();
-    lobby.addPlayer('a', 'A', '#fff');
-    assert.equal(lobby.applyInput('a', { seq: 1, x: 0, y: 0 }), 'phase');
+    // (the lobby apartment takes input now; the countdown still doesn't)
+    const waiting = new GameEngine();
+    waiting.addPlayer('a', 'A', '#fff');
+    waiting.startCountdown(0);
+    assert.equal(waiting.applyInput('a', { seq: 1, x: 0, y: 0 }), 'phase');
     const { e } = kitchen();
     assert.equal(e.applyInput('a', { seq: 1, x: Number.NaN, y: 0 }), 'invalid');
     assert.equal(e.applyInput('a', { seq: 1, x: 2, y: 0 }), 'invalid');
@@ -578,12 +581,12 @@ describe('Kitchen engine: special map events + layouts', () => {
     assert.equal(e.peek('b')!.stuck, null);
   });
 
-  /** A running Pirate Cove shift (no random hazards) with the clock under our control. */
+  /** A running Pirate Galley shift (no random hazards) with the clock under our control. */
   const cove = () => {
     const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 0 }, () => 0.3);
     e.addPlayer('a', 'A', '#ff3d7f');
     e.addPlayer('b', 'B', '#2de2e6');
-    e.setMap('pirate2');
+    e.setMap('pirate');
     let now = 1000;
     e.startCountdown(now);
     now += 100;
@@ -605,7 +608,7 @@ describe('Kitchen engine: special map events + layouts', () => {
     return { e, run, hold };
   };
 
-  it('Pirate Cove: the cargo hold blocks the way except over the gangplanks', () => {
+  it('Pirate Galley: the cargo hold blocks the way except over the gangplanks', () => {
     const { e, hold } = cove();
     // straight down from the top deck into the hold: stopped at its edge
     e.setPlayerPosition('a', 260, 220);
@@ -617,9 +620,9 @@ describe('Kitchen engine: special map events + layouts', () => {
     assert.ok(e.peek('a')!.y > 338, `crossed the plank: ${e.peek('a')!.y}`);
   });
 
-  it('Pirate Cove: a trapdoor drops you out of the other one', () => {
+  it('Pirate Galley: a trapdoor drops you out of the other one', () => {
     const { e, run } = cove();
-    const [top, bottom] = MAPS.pirate2.layout.hatches!;
+    const [top, bottom] = MAPS.pirate.layout.hatches!;
     e.setPlayerPosition('a', top.x, top.y);
     run(100);
     const a = e.peek('a')!;
@@ -630,9 +633,9 @@ describe('Kitchen engine: special map events + layouts', () => {
     assert.ok(Math.hypot(e.peek('a')!.x - bottom.x, e.peek('a')!.y - bottom.y) < 60);
   });
 
-  it('Pirate Cove: spills never land in the hold or on a trapdoor', () => {
+  it('Pirate Galley: spills never land in the hold or on a trapdoor', () => {
     const { e } = cove();
-    const L = MAPS.pirate2.layout;
+    const L = MAPS.pirate.layout;
     for (let i = 0; i < 200; i++) {
       const id = e.spawnHazard('spill');
       const h = e.snapshot(0).hazards.find((x) => x.id === id)!;
@@ -641,10 +644,10 @@ describe('Kitchen engine: special map events + layouts', () => {
     }
   });
 
-  it('Pirate Cove: the classic stations still work', () => {
+  it('Pirate Galley: the classic stations still work', () => {
     const { e } = cove();
     e.setRecipe('a', 'burger');
-    const chop = MAPS.pirate2.layout.spots.find((s) => s.id === 'chop')!;
+    const chop = MAPS.pirate.layout.spots.find((s) => s.id === 'chop')!;
     e.setPlayerPosition('a', chop.fx, chop.fy);
     assert.equal(e.peek('a')!.near, 'chop');
     assert.equal(e.interact('a'), 'ok');
@@ -754,5 +757,108 @@ describe('Kitchen engine: chaos', () => {
       for (const ev of e.snapshot(0).events) if (ev.type === 'hazard') seen.add(ev.kind);
     }
     assert.deepEqual([...seen].sort(), ['cheese', 'chicken', 'fire', 'meteor', 'spill', 'sprinkler'], 'plus the classic map sprinklers');
+  });
+});
+
+describe('Kitchen engine: map zones + the lobby apartment', () => {
+  /** A running shift on `map` (no random hazards), with a stick-holding helper for chef 'a'. */
+  const onMap = (map: 'space' | 'jungle' | 'arctic') => {
+    const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 0 }, () => 0.3);
+    e.addPlayer('a', 'A', '#ff3d7f');
+    e.addPlayer('b', 'B', '#2de2e6');
+    e.setMap(map);
+    let now = 1000;
+    e.startCountdown(now);
+    now += 100;
+    e.update(now);
+    const run = (ms: number) => {
+      const end = now + ms;
+      while (now < end - 1e-6) {
+        now += 1000 / 30;
+        e.update(now);
+      }
+    };
+    let seq = 1;
+    const hold = (x: number, y: number, ms: number) => {
+      for (let t = 0; t < ms; t += 100) {
+        e.applyInput('a', { seq: seq++, x, y });
+        run(100);
+      }
+    };
+    return { e, run, hold };
+  };
+
+  it('space: the moving walkway carries you along', () => {
+    const { e, run } = onMap('space');
+    const belt = MAPS.space.layout.zones![0]!;
+    e.setPlayerPosition('a', belt.x0 + 30, (belt.y0 + belt.y1) / 2);
+    run(1000);
+    assert.ok(e.peek('a')!.x - (belt.x0 + 30) > 80, 'carried along the walkway');
+  });
+
+  it('space: the teleporter pads zap you across', () => {
+    const { e, run } = onMap('space');
+    const [l, r] = MAPS.space.layout.hatches!;
+    e.setPlayerPosition('a', l.x, l.y);
+    run(100);
+    assert.ok(Math.hypot(e.peek('a')!.x - r.x, e.peek('a')!.y - r.y) < 70);
+  });
+
+  it('jungle: mud slows you down', () => {
+    const { e, hold } = onMap('jungle');
+    const mud = MAPS.jungle.layout.zones![0]!;
+    e.setPlayerPosition('a', mud.x0 + 10, (mud.y0 + mud.y1) / 2);
+    let x = e.peek('a')!.x;
+    hold(1, 0, 300);
+    const wading = e.peek('a')!.x - x;
+    e.setPlayerPosition('a', 450, 180);
+    x = e.peek('a')!.x;
+    hold(1, 0, 300);
+    assert.ok(wading < (e.peek('a')!.x - x) * 0.7, 'slower in the mud');
+  });
+
+  it('arctic: you keep sliding on a frozen pond', () => {
+    const { e, run, hold } = onMap('arctic');
+    const ice = MAPS.arctic.layout.zones![0]!;
+    e.setPlayerPosition('a', ice.x0 + 10, (ice.y0 + ice.y1) / 2);
+    hold(1, 0, 400);
+    hold(0, 0, 100);
+    const x = e.peek('a')!.x;
+    run(200);
+    assert.ok(e.peek('a')!.x - x > 15, 'still gliding after letting go');
+  });
+
+  it('lobby: chefs walk around the apartment, practise at any station, and find the wardrobe', () => {
+    const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 0 }, () => 0.3);
+    e.addPlayer('a', 'A', '#ff3d7f');
+    e.addPlayer('b', 'B', '#2de2e6');
+    let now = 1000;
+    e.update(now);
+    const x0 = e.peek('a')!.x;
+    for (let i = 1; i <= 10; i++) {
+      e.applyInput('a', { seq: i, x: -1, y: 0 });
+      now += 100;
+      e.update(now);
+    }
+    assert.ok(e.peek('a')!.x < x0 - 100, 'walked in the lobby');
+    // practise: any station works, and nothing is kept for the real shift
+    const chop = LOBBY_LAYOUT.spots.find((s) => s.id === 'chop')!;
+    e.setPlayerPosition('a', chop.fx, chop.fy);
+    assert.equal(e.status('a', now)!.canInteract, true);
+    assert.equal(e.interact('a'), 'ok');
+    for (let i = 0; i < 20 && e.peek('a')!.working; i++) {
+      now += 300;
+      e.update(now);
+      e.rep('a', true);
+    }
+    assert.equal(e.peek('a')!.working, null, 'finished the practice');
+    assert.equal(e.peek('a')!.have.size, 0, 'practice food is not kept');
+    // the wardrobe rug
+    const d = LOBBY_LAYOUT.dressing!;
+    e.setPlayerPosition('a', d.x, d.y);
+    assert.equal(e.status('a', now)!.atWardrobe, true);
+    // and the shift starts in the real kitchen
+    e.startCountdown(now);
+    assert.equal(e.status('a', now)!.atWardrobe, false);
   });
 });

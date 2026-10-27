@@ -165,7 +165,7 @@ export function HostPage({ code }: { code: string }) {
         ) : showKitchen ? (
           <KitchenArena buffer={buffer} map={room.map ?? 'kitchen'} />
         ) : phase === 'lobby' ? (
-          <KitchenLobby room={room} joinUrl={joinUrl} />
+          <KitchenLobby room={room} joinUrl={joinUrl} buffer={buffer} />
         ) : (
           <KitchenResults results={match ?? resultsFrom(room, results)} room={room} code={code} />
         )}

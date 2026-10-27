@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { CHAOS, MAPS, STATIONS, type RoomState } from '@tilt-mayhem/shared';
+import { CHAOS, MAPS, type RoomState } from '@tilt-mayhem/shared';
+import type { KitchenBuffer } from '../game/kbuffer';
 import { captainIdOf, roundMinutesOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
-import { Icon } from './Icon';
+import { KitchenArena } from './KitchenArena';
 import { MapPicker } from './MapPicker';
 
 interface Props {
   room: RoomState;
   joinUrl: string;
+  /** Live snapshots of the lobby apartment the chefs walk around in. */
+  buffer: KitchenBuffer;
 }
 
-export function KitchenLobby({ room, joinUrl }: Props) {
+export function KitchenLobby({ room, joinUrl, buffer }: Props) {
   const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,7 +31,6 @@ export function KitchenLobby({ room, joinUrl }: Props) {
   const connected = room.players.filter((p) => p.connected).length;
   const need = Math.max(0, room.minPlayers - connected);
   const isLocal = /\/\/(localhost|127\.0\.0\.1)(:|\/)/.test(joinUrl);
-  const slots = Array.from({ length: room.maxPlayers }, (_, i) => room.players[i] ?? null);
   const captainId = captainIdOf(room);
   const captain = room.players.find((p) => p.id === captainId);
   const minutes = roundMinutesOf(room);
@@ -52,37 +54,27 @@ export function KitchenLobby({ room, joinUrl }: Props) {
 
       <section className="kcard klobby__main">
         <div className="klobby__head">
-          <h2>Chefs</h2>
+          <h2>The apartment</h2>
           <span className="kpill">
-            {room.players.length} / {room.maxPlayers}
+            {room.players.length} / {room.maxPlayers} chefs
           </span>
         </div>
-        <ul className="kslots">
-          {slots.map((p, i) =>
-            p ? (
-              <li key={p.id} className="kslot kslot--on" style={colorVar(p.color)}>
-                <ChefPortrait color={p.color} face={p.face} size={78} dim={!p.connected} outfit={room.map} />
-                <span className="kslot__name">{p.nickname}</span>
-                {p.id === captainId && <span className="kslot__boss">HEAD CHEF</span>}
-                {!p.connected && <span className="kslot__away">away</span>}
-              </li>
-            ) : (
-              <li key={`e${i}`} className="kslot">
-                <Icon name="chefhat" className="kslot__q" />
-              </li>
-            ),
-          )}
-        </ul>
-
-        <div className="kstations">
-          {STATIONS.map((s) => (
-            <div key={s.id} className="kstation" style={colorVar(s.color)}>
-              <Icon name={s.icon} className="kstation__icon" />
-              <b>{s.verb}</b>
-              <span>{s.name}</span>
-            </div>
-          ))}
+        <p className="klobby__hint">
+          Walk around with your phone! Stand on the pink rug to change your look, or practise any station in the kitchen.
+        </p>
+        {/* PlateUp-style: everyone hangs out here until the head chef opens the kitchen */}
+        <div className="klobby__apartment">
+          <KitchenArena buffer={buffer} map={room.map ?? 'kitchen'} />
         </div>
+        <ul className="kroster">
+          {room.players.map((p) => (
+            <li key={p.id} className={`kroster__chef ${p.connected ? '' : 'is-away'}`} style={colorVar(p.color)}>
+              <ChefPortrait color={p.color} face={p.face} size={34} dim={!p.connected} />
+              <span>{p.nickname}</span>
+              {p.id === captainId && <b className="kroster__boss">HEAD CHEF</b>}
+            </li>
+          ))}
+        </ul>
 
         <ol className="khowto">
           <li>Every chef gets a recipe with 4 ingredients from 4 stations.</li>

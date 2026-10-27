@@ -252,7 +252,7 @@ export interface GameLoop {
 }
 
 /**
- * Drives every active room's GameEngine and broadcasts results.
+ * Drives every room's GameEngine (lobby apartment, countdown, shift) and broadcasts results.
  * Snapshots go only to the host screen; phones get low-frequency room:state.
  */
 export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number): GameLoop {
@@ -266,10 +266,11 @@ export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number):
     const now = Date.now();
     for (const room of rooms.allRooms()) {
       const phase = room.engine.phase;
-      if (phase !== 'countdown' && phase !== 'playing') {
+      if (phase === 'results') {
         if (dirty.delete(room.code)) emitRoomState(io, rooms, room);
         continue;
       }
+      // (the lobby runs too: chefs walk around the apartment, practise and change their look)
       const result = room.engine.update(now);
       const snapshot = room.engine.snapshot(now);
       const hostChannel = io.to(channel.host(room.code));

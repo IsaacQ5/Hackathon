@@ -1,4 +1,5 @@
-import { CLASSIC_LAYOUT, MAPS, type Layout, type MapId, type StationSpot } from '@tilt-mayhem/shared';
+import { CLASSIC_LAYOUT, LOBBY_LAYOUT, MAPS, type Layout, type MapId, type StationSpot } from '@tilt-mayhem/shared';
+import { icon } from './icons';
 import { circle, ellipse, hash, INK, outlined, roundRect, shine } from './draw';
 
 /**
@@ -521,14 +522,14 @@ function paintPirate(g: G) {
 }
 
 /**
- * Pirate Cove: the pirate ship with an open cargo hold splitting the deck in two. Two narrow
+ * Pirate Galley: the ship with an open cargo hold splitting the deck in two. Two narrow
  * gangplanks cross it at the ends and a bridge in the middle holds the captain's table; two
  * masts stand in the way and two trapdoors (opposite corners) drop you to the other deck.
- * Walls, masts and trapdoors come from COVE_LAYOUT, so the art always matches the collisions.
+ * Walls, masts and trapdoors come from PIRATE_LAYOUT, so the art always matches the collisions.
  */
 function paintPirateCove(g: G) {
   paintPirate(g);
-  const L = MAPS.pirate2.layout;
+  const L = MAPS.pirate.layout;
   for (const w of L.walls ?? []) cargoHold(g, w);
   // gangplanks over the hold: the gaps between the hold sections at the far ends
   const walls = [...(L.walls ?? [])].sort((a, b) => a.x0 - b.x0);
@@ -815,10 +816,10 @@ function cannon(g: G, x: number, y: number, dir: number) {
   g.restore();
 }
 
-/** Cove: the pirate lanterns, plus the trapdoors glowing so people notice the shortcut. */
+/** Pirate ship: swinging lanterns, plus the trapdoors glowing so people notice the shortcut. */
 function liveCove(ctx: G, t: number) {
   livePirate(ctx, t);
-  for (const h of MAPS.pirate2.layout.hatches ?? []) {
+  for (const h of MAPS.pirate.layout.hatches ?? []) {
     const p = (t * 1.2) % 1;
     roundRect(ctx, h.x - h.r - 6 - p * 8, h.y - h.r - 6 - p * 8, (h.r + 6 + p * 8) * 2, (h.r + 6 + p * 8) * 2, 8);
     ctx.lineWidth = 3;
@@ -1301,30 +1302,499 @@ function liveArctic(ctx: G, t: number) {
   }
 }
 
+// ====================================================================== layout features (Overcooked-style twists)
+
+/** Space: moving walkways (rubber belt, hazard-striped rails, rollers) and teleporter pads. */
+function spaceFeatures(g: G) {
+  const L = MAPS.space.layout;
+  for (const z of L.zones ?? []) {
+    if (z.kind !== 'belt') continue;
+    const w = z.x1 - z.x0;
+    const h = z.y1 - z.y0;
+    roundRect(g, z.x0 - 6, z.y0 - 6, w + 12, h + 12, 10);
+    outlined(g, '#3a4466', 3);
+    roundRect(g, z.x0, z.y0, w, h, 6);
+    outlined(g, '#2b2b33', 2);
+    // yellow/black rails along both edges
+    for (const ry of [z.y0 - 6, z.y1 + 1]) {
+      g.save();
+      g.beginPath();
+      g.rect(z.x0 - 6, ry, w + 12, 5);
+      g.clip();
+      g.fillStyle = '#ffd23f';
+      g.fillRect(z.x0 - 6, ry, w + 12, 5);
+      g.fillStyle = '#2b2b33';
+      for (let x = z.x0 - 6; x < z.x1 + 6; x += 14) {
+        g.beginPath();
+        g.moveTo(x, ry + 5);
+        g.lineTo(x + 7, ry);
+        g.lineTo(x + 12, ry);
+        g.lineTo(x + 5, ry + 5);
+        g.fill();
+      }
+      g.restore();
+    }
+    // rollers at both ends
+    for (const rx of [z.x0 + 6, z.x1 - 6]) {
+      roundRect(g, rx - 5, z.y0 + 2, 10, h - 4, 5);
+      outlined(g, '#8a8f9c', 2);
+    }
+  }
+  for (const p of L.hatches ?? []) {
+    circle(g, p.x, p.y, p.r + 10);
+    outlined(g, '#59658c', 3);
+    circle(g, p.x, p.y, p.r + 2);
+    outlined(g, '#c4ccd8', 2.5);
+    circle(g, p.x, p.y, p.r - 4);
+    g.fillStyle = '#0d2a3a';
+    g.fill();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      circle(g, p.x + Math.cos(a) * (p.r + 6), p.y + Math.sin(a) * (p.r + 6), 2);
+      g.fillStyle = '#2de2e6';
+      g.fill();
+    }
+  }
+}
+
+function liveSpaceFeatures(ctx: G, t: number) {
+  const L = MAPS.space.layout;
+  // chevrons sliding along each walkway in its direction
+  for (const z of L.zones ?? []) {
+    if (z.kind !== 'belt') continue;
+    const dir = Math.sign(z.vx ?? 1) || 1;
+    const cy = (z.y0 + z.y1) / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(z.x0 + 12, z.y0, z.x1 - z.x0 - 24, z.y1 - z.y0);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(45,226,230,0.55)';
+    const shift = ((t * Math.abs(z.vx ?? 100)) % 48) * dir;
+    for (let x = z.x0 - 48; x < z.x1 + 48; x += 48) {
+      const cx = x + shift;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8 * dir, cy - 11);
+      ctx.lineTo(cx + 8 * dir, cy);
+      ctx.lineTo(cx - 8 * dir, cy + 11);
+      ctx.lineTo(cx - 2 * dir, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  // teleporters: rings rising off the pads
+  for (const p of L.hatches ?? []) {
+    for (let k = 0; k < 2; k++) {
+      const q = (t * 0.9 + k / 2) % 1;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y - q * 26, p.r * (1 - q * 0.3), p.r * 0.45 * (1 - q * 0.3), 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(45,226,230,${0.8 * (1 - q)})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  }
+}
+
+/** Jungle: carved stone pillars with moss and vines, and two mud bogs. */
+function jungleFeatures(g: G) {
+  const L = MAPS.jungle.layout;
+  for (const z of L.zones ?? []) {
+    if (z.kind !== 'mud') continue;
+    const cx = (z.x0 + z.x1) / 2;
+    const cy = (z.y0 + z.y1) / 2;
+    const rx = (z.x1 - z.x0) / 2;
+    const ry = (z.y1 - z.y0) / 2;
+    g.beginPath();
+    for (let i = 0; i <= 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      const k = 1 + Math.sin(a * 4 + cx) * 0.06;
+      g.lineTo(cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k);
+    }
+    g.closePath();
+    outlined(g, '#7a4f2a', 3.5);
+    ellipse(g, cx - rx * 0.2, cy - ry * 0.2, rx * 0.5, ry * 0.3);
+    g.fillStyle = 'rgba(255,255,255,0.12)';
+    g.fill();
+    // reeds poking out of the edge
+    g.strokeStyle = '#3f7a2a';
+    g.lineWidth = 3;
+    for (let i = 0; i < 5; i++) {
+      const a = Math.PI * (1.1 + i * 0.18);
+      const bx = cx + Math.cos(a) * rx * 0.95;
+      const by = cy + Math.sin(a) * ry * 0.95;
+      g.beginPath();
+      g.moveTo(bx, by);
+      g.lineTo(bx + (i - 2) * 2, by - 16);
+      g.stroke();
+    }
+  }
+  for (const p of L.posts ?? []) {
+    contact(g, p.x + 6, p.y + p.r * 0.5, p.r + 10, p.r * 0.6);
+    circle(g, p.x, p.y, p.r + 6);
+    outlined(g, '#7a725f', 3);
+    circle(g, p.x, p.y, p.r);
+    outlined(g, '#a39a84', 2.5);
+    g.strokeStyle = 'rgba(43,26,18,0.35)';
+    g.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      g.beginPath();
+      g.moveTo(p.x + Math.cos(a) * 5, p.y + Math.sin(a) * 5);
+      g.lineTo(p.x + Math.cos(a) * (p.r - 2), p.y + Math.sin(a) * (p.r - 2));
+      g.stroke();
+    }
+    ellipse(g, p.x - p.r * 0.3, p.y - p.r * 0.5, p.r * 0.5, p.r * 0.25);
+    g.fillStyle = 'rgba(80,160,50,0.8)';
+    g.fill();
+    // a vine hanging off the side
+    g.beginPath();
+    g.moveTo(p.x + p.r, p.y - 4);
+    g.quadraticCurveTo(p.x + p.r + 8, p.y + 10, p.x + p.r + 2, p.y + 22);
+    g.strokeStyle = '#3fae2f';
+    g.lineWidth = 3;
+    g.stroke();
+    for (const k of [0.4, 0.8]) {
+      ellipse(g, p.x + p.r + 5, p.y - 4 + k * 26, 5, 3, 0.6);
+      outlined(g, '#5bbf3a', 1.2);
+    }
+  }
+}
+
+function liveJungleFeatures(ctx: G, t: number) {
+  // mud bubbles plopping
+  for (const z of MAPS.jungle.layout.zones ?? []) {
+    if (z.kind !== 'mud') continue;
+    for (let i = 0; i < 3; i++) {
+      const q = (t * 0.7 + i * 0.37 + z.x0 * 0.01) % 1;
+      const x = z.x0 + 30 + ((i * 43) % (z.x1 - z.x0 - 60));
+      const y = z.y0 + 30 + ((i * 29) % (z.y1 - z.y0 - 50));
+      circle(ctx, x, y, 2 + q * 6);
+      ctx.strokeStyle = `rgba(60,35,15,${0.8 * (1 - q)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+}
+
+/** Arctic: two frozen ponds (shiny, cracked, snowy rims) and snowmen standing in the way. */
+function arcticFeatures(g: G) {
+  const L = MAPS.arctic.layout;
+  for (const z of L.zones ?? []) {
+    if (z.kind !== 'ice') continue;
+    const w = z.x1 - z.x0;
+    const h = z.y1 - z.y0;
+    roundRect(g, z.x0 - 8, z.y0 - 8, w + 16, h + 16, 40);
+    g.fillStyle = '#ffffff';
+    g.fill();
+    roundRect(g, z.x0, z.y0, w, h, 34);
+    outlined(g, '#9fdcf5', 3);
+    g.save();
+    roundRect(g, z.x0, z.y0, w, h, 34);
+    g.clip();
+    g.strokeStyle = 'rgba(255,255,255,0.85)';
+    g.lineWidth = 5;
+    for (let i = 0; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(z.x0 + 20 + i * 50, z.y1 - 10);
+      g.lineTo(z.x0 + 70 + i * 50, z.y0 + 10);
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(70,140,190,0.5)';
+    g.lineWidth = 1.6;
+    g.beginPath();
+    g.moveTo(z.x0 + w * 0.3, z.y0 + h * 0.4);
+    g.lineTo(z.x0 + w * 0.45, z.y0 + h * 0.55);
+    g.lineTo(z.x0 + w * 0.62, z.y0 + h * 0.5);
+    g.moveTo(z.x0 + w * 0.45, z.y0 + h * 0.55);
+    g.lineTo(z.x0 + w * 0.42, z.y0 + h * 0.75);
+    g.stroke();
+    g.restore();
+  }
+  for (const p of L.posts ?? []) {
+    contact(g, p.x + 4, p.y + p.r * 0.7, p.r + 10, p.r * 0.5);
+    icon(g, 'snowman', p.x, p.y - 12, p.r * 3);
+  }
+}
+
+function liveArcticFeatures(ctx: G, t: number) {
+  // glints skating across the ponds
+  for (const z of MAPS.arctic.layout.zones ?? []) {
+    if (z.kind !== 'ice') continue;
+    for (let i = 0; i < 3; i++) {
+      const glint = Math.max(0, Math.sin(t * 2.2 + i * 2.1 + z.x0));
+      const x = z.x0 + 40 + i * 60;
+      const y = z.y0 + 40 + (i % 2) * 60;
+      ctx.fillStyle = `rgba(255,255,255,${glint})`;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x + 2, y);
+      ctx.lineTo(x, y + 7);
+      ctx.lineTo(x - 2, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(x - 6, y - 1, 12, 2);
+    }
+  }
+}
+
+/** Classic kitchen extras on the side strips: a produce crate, a bin and a wet-floor sign. */
+function kitchenExtras(g: G) {
+  // crate of tomatoes and lettuce
+  contact(g, 4, 420, 26);
+  roundRect(g, -20, 380, 48, 38, 4);
+  outlined(g, '#c9874a', 3);
+  for (const [dx, dy, name] of [
+    [-8, 392, 'tomato'],
+    [8, 390, 'lettuce'],
+    [0, 404, 'tomato'],
+    [14, 404, 'carrot'],
+  ] as const) icon(g, name, 4 + dx, dy, 18);
+  g.strokeStyle = 'rgba(43,26,18,0.4)';
+  g.lineWidth = 2;
+  g.strokeRect(-20, 408, 48, 10);
+  // pedal bin
+  contact(g, 996, 222, 20);
+  roundRect(g, 980, 186, 32, 36, 6);
+  outlined(g, '#a3a8b5', 3);
+  roundRect(g, 978, 180, 36, 9, 4);
+  outlined(g, '#8a8f9c', 2.5);
+  // little wet-floor sign by the drain
+  g.save();
+  g.translate(F.x + F.w - 76, F.y + F.h - 50);
+  g.beginPath();
+  g.moveTo(-12, 14);
+  g.lineTo(0, -16);
+  g.lineTo(12, 14);
+  g.closePath();
+  outlined(g, '#ffd23f', 2.5);
+  g.fillStyle = INK;
+  g.fillRect(-1.5, -6, 3, 10);
+  g.fillRect(-1.5, 7, 3, 3);
+  g.restore();
+}
+
+// ====================================================================== lobby apartment
+
+/**
+ * The lobby apartment (PlateUp style): a kitchenette on the left with all six stations to
+ * practise on, a living room on the right with the wardrobe rug, a couch, a TV and a coffee table.
+ * The couch and table are solid (LOBBY_LAYOUT).
+ */
+function paintLobby(g: G) {
+  const L = LOBBY_LAYOUT;
+  const split = 620;
+  // the apartment's outline (a soft border, not detailed walls)
+  roundRect(g, -30, -30, 1060, 660, 30);
+  g.fillStyle = '#c98f62';
+  g.fill();
+  g.save();
+  floorClip(g);
+  // kitchenette: small terracotta and cream tiles
+  for (let y = F.y; y < F.y + F.h; y += 32) {
+    for (let x = F.x; x < split; x += 32) {
+      g.fillStyle = (Math.floor(x / 32) + Math.floor(y / 32)) % 2 ? '#f6e3c8' : '#e6a57a';
+      g.fillRect(x, y, 32, 32);
+    }
+  }
+  // living room: herringbone-ish wood parquet
+  for (let y = F.y, r = 0; y < F.y + F.h; y += 22, r++) {
+    for (let x = split + ((r % 2) * 30) - 60; x < F.x + F.w; x += 60) {
+      g.fillStyle = (r + Math.floor(x / 60)) % 2 ? '#b77a4a' : '#a86c3e';
+      g.fillRect(x, y, 60, 22);
+      g.strokeStyle = 'rgba(60,30,10,0.35)';
+      g.lineWidth = 1.5;
+      g.strokeRect(x, y, 60, 22);
+    }
+  }
+  g.fillStyle = 'rgba(60,30,10,0.4)';
+  g.fillRect(split - 3, F.y, 6, F.h);
+  // round rug under the coffee table, and the wardrobe rug
+  ellipse(g, L.pass.x, L.pass.y + 10, 120, 60);
+  outlined(g, '#5f8fd9', 3);
+  ellipse(g, L.pass.x, L.pass.y + 10, 100, 46);
+  g.strokeStyle = 'rgba(255,255,255,0.5)';
+  g.lineWidth = 4;
+  g.stroke();
+  const d = L.dressing!;
+  circle(g, d.x, d.y, d.r);
+  outlined(g, '#ff8fb0', 3);
+  circle(g, d.x, d.y, d.r - 10);
+  g.setLineDash([8, 6]);
+  g.strokeStyle = 'rgba(255,255,255,0.8)';
+  g.lineWidth = 3;
+  g.stroke();
+  g.setLineDash([]);
+  g.restore();
+  floorDepth(g, 'rgba(60,30,10,0.2)');
+
+  // kitchenette counters (top and bottom, left part only)
+  for (const [y, h] of COUNTERS) {
+    roundRect(g, 24, y, split - 20, h, 18);
+    outlined(g, '#7a5a44', 4);
+    roundRect(g, 24, y, split - 20, h - 12, 18);
+    outlined(g, '#e8dccb', 3);
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    roundRect(g, 32, y + 6, split - 36, 10, 5);
+    g.fill();
+  }
+  stationMats(g, 'rgba(120,70,40,0.25)');
+
+  // wardrobe against the top wall, with a mirror and a label
+  roundRect(g, d.x - 70, 18, 140, 92, 10);
+  outlined(g, '#8a5a32', 4);
+  for (const s of [-1, 1]) {
+    roundRect(g, d.x + (s < 0 ? -64 : 2), 24, 62, 80, 6);
+    outlined(g, '#a36b3d', 2.5);
+    circle(g, d.x + s * 8, 64, 3);
+    outlined(g, '#ffd23f', 1.5);
+  }
+  roundRect(g, d.x - 48, 30, 34, 60, 14);
+  outlined(g, '#cfe6ff', 2);
+  shine(g, d.x - 36, 46, 4, 12, 0.3, 0.7);
+  icon(g, 'chefhat', d.x + 33, 62, 30);
+  // a TV on a little stand
+  roundRect(g, 640, 36, 100, 64, 8);
+  outlined(g, '#3b3b46', 4);
+  roundRect(g, 648, 44, 84, 46, 4);
+  g.fillStyle = '#1d2b4a';
+  g.fill();
+  roundRect(g, 676, 100, 28, 10, 3);
+  outlined(g, '#3b3b46', 2);
+
+  // couch (solid) against the bottom wall
+  const couch = L.walls![0]!;
+  roundRect(g, couch.x0 - 8, couch.y0 - 6, couch.x1 - couch.x0 + 16, couch.y1 - couch.y0 + 40, 16);
+  outlined(g, '#d9534f', 4);
+  for (let i = 0; i < 3; i++) {
+    const cw = (couch.x1 - couch.x0) / 3;
+    roundRect(g, couch.x0 + i * cw + 3, couch.y0, cw - 6, couch.y1 - couch.y0 - 6, 10);
+    outlined(g, '#ff6b6b', 2.5);
+  }
+  for (const s of [-1, 1]) {
+    roundRect(g, (s < 0 ? couch.x0 - 22 : couch.x1 + 4), couch.y0 - 2, 18, couch.y1 - couch.y0 + 32, 8);
+    outlined(g, '#b33b38', 3);
+  }
+  // coffee table (solid) with a mug and a magazine
+  const p = L.posts![0]!;
+  contact(g, p.x + 4, p.y + p.r * 0.7, p.r + 8, p.r * 0.5);
+  circle(g, p.x, p.y, p.r);
+  outlined(g, '#c9874a', 4);
+  circle(g, p.x, p.y, p.r - 6);
+  g.strokeStyle = 'rgba(120,70,30,0.35)';
+  g.lineWidth = 2;
+  g.stroke();
+  g.save();
+  g.translate(p.x - 6, p.y + 2);
+  g.rotate(-0.3);
+  roundRect(g, -12, -8, 24, 16, 2);
+  outlined(g, '#ffd23f', 1.8);
+  g.restore();
+  roundRect(g, p.x + 8, p.y - 12, 10, 12, 3);
+  outlined(g, '#ffffff', 1.8);
+
+  // plants, a floor lamp and a bookshelf on the right
+  plantPot(g, 996, 300);
+  plantPot(g, 600, 40);
+  roundRect(g, 900, 494, 70, 80, 6);
+  outlined(g, '#8a5a32', 3);
+  ['#ff3d5a', '#3d8bff', '#ffd23f', '#7cd651', '#b26bff'].forEach((c, i) => {
+    roundRect(g, 906 + i * 12, 504, 9, 28, 1.5);
+    outlined(g, c, 1.2);
+    roundRect(g, 906 + i * 12, 540, 9, 26, 1.5);
+    outlined(g, ['#7cd651', '#ff8a3d', '#3d8bff', '#ff3d5a', '#ffd23f'][i]!, 1.2);
+  });
+  circle(g, 4, 470, 14);
+  outlined(g, '#3b3b46', 2.5);
+  circle(g, 4, 470, 22);
+  g.strokeStyle = 'rgba(43,26,18,0.35)';
+  g.lineWidth = 2;
+  g.stroke();
+}
+
+function liveLobby(ctx: G, t: number) {
+  const L = LOBBY_LAYOUT;
+  const d = L.dressing!;
+  // the wardrobe rug pulses so people find it, with its label
+  const q = (t * 0.8) % 1;
+  circle(ctx, d.x, d.y, d.r + q * 14);
+  ctx.strokeStyle = `rgba(255,143,176,${0.9 * (1 - q)})`;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.save();
+  ctx.font = '22px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = INK;
+  ctx.strokeText('CHANGE YOUR LOOK', d.x, d.y + d.r + 16);
+  ctx.fillStyle = '#ff8fb0';
+  ctx.fillText('CHANGE YOUR LOOK', d.x, d.y + d.r + 16);
+  ctx.strokeText('PRACTICE KITCHEN', 330, 300);
+  ctx.fillStyle = '#fff6e0';
+  ctx.fillText('PRACTICE KITCHEN', 330, 300);
+  ctx.restore();
+  // the TV flickers through a cooking show
+  const hue = Math.floor(t * 1.5) % 3;
+  ctx.fillStyle = ['#ff8a3d', '#2de2e6', '#7cd651'][hue]!;
+  ctx.globalAlpha = 0.35 + Math.sin(t * 9) * 0.08;
+  ctx.fillRect(648, 44, 84, 46);
+  ctx.globalAlpha = 1;
+  icon(ctx, 'chefhat', 690, 66, 26);
+  // the floor lamp's warm glow
+  circle(ctx, 4, 470, 60);
+  ctx.fillStyle = `rgba(255,220,140,${0.12 + Math.sin(t * 2) * 0.02})`;
+  ctx.fill();
+}
+
 // ====================================================================== cache + layers
 
-const PAINT: Record<MapId, (g: G) => void> = {
-  kitchen: paintKitchen,
-  pirate: paintPirate,
-  pirate2: paintPirateCove,
-  space: paintSpace,
-  jungle: paintJungle,
-  arctic: paintArctic,
+/** A map, or the lobby apartment. */
+export type BoardId = MapId | 'lobby';
+const layoutFor = (id: BoardId): Layout => (id === 'lobby' ? LOBBY_LAYOUT : MAPS[id].layout);
+
+const PAINT: Record<BoardId, (g: G) => void> = {
+  kitchen: (g) => {
+    paintKitchen(g);
+    kitchenExtras(g);
+  },
+  pirate: paintPirateCove,
+  space: (g) => {
+    paintSpace(g);
+    spaceFeatures(g);
+  },
+  jungle: (g) => {
+    paintJungle(g);
+    jungleFeatures(g);
+  },
+  arctic: (g) => {
+    paintArctic(g);
+    arcticFeatures(g);
+  },
+  lobby: paintLobby,
 };
-const LIVE: Record<MapId, (ctx: G, t: number) => void> = {
+const LIVE: Record<BoardId, (ctx: G, t: number) => void> = {
   kitchen: liveKitchen,
-  pirate: livePirate,
-  pirate2: liveCove,
-  space: liveSpace,
-  jungle: liveJungle,
-  arctic: liveArctic,
+  pirate: liveCove,
+  space: (ctx, t) => {
+    liveSpace(ctx, t);
+    liveSpaceFeatures(ctx, t);
+  },
+  jungle: (ctx, t) => {
+    liveJungle(ctx, t);
+    liveJungleFeatures(ctx, t);
+  },
+  arctic: (ctx, t) => {
+    liveArctic(ctx, t);
+    liveArcticFeatures(ctx, t);
+  },
+  lobby: liveLobby,
 };
 
 /** Resolution of the cached board (pixels per world unit). */
 const RES = 2;
-const boards = new Map<MapId, HTMLCanvasElement>();
+const boards = new Map<BoardId, HTMLCanvasElement>();
 
-function board(map: MapId): HTMLCanvasElement | null {
+function board(map: BoardId): HTMLCanvasElement | null {
   const hit = boards.get(map);
   if (hit) return hit;
   if (typeof document === 'undefined') return null;
@@ -1337,16 +1807,16 @@ function board(map: MapId): HTMLCanvasElement | null {
   g.translate(30, 30);
   g.lineJoin = 'round';
   g.lineCap = 'round';
-  useLayout(MAPS[map].layout);
+  useLayout(layoutFor(map));
   PAINT[map](g);
   boards.set(map, c);
   return c;
 }
 
 /** Floor, counters and props (world space). */
-export function drawMapBoard(ctx: G, map: MapId, t: number) {
+export function drawMapBoard(ctx: G, map: BoardId, t: number) {
   const b = board(map);
-  useLayout(MAPS[map].layout);
+  useLayout(layoutFor(map));
   if (b) ctx.drawImage(b, -30, -30, 1060, 660);
   else PAINT[map](ctx);
   LIVE[map](ctx, t);
@@ -1362,20 +1832,20 @@ export function drawMapPreview(ctx: G, map: MapId, w: number, h: number) {
   ctx.drawImage(b, (w - 1060 * s) / 2, (h - 660 * s) / 2, 1060 * s, 660 * s);
 }
 
-const MAP_BACKDROP: Record<MapId, string> = {
+const MAP_BACKDROP: Record<BoardId, string> = {
+  lobby: '#e9b98a',
   kitchen: '#ff9f45',
   pirate: '#1f6fa8',
-  pirate2: '#1f6fa8',
   space: '#141a3a',
   jungle: '#2f7d3a',
   arctic: '#7fb6d9',
 };
 
 /** Whole-screen backdrop behind the kitchen (screen space, w x h pixels). */
-export function drawMapBackdrop(ctx: G, map: MapId, t: number, w: number, h: number) {
+export function drawMapBackdrop(ctx: G, map: BoardId, t: number, w: number, h: number) {
   ctx.fillStyle = MAP_BACKDROP[map];
   ctx.fillRect(0, 0, w, h);
-  switch (map === 'pirate2' ? 'pirate' : map) {
+  switch (map) {
     case 'pirate': {
       // rolling ocean swells with foam caps
       for (let row = 0; row * 46 < h + 46; row++) {
@@ -1459,9 +1929,9 @@ export function drawMapBackdrop(ctx: G, map: MapId, t: number, w: number, h: num
 
 /** Light things drifting over everything (world space). */
 export function drawMapOverlay(ctx: G, map: MapId, t: number) {
-  // Cove: the masts' yard beams (with the sails furled) pass over the chefs' heads
-  if (map === 'pirate2') {
-    for (const p of MAPS.pirate2.layout.posts ?? []) {
+  // pirate ship: the masts' yard beams (with the sails furled) pass over the chefs' heads
+  if (map === 'pirate') {
+    for (const p of MAPS.pirate.layout.posts ?? []) {
       roundRect(ctx, p.x - 70, p.y - 50, 140, 12, 6);
       outlined(ctx, '#8a5a32', 3);
       roundRect(ctx, p.x - 62, p.y - 46, 124, 9, 4);
@@ -1471,7 +1941,7 @@ export function drawMapOverlay(ctx: G, map: MapId, t: number) {
       outlined(ctx, '#6b3e1f', 2.5);
     }
   }
-  switch (map === 'pirate2' ? 'pirate' : map) {
+  switch (map) {
     case 'pirate':
       // seagulls gliding across
       for (let i = 0; i < 2; i++) {
@@ -1534,7 +2004,7 @@ export function drawMapOverlay(ctx: G, map: MapId, t: number) {
 
 /** The pirate ship rocks gently (harder while a rogue wave is hitting). Radians. */
 export function mapRock(map: MapId, t: number, gust: number): number {
-  if (map !== 'pirate' && map !== 'pirate2') return 0;
+  if (map !== 'pirate') return 0;
   return Math.sin(t * 0.7) * 0.005 + gust * 0.02;
 }
 
