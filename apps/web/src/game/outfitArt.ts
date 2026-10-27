@@ -14,7 +14,11 @@ import { circle, ellipse, INK, outlined, roundRect, shade, shine } from './draw'
 
 type G = CanvasRenderingContext2D;
 type Look = 'kitchen' | 'pirate' | 'space' | 'jungle' | 'arctic';
-export const outfitLook = (map: MapId | undefined): Look => (map === 'pirate2' ? 'pirate' : map ?? 'kitchen');
+/** Costumes are switched off for now: every chef wears the plain classic look. Set to true to bring them back. */
+const OUTFITS_ON = false;
+
+export const outfitLook = (map: MapId | undefined): Look =>
+  !OUTFITS_ON ? 'kitchen' : map === 'pirate2' ? 'pirate' : map ?? 'kitchen';
 
 /** Colour of the hands (gloves, mittens...). */
 export function handColor(look: Look, color: string): string {
