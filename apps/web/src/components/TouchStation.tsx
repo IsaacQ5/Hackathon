@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import type { StationId } from '@tilt-mayhem/shared';
-import { Emoji, EmojiText } from './Emoji';
+import { Icon } from './Icon';
 
 interface Props {
   station: StationId;
@@ -17,7 +17,7 @@ export function TouchStation({ station, onRep }: Props) {
     case 'chop':
       return (
         <button className="ktouch ktouch--big" onPointerDown={() => onRep(true)}>
-          <EmojiText text="🔪 CHOP!" />
+          <Icon name="knife" /> CHOP!
         </button>
       );
     case 'fry':
@@ -25,9 +25,9 @@ export function TouchStation({ station, onRep }: Props) {
     case 'stir':
       return <StirPad onRep={onRep} />;
     case 'knead':
-      return <Alternate onRep={onRep} a="⬆️ PUSH" b="⬇️ PULL" vertical />;
+      return <Alternate onRep={onRep} a={<><Icon name="arrowup" /> PUSH</>} b={<><Icon name="arrowdown" /> PULL</>} vertical />;
     case 'mix':
-      return <Alternate onRep={onRep} a="⬅️ LEFT" b="RIGHT ➡️" />;
+      return <Alternate onRep={onRep} a={<><Icon name="arrowleft" /> LEFT</>} b={<>RIGHT <Icon name="arrowright" /></>} />;
     case 'juice':
       return <HoldToPour onRep={onRep} />;
   }
@@ -45,8 +45,8 @@ function Alternate({
   pairs = false,
 }: {
   onRep: (g: boolean) => void;
-  a: string;
-  b: string;
+  a: ReactNode;
+  b: ReactNode;
   vertical?: boolean;
   pairs?: boolean;
 }) {
@@ -94,7 +94,7 @@ function HoldToPour({ onRep }: { onRep: (g: boolean) => void }) {
         onLostPointerCapture={stop}
       >
         <span className="kpour__label">
-          <Emoji ch="🧃" /> {pouring ? 'Pouring… keep holding!' : 'HOLD TO POUR'}
+          <Icon name="juicebox" /> {pouring ? 'Pouring… keep holding!' : 'HOLD TO POUR'}
         </span>
       </button>
       <p className="khint">Press and hold until the glass is full</p>
@@ -131,7 +131,7 @@ function FlipTiming({ onRep }: { onRep: (g: boolean) => void }) {
         <div className="kflip__mark" ref={markRef} />
       </div>
       <button className="ktouch ktouch--big" onPointerDown={tap}>
-        <EmojiText text="🍳 FLIP!" />
+        <Icon name="pan" /> FLIP!
       </button>
       <p className="khint">Tap when the marker is in the green zone. Bad timing spills!</p>
     </div>
@@ -176,7 +176,7 @@ function StirPad({ onRep }: { onRep: (g: boolean) => void }) {
         onPointerCancel={() => (prev.current = null)}
       >
         <div className="kstir__spoon" ref={spoonRef}>
-          <Emoji ch="🥄" />
+          <Icon name="pot" />
         </div>
       </div>
       <p className="khint">Drag your finger round and round the pot</p>

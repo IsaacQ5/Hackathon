@@ -1,9 +1,11 @@
 import {
+  CHAOS,
   GAME_CONFIG,
   EFFORT,
   HAZARDS,
   INGREDIENTS,
   KITCHEN,
+  MAPS,
   PUSH,
   RECIPES,
   SCORING,
@@ -11,6 +13,7 @@ import {
   STUCK,
   recipeById,
   stationById,
+  type ChaosLevel,
   type ChefFace,
   type ChefResult,
   type ChefSnap,
@@ -21,6 +24,7 @@ import {
   type HazardSnap,
   type KitchenEvent,
   type KitchenStatus,
+  type MapId,
   type MatchResults,
   type PlayerInput,
   type PublicPlayer,
@@ -68,6 +72,9 @@ export class GameEngine {
   private seenHazards = new Set<HazardKind>();
   /** Shake-to-push on/off for the room (head chef's choice). */
   private _pushEnabled = true;
+  /** Which kitchen (look + themed events) and how much chaos; both chosen between shifts. */
+  private _map: MapId = 'kitchen';
+  private _chaos: ChaosLevel = 'medium';
 
   constructor(config: Partial<GameConfig> = {}, random: () => number = Math.random) {
     this.config = { ...GAME_CONFIG, ...config };
@@ -183,6 +190,22 @@ export class GameEngine {
 
   setPushEnabled(on: boolean): void {
     if (this._phase === 'lobby' || this._phase === 'results') this._pushEnabled = on;
+  }
+
+  get map(): MapId {
+    return this._map;
+  }
+
+  setMap(map: MapId): void {
+    if (this._phase === 'lobby' || this._phase === 'results') this._map = map;
+  }
+
+  get chaos(): ChaosLevel {
+    return this._chaos;
+  }
+
+  setChaos(level: ChaosLevel): void {
+    if (this._phase === 'lobby' || this._phase === 'results') this._chaos = level;
   }
 
   get playStartsAt(): number {
@@ -570,12 +593,13 @@ export class GameEngine {
   private updateHazards(dtMs: number) {
     const dur = this.config.roundDurationMs;
     const p = Math.min(1, this.playMs / dur);
-    if (this.nextHazardAt === 0) this.nextHazardAt = dur * HAZARDS.startAt;
+    const chaos = CHAOS[this._chaos];
+    if (this.nextHazardAt === 0) this.nextHazardAt = dur * chaos.startAt;
     // `hazards: 0` turns off random spawning; hazards placed by hand still behave normally.
     if (this.config.hazards && this.playMs >= this.nextHazardAt) {
       this.spawnRandomHazard(p);
       const base = HAZARDS.intervalStartMs + (HAZARDS.intervalEndMs - HAZARDS.intervalStartMs) * p;
-      this.nextHazardAt = this.playMs + base * (this.rush ? 0.8 : 1) * (0.75 + this.random() * 0.5);
+      this.nextHazardAt = this.playMs + base * chaos.interval * (this.rush ? 0.8 : 1) * (0.75 + this.random() * 0.5);
     }
 
     const f = KITCHEN.floor;
@@ -652,6 +676,24 @@ export class GameEngine {
           if (h.age > HAZARDS.chicken.lifeMs) this.removeHazard(h);
           break;
         }
+        case 'gust':
+          if (h.warnMs > 0) {
+            h.warnMs -= dtMs;
+            if (h.warnMs <= 0) {
+              h.warnMs = 0;
+              h.ttl = HAZARDS.gust.activeMs;
+              this.pendingEvents.push({ type: 'impact', kind: 'gust', x: h.x, y: h.y });
+            }
+            break;
+          }
+          // Everyone on their feet and walking slides with it; cooks and fallen chefs hold on.
+          for (const c of chefs) {
+            if (c.working || c.stuck || !c.connected) continue;
+            c.x += (h.dir * HAZARDS.gust.speed * dtMs) / 1000;
+          }
+          h.ttl -= dtMs;
+          if (h.ttl <= 0) this.removeHazard(h);
+          break;
         case 'fire':
           break;
       }
@@ -662,18 +704,23 @@ export class GameEngine {
     this.hazards = this.hazards.filter((x) => x !== h);
   }
 
-  /** Pick what happens next. Bigger events unlock as the shift goes on. */
+  /** Pick what happens next. Bigger events unlock as the shift goes on (sooner, and more at once, with more chaos). */
   private spawnRandomHazard(p: number) {
     const count = (k: HazardKind) => this.hazards.filter((h) => h.kind === k).length;
+    const { extra, unlock } = CHAOS[this._chaos];
+    const unlocked = (k: Exclude<HazardKind, 'spill'>) => p >= HAZARDS[k].unlockAt * unlock;
     const options: [HazardKind, number][] = [];
-    if (count('spill') < 1 + Math.floor(p * 3)) options.push(['spill', HAZARDS.spill.weight]);
-    if (p >= HAZARDS.chicken.unlockAt && count('chicken') === 0) options.push(['chicken', HAZARDS.chicken.weight]);
-    if (p >= HAZARDS.fire.unlockAt && count('fire') < (p > 0.75 ? 2 : 1)) options.push(['fire', HAZARDS.fire.weight]);
-    // Meteors can double up late in the shift; the cheese wheel always has the floor to itself.
-    if (p >= HAZARDS.meteor.unlockAt && count('cheese') === 0 && count('meteor') < (p > 0.75 ? 2 : 1)) {
+    if (count('spill') < 1 + Math.floor(p * 3) + extra) options.push(['spill', HAZARDS.spill.weight]);
+    if (unlocked('chicken') && count('chicken') < 1 + extra) options.push(['chicken', HAZARDS.chicken.weight]);
+    if (unlocked('fire') && count('fire') < (p > 0.75 ? 2 : 1) + extra) options.push(['fire', HAZARDS.fire.weight]);
+    // Meteors can double up late in the shift; the cheese wheel always has the floor to itself
+    // (except on the wildest setting, where meteors keep falling while it rolls).
+    const cheeseBlocks = count('cheese') > 0 && extra < 2;
+    if (unlocked('meteor') && !cheeseBlocks && count('meteor') < (p > 0.75 ? 2 : 1) + extra) {
       options.push(['meteor', HAZARDS.meteor.weight]);
     }
-    if (p >= HAZARDS.cheese.unlockAt && count('cheese') === 0 && count('meteor') === 0) options.push(['cheese', HAZARDS.cheese.weight]);
+    if (unlocked('cheese') && count('cheese') === 0 && (count('meteor') === 0 || extra >= 2)) options.push(['cheese', HAZARDS.cheese.weight]);
+    if (MAPS[this._map].gust && unlocked('gust') && count('gust') === 0) options.push(['gust', HAZARDS.gust.weight]);
     // Every kind shows up at least once a shift: anything unlocked but not seen yet goes first.
     const unseen = options.find(([k]) => !this.seenHazards.has(k));
     if (unseen) {
@@ -761,6 +808,11 @@ export class GameEngine {
         Object.assign(h, { x: spot.x, y: spot.y, r: 50, station: st });
         // Whoever was cooking there jumps back (their progress is kept).
         for (const c of this.chefs.values()) if (c.working?.station === st) this.cancel(c.id);
+        break;
+      }
+      case 'gust': {
+        // Blows across the whole floor, left or right.
+        Object.assign(h, { x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2, dir: this.random() < 0.5 ? 1 : -1, warnMs: HAZARDS.warnMs });
         break;
       }
     }

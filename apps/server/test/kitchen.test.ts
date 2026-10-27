@@ -449,6 +449,56 @@ describe('Kitchen engine: pushing', () => {
   });
 });
 
+describe('Kitchen engine: chaos levels and maps', () => {
+  /** How many hazards spawn over a whole 3-minute shift at a chaos level (hazards on, deterministic random). */
+  const hazardsOver = (level: 'light' | 'medium' | 'heavy' | 'chaotic', map: 'kitchen' | 'pirate' = 'kitchen') => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 1 }, rnd);
+    e.addPlayer('a', 'A', '#ff3d7f');
+    e.addPlayer('b', 'B', '#2de2e6');
+    e.setChaos(level);
+    e.setMap(map);
+    let now = 1000;
+    e.startCountdown(now);
+    const kinds: string[] = [];
+    while (now < 1000 + 100 + 180_000) {
+      now += 100;
+      e.update(now);
+      for (const ev of e.snapshot(now).events) if (ev.type === 'hazard') kinds.push(ev.kind);
+    }
+    return kinds;
+  };
+
+  it('more chaos means more events', () => {
+    const counts = (['light', 'medium', 'heavy', 'chaotic'] as const).map((l) => hazardsOver(l).length);
+    for (let i = 1; i < counts.length; i++) assert.ok(counts[i]! > counts[i - 1]!, `chaos counts should rise: ${counts.join(', ')}`);
+  });
+
+  it('only the themed maps get the gust event', () => {
+    assert.ok(!hazardsOver('heavy', 'kitchen').includes('gust'));
+    assert.ok(hazardsOver('heavy', 'pirate').includes('gust'));
+  });
+
+  it('a gust slides walking chefs sideways, but not chefs at a station', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.setRecipe('b', 'burger');
+    at(e, 'b', 'chop');
+    e.interact('b');
+    const id = e.spawnHazard('gust');
+    const dir = e.snapshot(0).hazards.find((h) => h.id === id)!.dir;
+    const startA = e.peek('a')!.x;
+    const startB = e.peek('b')!.x;
+    run(HAZARDS.warnMs + 1000);
+    assert.ok((e.peek('a')!.x - startA) * dir > 100, 'the walking chef was blown along');
+    assert.equal(e.peek('b')!.x, startB, 'the cook held on');
+    assert.ok(e.peek('b')!.working, 'and kept cooking');
+    run(HAZARDS.gust.activeMs);
+    assert.equal(e.snapshot(0).hazards.length, 0, 'the gust blows over');
+  });
+});
+
 describe('Kitchen engine: chaos', () => {
   it('a spill makes you slip; mopping (stir circles) cleans it and frees you', () => {
     const { e, run } = kitchen(['a', 'b']);

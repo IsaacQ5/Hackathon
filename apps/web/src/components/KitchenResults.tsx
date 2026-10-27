@@ -1,8 +1,9 @@
 import { stationById, type MatchResults, type RoomState } from '@tilt-mayhem/shared';
+import { MapPicker } from './MapPicker';
 import { captainIdOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
-import { Emoji, EmojiText } from './Emoji';
+import { Icon } from './Icon';
 import { awardsFor, fmtSecs, ordinal } from '../game/kawards';
 
 interface Props {
@@ -11,7 +12,6 @@ interface Props {
   code: string;
 }
 
-const MEDAL = ['🥇', '🥈', '🥉'];
 
 export function KitchenResults({ results, room, code }: Props) {
   const captainId = captainIdOf(room);
@@ -67,7 +67,7 @@ export function KitchenResults({ results, room, code }: Props) {
         <tbody>
           {results.results.map((r) => (
             <tr key={r.id} style={colorVar(r.color)}>
-              <td className="ktable__place">{MEDAL[r.placement - 1] ? <Emoji ch={MEDAL[r.placement - 1]!} /> : ordinal(r.placement)}</td>
+              <td className="ktable__place">{r.placement <= 3 ? <Icon name={`medal${r.placement}`} /> : ordinal(r.placement)}</td>
               <td>
                 <div className="ktable__who">
                   <ChefPortrait color={r.color} face={r.face} size={44} />
@@ -77,12 +77,18 @@ export function KitchenResults({ results, room, code }: Props) {
               <td className="ktable__pts">{r.score}</td>
               <td>{r.served}</td>
               <td>{r.fastestMs === null ? '–' : fmtSecs(r.fastestMs)}</td>
-              <td>{r.favoriteStation ? <EmojiText text={`${stationById(r.favoriteStation).icon} ${stationById(r.favoriteStation).verb}`} /> : '–'}</td>
+              <td>{r.favoriteStation ? (
+                  <>
+                    <Icon name={stationById(r.favoriteStation).icon} /> {stationById(r.favoriteStation).verb}
+                  </>
+                ) : (
+                  '–'
+                )}</td>
               <td>
                 <div className="ktable__awards">
                   {(awards.get(r.id) ?? []).map((a) => (
                     <span key={a.title} className="kaward" title={a.why}>
-                      <Emoji ch={a.emoji} /> {a.title}
+                      <Icon name={a.icon} /> {a.title}
                     </span>
                   ))}
                 </div>
@@ -94,11 +100,14 @@ export function KitchenResults({ results, room, code }: Props) {
 
       <div className="kresults__next">
         <p className="klobby__start">
-          <EmojiText text={need > 0 ? 'Need more chefs for another shift' : `${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`} />
+          {need > 0 ? 'Need more chefs for another shift' : `${captain?.nickname ?? 'The head chef'} starts the next shift from their phone`}
         </p>
         <p className="klobby__hint">
           New chefs can join now with code <b>{code}</b>.
         </p>
+        <div className="kcard kresults__maps">
+          <MapPicker map={room.map ?? 'kitchen'} chaos={room.chaos ?? 'medium'} canEdit compact />
+        </div>
       </div>
     </div>
   );

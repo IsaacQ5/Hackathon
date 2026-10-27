@@ -65,6 +65,25 @@ describe('RoomManager', () => {
     assert.ok(!rm.customize(room, b.player.id, undefined, 'crown').ok, 'only known faces');
   });
 
+  it('lets the head chef or the host pick the map and chaos level between shifts', () => {
+    const { rm, room, clock } = setup();
+    mustJoin(rm, room.code, 'A', 's1');
+    mustJoin(rm, room.code, 'B', 's2');
+    assert.equal(rm.roomState(room).map, 'kitchen', 'classic kitchen by default');
+    assert.equal(rm.roomState(room).chaos, 'medium', 'classic amount of chaos by default');
+    assert.ok(!rm.setMap(room, 's2', 'pirate').ok, 'not just any chef');
+    assert.ok(!rm.setMap(room, 's1', 'moon').ok, 'only known maps');
+    assert.ok(!rm.setChaos(room, 's1', 'extreme').ok, 'only known levels');
+    assert.ok(rm.setMap(room, 's1', 'pirate').ok);
+    assert.ok(rm.setChaos(room, 'host-sock', 'chaotic').ok, 'the host screen can too');
+    assert.equal(rm.roomState(room).map, 'pirate');
+    assert.equal(rm.roomState(room).chaos, 'chaotic');
+    assert.ok(rm.startGame(room, 's1', 'start').ok);
+    clock.advance(10_000);
+    room.engine.update(clock.now());
+    assert.ok(!rm.setMap(room, 's1', 'space').ok, 'locked during a shift');
+  });
+
   it('lets the head chef turn pushing off for the shift (and nobody else)', () => {
     const { rm, room, clock } = setup();
     const a = mustJoin(rm, room.code, 'A', 's1');

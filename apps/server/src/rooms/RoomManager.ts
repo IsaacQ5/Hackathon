@@ -5,7 +5,9 @@ import {
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
   ROUND_MINUTE_OPTIONS,
+  isChaosLevel,
   isChefFace,
+  isMapId,
   type ChefFace,
   type GameConfig,
   type LeaderboardEntry,
@@ -324,6 +326,28 @@ export class RoomManager {
     return { ok: true, value: undefined };
   }
 
+  /** Pick the next shift's map (head chef or host, between shifts). */
+  setMap(room: Room, socketId: string, raw: unknown): Result<void> {
+    if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef or the host can change the map.');
+    const phase = room.engine.phase;
+    if (phase !== 'lobby' && phase !== 'results') return fail('INVALID_PHASE', 'Change the map between rounds.');
+    if (!isMapId(raw)) return fail('INVALID_INPUT', 'Pick one of the listed maps.');
+    room.engine.setMap(raw);
+    room.lastActivityAt = this.now();
+    return { ok: true, value: undefined };
+  }
+
+  /** How much kitchen chaos the next shift has (head chef or host, between shifts). */
+  setChaos(room: Room, socketId: string, raw: unknown): Result<void> {
+    if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef or the host can change the chaos level.');
+    const phase = room.engine.phase;
+    if (phase !== 'lobby' && phase !== 'results') return fail('INVALID_PHASE', 'Change the chaos level between rounds.');
+    if (!isChaosLevel(raw)) return fail('INVALID_INPUT', 'Pick one of the listed chaos levels.');
+    room.engine.setChaos(raw);
+    room.lastActivityAt = this.now();
+    return { ok: true, value: undefined };
+  }
+
   startGame(room: Room, socketId: string, kind: 'start' | 'rematch'): Result<void> {
     if (!this.canControl(room, socketId)) return fail('NOT_HOST', 'Only the head chef can start the game.');
     const phase = room.engine.phase;
@@ -410,6 +434,8 @@ export class RoomManager {
       captainId: this.captainId(room),
       roundDurationMs: room.engine.config.roundDurationMs,
       pushEnabled: room.engine.pushEnabled,
+      map: room.engine.map,
+      chaos: room.engine.chaos,
     };
   }
 

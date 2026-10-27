@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { STATIONS, type RoomState } from '@tilt-mayhem/shared';
+import { CHAOS, MAPS, STATIONS, type RoomState } from '@tilt-mayhem/shared';
 import { captainIdOf, roundMinutesOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
-import { Emoji, EmojiText } from './Emoji';
+import { Icon } from './Icon';
+import { MapPicker } from './MapPicker';
 
 interface Props {
   room: RoomState;
@@ -32,6 +33,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
   const captain = room.players.find((p) => p.id === captainId);
   const minutes = roundMinutesOf(room);
   const pushOn = room.pushEnabled !== false;
+  const map = MAPS[room.map ?? 'kitchen'];
 
   return (
     <div className="klobby">
@@ -66,7 +68,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
               </li>
             ) : (
               <li key={`e${i}`} className="kslot">
-                <Emoji ch="🧑‍🍳" className="kslot__q" />
+                <Icon name="chefhat" className="kslot__q" />
               </li>
             ),
           )}
@@ -75,7 +77,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
         <div className="kstations">
           {STATIONS.map((s) => (
             <div key={s.id} className="kstation" style={colorVar(s.color)}>
-              <Emoji ch={s.icon} className="kstation__icon" />
+              <Icon name={s.icon} className="kstation__icon" />
               <b>{s.verb}</b>
               <span>{s.name}</span>
             </div>
@@ -88,17 +90,23 @@ export function KitchenLobby({ room, joinUrl }: Props) {
           <li>Do the motion: chop, flip, stir, knead, mix or pour!</li>
           <li>Bring all 4 to the SERVE table in the middle and hit SERVE. Most points in {minutes}:00 wins.</li>
           <li>The last 30 seconds are RUSH HOUR: double points!</li>
-          <li>Watch out! Spills, fires, a loose chicken, meatball meteors and runaway cheese get wilder as the shift goes on. If one gets you, your phone shows the move to get back up.</li>
+          <li>Watch out! {map.blurb} It all gets wilder as the shift goes on. If something gets you, your phone shows the move to get back up.</li>
           {pushOn && <li>Get in someone's way? Shake your phone hard right next to them to PUSH them (5 second recharge).</li>}
         </ol>
 
         <p className="klobby__start">
           {need > 0
             ? `Need ${need} more chef${need === 1 ? '' : 's'}`
-            : <EmojiText text={`${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`} />}
+            : `${captain?.nickname ?? 'The head chef'} opens the kitchen from their phone`}
           <span className="kpill">{minutes} min shift</span>
           <span className="kpill">Pushing {pushOn ? 'on' : 'off'}</span>
+          <span className="kpill">{CHAOS[room.chaos ?? 'medium'].name} chaos</span>
         </p>
+      </section>
+
+      <section className="kcard klobby__maps">
+        <h2>Pick a kitchen</h2>
+        <MapPicker map={room.map ?? 'kitchen'} chaos={room.chaos ?? 'medium'} canEdit />
       </section>
     </div>
   );

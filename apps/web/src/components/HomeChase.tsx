@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { drawChef, emoji, type ChefView } from '../game/kitchenArt';
+import { drawChef, icon, type ChefView } from '../game/kitchenArt';
 import { drawCheeseWheel, drawChickenAt } from '../game/hazardArt';
 
 const COLORS = ['#ff3d7f', '#2de2e6', '#ffd23f', '#7cff6b', '#b26bff', '#ff8a3d', '#3d8bff'];
@@ -23,9 +23,9 @@ interface Run {
   color2: string;
 }
 
-const SCALE = 0.72;
-const SPEED = 240; // px/s
-const GAP = 78; // px between the runner and whatever is chasing them
+const SCALE = 1;
+const SPEED = 260; // px/s
+const GAP = 104; // px between the runner and whatever is chasing them
 const MAX_ON_SCREEN = 2;
 
 /**
@@ -153,7 +153,7 @@ export function HomeChase() {
         if (r.kind === 'fire') {
           // their hat is on fire
           const flick = 1 + Math.sin(t * 18) * 0.08;
-          emoji(ctx, '🔥', Math.sin(t * 9) * 2, -86, 34 * flick);
+          icon(ctx, 'fire', Math.sin(t * 9) * 2, -86, 34 * flick);
           for (let i = 0; i < 2; i++) {
             const p = (t * 1.4 + i * 0.5) % 1;
             ctx.beginPath();

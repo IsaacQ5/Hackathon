@@ -1,4 +1,5 @@
 import type { ChefFace, StationId } from './kitchen.js';
+import type { ChaosLevel, MapId } from './maps.js';
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'results';
 
@@ -38,7 +39,8 @@ export interface ChefWork {
 
 // ------------------------------------------------------------------ kitchen chaos (environmental hazards)
 
-export type HazardKind = 'spill' | 'chicken' | 'fire' | 'meteor' | 'cheese';
+/** `gust` is the themed maps' own event (wave / airlock / monsoon / blizzard): it slides every walking chef sideways. */
+export type HazardKind = 'spill' | 'chicken' | 'fire' | 'meteor' | 'cheese' | 'gust';
 
 /** What a chef has to do with their phone before they can move again. */
 export type StuckKind = 'slip' | 'bonk' | 'feathers' | 'fire';
@@ -63,9 +65,9 @@ export interface HazardSnap {
   station: StationId | null;
   /** 0..1 how much has been cleaned / put out. */
   progress: number;
-  /** Direction of travel (chicken, cheese): -1 left, 1 right. */
+  /** Direction of travel (chicken, cheese, gust): -1 left, 1 right. */
   dir: number;
-  /** Landed meteor: ms left before the meatball disappears (0 otherwise). */
+  /** Landed meteor: ms left before the meatball disappears; blowing gust: ms left (0 otherwise). */
   ttl: number;
 }
 
@@ -191,6 +193,10 @@ export interface RoomState {
   roundDurationMs: number;
   /** Shake-to-push is on (the head chef chooses before a shift). */
   pushEnabled: boolean;
+  /** Which kitchen the next shift is in. */
+  map: MapId;
+  /** How often kitchen chaos happens. */
+  chaos: ChaosLevel;
 }
 
 export type ErrorCode =

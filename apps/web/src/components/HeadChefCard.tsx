@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ROUND_MINUTE_OPTIONS, type GamePhase, type RoomState } from '@tilt-mayhem/shared';
 import { api } from '../network/socket';
 import { roundMinutesOf } from '../utils/room';
+import { MapPicker } from './MapPicker';
 import { sfx } from '../utils/sound';
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
   phase: GamePhase;
 }
 
-/** On the head chef's phone between shifts: shift length, pushing on/off, and the big start / next shift button. */
+/** On the head chef's phone between shifts: shift length, pushing on/off, map, chaos level, and the big start / next shift button. */
 export function HeadChefCard({ room, phase }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +61,7 @@ export function HeadChefCard({ room, phase }: Props) {
           Off
         </button>
       </div>
+      <MapPicker map={room.map ?? 'kitchen'} chaos={room.chaos ?? 'medium'} canEdit compact />
       <button className="kbtn kbtn--go" onClick={() => void start()} disabled={busy || need > 0}>
         {busy
           ? 'Starting…'

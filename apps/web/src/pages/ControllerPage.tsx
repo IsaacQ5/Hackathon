@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   INGREDIENTS,
   INPUT_SEND_HZ,
+  MAPS,
   recipeById,
   stationById,
   type ChefFace,
@@ -15,7 +16,7 @@ import {
 } from '@tilt-mayhem/shared';
 import { ChefPortrait } from '../components/ChefPortrait';
 import { CustomizeCard } from '../components/CustomizeCard';
-import { Emoji, EmojiText } from '../components/Emoji';
+import { Icon } from '../components/Icon';
 import { HeadChefCard } from '../components/HeadChefCard';
 import { JoinForm } from '../components/JoinForm';
 import { PushBar } from '../components/PushBar';
@@ -364,14 +365,20 @@ export function ControllerPage({ code }: { code: string }) {
       </span>
       {phase === 'playing' && (
         <span className={`kctrl__timer ${status?.rush ? 'is-rush' : ''}`}>
-          {status?.rush ? <EmojiText text="🔥x2 " /> : ''}
+          {status?.rush ? (
+            <>
+              <Icon name="fire" />x2{' '}
+            </>
+          ) : (
+            ''
+          )}
           {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
         </span>
       )}
       <span className="kctrl__score">{status?.score ?? me?.score ?? 0}</span>
       {status?.pushedBy && (
         <div className="kpushed" role="status">
-          <Emoji ch="😠" />{' '}
+          <Icon name="angry" />{' '}
           <b>{status.pushedBy.name}</b>{' '}
           {status.pushedBy.offStation ? 'pushed you off the station! Tap the station again to keep cooking.' : 'pushed you!'}
         </div>
@@ -379,7 +386,7 @@ export function ControllerPage({ code }: { code: string }) {
       {showMotionPopup && (
         <div className="kmodal" role="dialog" aria-modal="true" aria-labelledby="motion-title">
           <div className="kcard kmodal__card">
-            <Emoji ch="📱" className="kmodal__icon" />
+            <Icon name="phone" className="kmodal__icon" />
             <h2 id="motion-title">This game runs on phone motion</h2>
             <p>
               Please press <b>Allow</b> so you can tilt, chop, flip and pour with your phone.
@@ -403,7 +410,13 @@ export function ControllerPage({ code }: { code: string }) {
   const settingsPanel = (
     <>
       <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => setShowSettings(!showSettings)}>
-        <EmojiText text={showSettings ? 'Hide controls' : '⚙️ Controls'} />
+        {showSettings ? (
+          'Hide controls'
+        ) : (
+          <>
+            <Icon name="gear" /> Controls
+          </>
+        )}
       </button>
       {showSettings && (
         <div className="kcard ksettings">
@@ -443,7 +456,7 @@ export function ControllerPage({ code }: { code: string }) {
       <div className="kcard ksetup">
         <p>{TILT_HELP[tilt.status]}</p>
         <button className="kbtn kbtn--go" onClick={() => void tilt.enable()} disabled={tilt.status === 'requesting'}>
-          <EmojiText text="📱 Enable motion controls" />
+          <Icon name="phone" /> Enable motion controls
         </button>
       </div>
     ) : null;
@@ -455,15 +468,17 @@ export function ControllerPage({ code }: { code: string }) {
     const myAwards = mine && match ? awardsFor(match.results).get(mine.id) ?? [] : [];
     const fallbackRank = result?.leaderboard.find((e) => e.id === session.playerId)?.rank;
     const tiedFirst = !!match && match.winnerIds.length > 1 && match.winnerIds.includes(session.playerId);
+    const won = !!mine && !tiedFirst && mine.placement === 1 && mine.score > 0;
     const title = mine
       ? tiedFirst
-        ? "🤷 IT'S A TIE!"
-        : mine.placement === 1 && mine.score > 0
-        ? '👑 HEAD CHEF!'
+        ? "IT'S A TIE!"
+        : won
+        ? 'HEAD CHEF!'
         : `${ordinal(mine.placement)} place`
       : fallbackRank
         ? `${ordinal(fallbackRank)} place`
         : 'Kitchen closed';
+    const titleIcon = tiedFirst ? 'star' : won ? 'crown' : mine && mine.placement <= 3 ? `medal${mine.placement}` : null;
     return (
       <div className="kctrl" style={colorVar(color)}>
         {header}
@@ -471,7 +486,7 @@ export function ControllerPage({ code }: { code: string }) {
         {phase === 'results' && (
           <section className={`kcard kplace ${mine?.placement === 1 && mine.score > 0 && !tiedFirst ? 'kplace--win' : ''}`}>
             <h2>
-              <EmojiText text={title} />
+              {titleIcon && <Icon name={titleIcon} />} {title}
             </h2>
             {mine && (
               <p className="kplace__stats">
@@ -481,7 +496,7 @@ export function ControllerPage({ code }: { code: string }) {
             )}
             {myAwards.map((a) => (
               <p key={a.title} className="kaward">
-                <Emoji ch={a.emoji} /> {a.title} <small>({a.why})</small>
+                <Icon name={a.icon} /> {a.title} <small>({a.why})</small>
               </p>
             ))}
           </section>
@@ -504,7 +519,7 @@ export function ControllerPage({ code }: { code: string }) {
             <li>{mode === 'tilt' ? 'Tilt' : 'Use the stick'} to walk to a station. Your phone buzzes when you're there.</li>
             <li>Tap the button under the circle, then do the motion shown on screen.</li>
             <li>Got all 4? Walk to the SERVE table in the middle and hit SERVE!</li>
-            <li>Kitchen chaos! If a spill, chicken, meteor or fire gets you, your phone takes over: do the move it shows to get back up.</li>
+            <li>Kitchen chaos! If something on the {MAPS[room?.map ?? 'kitchen'].name} map gets you, your phone takes over: do the move it shows to get back up.</li>
             {pushOn && (
               <li>Standing right next to another chef? Shake your phone hard to PUSH them away (knocks them off their station). Recharges in 5 seconds.</li>
             )}
@@ -538,7 +553,7 @@ export function ControllerPage({ code }: { code: string }) {
     return (
       <div className="kctrl kctrl--work" style={colorVar(color)}>
         {header}
-        <RecoveryPanel stuck={status.stuck} motionAllowed={motionAllowed} />
+        <RecoveryPanel stuck={status.stuck} motionAllowed={motionAllowed} map={room?.map ?? 'kitchen'} />
       </div>
     );
   }
@@ -567,13 +582,13 @@ export function ControllerPage({ code }: { code: string }) {
   const neededIcon = neededHere ? INGREDIENTS.get(neededHere)?.ingredient.icon ?? '' : '';
   const allFour = status ? status.have.length === 4 : false;
 
-  let action: { label: string; cls: string; onClick?: () => void } = { label: 'Walk to a station', cls: 'is-idle' };
-  if (canServe) action = { label: '🔔 SERVE!', cls: 'is-serve', onClick: () => kitchenApi.serve() };
-  else if (canInteract && nearDef && status?.fireHere) action = { label: `🔥 PUT OUT THE FIRE!`, cls: 'is-go is-fire', onClick: () => kitchenApi.interact() };
-  else if (canInteract && nearDef) action = { label: `${nearDef.icon} ${nearDef.verb} ${neededIcon}`, cls: 'is-go', onClick: () => kitchenApi.interact() };
-  else if (nearDef) action = { label: `${nearDef.icon} Nothing needed here`, cls: 'is-no' };
+  let action: { label: string; cls: string; icon?: string; after?: string; onClick?: () => void } = { label: 'Walk to a station', cls: 'is-idle' };
+  if (canServe) action = { label: 'SERVE!', icon: 'bell', cls: 'is-serve', onClick: () => kitchenApi.serve() };
+  else if (canInteract && nearDef && status?.fireHere) action = { label: 'PUT OUT THE FIRE!', icon: 'fire', cls: 'is-go is-fire', onClick: () => kitchenApi.interact() };
+  else if (canInteract && nearDef) action = { label: nearDef.verb, icon: nearDef.icon, after: neededIcon, cls: 'is-go', onClick: () => kitchenApi.interact() };
+  else if (nearDef) action = { label: 'Nothing needed here', icon: nearDef.icon, cls: 'is-no' };
   else if (near === 'pass') action = { label: 'Make all 4 first!', cls: 'is-no' };
-  else if (allFour) action = { label: '🔔 Take it to SERVE!', cls: 'is-hint' };
+  else if (allFour) action = { label: 'Take it to SERVE!', icon: 'bell', cls: 'is-hint' };
 
   return (
     <div className={`kctrl kctrl--play ${status?.rush ? 'is-rush' : ''}`} style={colorVar(color)}>
@@ -590,12 +605,12 @@ export function ControllerPage({ code }: { code: string }) {
         )}
       </div>
       <button className={`kact ${action.cls}`} disabled={!action.onClick} onClick={action.onClick}>
-        <EmojiText text={action.label} />
+        {action.icon && <Icon name={action.icon} />} {action.label} {action.after && <Icon name={action.after} />}
       </button>
       <footer className="kctrl__foot kctrl__foot--row">
         {mode === 'tilt' && tiltReady && (
           <button className="kbtn kbtn--ghost kbtn--sm" onClick={recenter}>
-            <EmojiText text="🎯 Recenter" />
+            <Icon name="target" /> Recenter
           </button>
         )}
         {status && (

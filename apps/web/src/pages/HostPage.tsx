@@ -163,7 +163,7 @@ export function HostPage({ code }: { code: string }) {
             <p className="muted">Connecting to kitchen {code}…</p>
           </div>
         ) : showKitchen ? (
-          <KitchenArena buffer={buffer} />
+          <KitchenArena buffer={buffer} map={room.map ?? 'kitchen'} />
         ) : phase === 'lobby' ? (
           <KitchenLobby room={room} joinUrl={joinUrl} />
         ) : (

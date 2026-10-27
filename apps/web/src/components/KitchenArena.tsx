@@ -2,21 +2,20 @@ import { useEffect, useRef } from 'react';
 import {
   INGREDIENTS,
   KITCHEN,
-  RECIPES,
+  MAPS,
   STATIONS,
   recipeById,
   stationById,
   type ChefSnap,
-  type HazardKind,
   type KitchenEvent,
+  type MapId,
   type StationId,
-  type StuckKind,
 } from '@tilt-mayhem/shared';
-import { preloadEmoji } from '../game/emoji3d';
 import { Fx } from '../game/fx';
 import { drawFires, drawHazardsBack, drawHazardsFront } from '../game/hazardArt';
 import type { Frame, KitchenBuffer } from '../game/kbuffer';
-import { drawChef, drawKitchen, drawPass, drawStation, emoji, INK, roundRect, type ChefView, type StationActivity } from '../game/kitchenArt';
+import { drawChef, drawKitchen, drawPass, drawStation, icon, INK, roundRect, type ChefView, type StationActivity } from '../game/kitchenArt';
+import { drawMapBackdrop, drawMapOverlay, mapRock } from '../game/mapArt';
 import { sfx } from '../utils/sound';
 
 const W = 1000;
@@ -42,7 +41,7 @@ const STATION_WORDS: Record<StationId, string[]> = {
 const pick = <T,>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]!;
 
 /** Host-screen renderer for the kitchen. Own rAF loop; React never re-renders per frame. */
-export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
+export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffer; map?: MapId }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -70,18 +69,15 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
     ro.observe(wrap);
     resize();
 
-    // Start fetching every 3D emoji model the kitchen draws.
-    preloadEmoji([
-      ...STATIONS.flatMap((s) => [s.icon, ...s.ingredients.map((i) => i.icon)]),
-      ...RECIPES.map((r) => r.icon),
-      ...['🥇', '🥈', '🥉', '✔', '🔔', '🚨', '🔥', '🐔', '🪶', '⭐', '⚠️', '💦', '💫', '☄️', '🧀', '🧯', '🧽', '🍽️'],
-    ]);
+    const theme = MAPS[map];
 
     const fx = new Fx();
     const seeds = new Map<string, { seed: number; bounce: number }>();
     const chefPos = new Map<string, { x: number; y: number; color: string; name: string }>();
     let banner: { text: string; color: string; at: number; icon?: string } | null = null;
     let rushAt = -1e9;
+    /** When the last gust (wave / blizzard...) started blowing, for the ship's lurch. */
+    let gustAt = -1e9;
     let lastServeAt = -1e9;
     /** Last dish served: the diner eats it, then the empty plate stays on the table. */
     let lastDish: { icon: string; at: number } | null = null;
@@ -110,18 +106,12 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         return;
       }
       if (e.type === 'hazard') {
+        const skin = theme.hazards[e.kind];
         const where = e.station ? stationById(e.station).name.toUpperCase() : '';
-        const text: Record<HazardKind, [string, string]> = {
-          spill: ['💦', 'SPILL ON THE FLOOR! DON’T SLIP!'],
-          chicken: ['🐔', 'A CHICKEN GOT LOOSE!'],
-          fire: ['🔥', `FIRE AT THE ${where}!`],
-          meteor: ['☄️', 'MEATBALL INCOMING! MOVE!'],
-          cheese: ['🧀', 'RUNAWAY CHEESE WHEEL! CLEAR THE LANE!'],
-        };
-        const [icon, words] = text[e.kind];
-        banner = { text: words, icon, color: e.kind === 'spill' ? '#7fd0ff' : '#ff8a3d', at: now };
+        const words = e.kind === 'fire' ? `${skin.banner} ${where}!` : skin.banner;
+        banner = { text: words, icon: skin.icon, color: e.kind === 'spill' ? '#7fd0ff' : '#ff8a3d', at: now };
         // Big ones get an alarm so everyone looks up.
-        if (e.kind === 'meteor' || e.kind === 'cheese' || e.kind === 'fire') {
+        if (e.kind === 'meteor' || e.kind === 'cheese' || e.kind === 'fire' || e.kind === 'gust') {
           sfx.warn();
           window.setTimeout(() => sfx.warn(), 500);
         } else sfx.pop();
@@ -131,20 +121,23 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         if (e.kind === 'meteor') {
           fx.shake(16, now);
           fx.dust(e.x, e.y, 14);
-          fx.word('SPLAT!', e.x, e.y - 50, '#e8432f', 44);
+          fx.word(theme.impact.meteor, e.x, e.y - 50, '#e8432f', 44);
+          sfx.wham();
+        } else if (e.kind === 'gust') {
+          gustAt = now;
+          fx.shake(10, now);
           sfx.wham();
         } else {
-          fx.word('ROLLING!', e.x < 500 ? 140 : 860, e.y - 40, '#ffcf3d', 36);
+          fx.word(theme.impact.cheese, e.x < 500 ? 140 : 860, e.y - 40, '#ffcf3d', 36);
           sfx.boing();
         }
         return;
       }
-      if (e.type === 'served') lastDish = { icon: recipeById(e.recipeId)?.icon ?? '🍽️', at: now };
+      if (e.type === 'served') lastDish = { icon: recipeById(e.recipeId)?.icon ?? 'plate', at: now };
       const p = chefPos.get(e.chef);
       if (!p) return;
       if (e.type === 'stuck') {
-        const words: Record<StuckKind, string> = { slip: 'WHOOPS!', bonk: 'BONK!', feathers: 'BAWK!', fire: 'SPRAY IT!' };
-        fx.word(words[e.kind], p.x, p.y - 90, '#ff3d5a', 34);
+        fx.word(theme.stuck[e.kind].word, p.x, p.y - 90, '#ff3d5a', 34);
         if (e.kind === 'slip') sfx.slip();
         else if (e.kind === 'bonk') sfx.fall();
         else sfx.pop();
@@ -239,8 +232,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
     const ticketW = () => Math.max(170, Math.min(230, cw * 0.13));
 
     const draw = (frame: Frame | null, t: number, now: number) => {
-      ctx.fillStyle = '#ff9f45';
-      ctx.fillRect(0, 0, cw, ch);
+      drawMapBackdrop(ctx, map, t, cw, ch);
       if (!frame) {
         ctx.fillStyle = '#fff';
         ctx.font = '600 24px Fredoka, system-ui, sans-serif';
@@ -265,9 +257,18 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       ctx.save();
       ctx.translate(ox + sh.x, oy + sh.y);
       ctx.scale(scale, scale);
-      drawKitchen(ctx, t);
       const hazards = frame.snap.hazards ?? [];
-      drawHazardsBack(ctx, hazards, t);
+      // the pirate ship rocks, and lurches the way a rogue wave is pushing
+      const gust = hazards.find((h) => h.kind === 'gust' && h.warnMs <= 0);
+      const lurch = gust ? gust.dir * Math.min(1, (now - gustAt) / 600) : 0;
+      const rock = mapRock(map, t, lurch);
+      if (rock) {
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate(rock);
+        ctx.translate(-W / 2, -H / 2);
+      }
+      drawKitchen(ctx, t, map);
+      drawHazardsBack(ctx, hazards, t, map);
 
       // Station activity + highlight (someone standing there who needs it).
       for (const st of STATIONS) {
@@ -282,7 +283,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         const waiting = chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
         drawStation(ctx, st.id, act, t, waiting ? waiting.color : null);
       }
-      drawFires(ctx, hazards, t);
+      drawFires(ctx, hazards, t, map);
       drawPass(
         ctx,
         t,
@@ -303,7 +304,8 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: top && !(over && tied), mood };
         drawChef(ctx, v, t, true);
       }
-      drawHazardsFront(ctx, hazards, t);
+      drawHazardsFront(ctx, hazards, t, map);
+      drawMapOverlay(ctx, map, t);
       fx.drawFront(ctx);
       ctx.restore();
 
@@ -348,7 +350,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
         roundRect(ctx, lx, 8, w, 28, 14);
         ctx.fillStyle = 'rgba(43,26,18,0.8)';
         ctx.fill();
-        emoji(ctx, ['🥇', '🥈', '🥉'][i] ?? '', lx + 18, 22, 20);
+        icon(ctx, `medal${i + 1}`, lx + 18, 22, 20);
         ctx.font = '600 15px Fredoka, system-ui, sans-serif';
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'left';
@@ -364,11 +366,11 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       if (banner && now - banner.at < 2600 && !alarming) {
         comic(ctx, cw / 2, TOP + 28, banner.text, banner.color, 30);
         if (banner.icon) {
-          // 3D emoji on both ends of the banner
+          // the event's icon on both ends of the banner
           ctx.font = '30px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
           const half = ctx.measureText(banner.text).width / 2 + 26;
-          emoji(ctx, banner.icon, cw / 2 - half, TOP + 26, 34);
-          emoji(ctx, banner.icon, cw / 2 + half, TOP + 26, 34);
+          icon(ctx, banner.icon, cw / 2 - half, TOP + 26, 34);
+          icon(ctx, banner.icon, cw / 2 + half, TOP + 26, 34);
         }
       }
 
@@ -394,7 +396,7 @@ export function KitchenArena({ buffer }: { buffer: KitchenBuffer }) {
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [buffer]);
+  }, [buffer, map]);
 
   return (
     <div className="karena" ref={wrapRef}>
@@ -452,7 +454,7 @@ function drawRushAlarm(ctx: CanvasRenderingContext2D, since: number, cw: number,
       ctx.save();
       ctx.translate(cw / 2 + s * (half + size * 0.55), ch / 2 - size * 0.45);
       ctx.rotate(s * wob);
-      emoji(ctx, '🚨', 0, 0, size * 0.8);
+      icon(ctx, 'siren', 0, 0, size * 0.8);
       ctx.restore();
     }
     return;
@@ -504,7 +506,7 @@ function drawTicket(ctx: CanvasRenderingContext2D, c: ChefSnap, w: number) {
   ctx.textAlign = 'right';
   ctx.fillText(`${c.score} pts`, w - 10, 14);
   // dish
-  emoji(ctx, r?.icon ?? '🍽️', 18, 44, 20);
+  icon(ctx, r?.icon ?? 'plate', 18, 44, 20);
   ctx.fillStyle = INK;
   ctx.textAlign = 'left';
   ctx.font = '600 13px Fredoka, system-ui, sans-serif';
@@ -524,14 +526,14 @@ function drawTicket(ctx: CanvasRenderingContext2D, c: ChefSnap, w: number) {
     ctx.lineWidth = active ? 3 : 1.5;
     ctx.strokeStyle = active ? st.color : 'rgba(43,26,18,0.35)';
     ctx.stroke();
-    emoji(ctx, st.icon, sx + slotW / 2, sy + 17, 18);
-    emoji(ctx, info.ingredient.icon, sx + slotW / 2, sy + 43, 15);
+    icon(ctx, st.icon, sx + slotW / 2, sy + 17, 18);
+    icon(ctx, info.ingredient.icon, sx + slotW / 2, sy + 43, 15);
     if (active && c.working) {
       ctx.fillStyle = st.color;
       ctx.fillRect(sx + 6, sy + 54, (slotW - 12) * c.working.progress, 4);
     }
     if (done) {
-      emoji(ctx, '✔', sx + slotW - 12, sy + 10, 14);
+      icon(ctx, 'check', sx + slotW - 12, sy + 10, 14);
     }
   });
   if (!c.connected) {

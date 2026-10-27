@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { TiltDebug, Vec2 } from '../hooks/useTilt';
+import { Egg, PanHandle, PanOil } from './FryingPan';
 
 interface Props {
   /** Called every animation frame; return the current input in [-1, 1]. */
@@ -9,7 +10,7 @@ interface Props {
   readDebug?: () => TiltDebug;
 }
 
-/** Shows the direction being sent to the game, updated via rAF (no re-renders). */
+/** Shows the direction being sent to the game as an egg sliding round a frying pan, updated via rAF (no re-renders). */
 export function TiltIndicator({ read, color, readDebug }: Props) {
   const knobRef = useRef<HTMLDivElement>(null);
   const debugRef = useRef<HTMLDivElement>(null);
@@ -38,13 +39,17 @@ export function TiltIndicator({ read, color, readDebug }: Props) {
 
   return (
     <div className="tilt">
-      <div className="tilt__ring">
+      <div className="tilt__ring kpan">
+        <PanHandle />
+        <PanOil />
         <span className="tilt__arrow tilt__arrow--up">▲</span>
         <span className="tilt__arrow tilt__arrow--down">▼</span>
         <span className="tilt__arrow tilt__arrow--left">◀</span>
         <span className="tilt__arrow tilt__arrow--right">▶</span>
         <div className="tilt__center" />
-        <div className="tilt__knob" ref={knobRef} style={{ background: color }} />
+        <div className="tilt__knob kpan__egg" ref={knobRef}>
+          <Egg color={color} />
+        </div>
       </div>
       {readDebug && <div className="tilt__debug" ref={debugRef} />}
     </div>

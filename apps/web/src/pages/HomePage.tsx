@@ -41,7 +41,7 @@ export function HomePage() {
         className="input input--code"
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, ROOM_CODE_LENGTH))}
-        placeholder="ABCD"
+        placeholder="XXXX"
         inputMode="text"
         autoCapitalize="characters"
         autoComplete="off"

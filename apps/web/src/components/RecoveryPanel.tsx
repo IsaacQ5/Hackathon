@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { EFFORT, STUCK, stationById, type ChefStuck } from '@tilt-mayhem/shared';
+import { EFFORT, MAPS, STUCK, stationById, type ChefStuck, type MapId } from '@tilt-mayhem/shared';
 import { useMotionGesture } from '../hooks/useMotionGesture';
 import { kitchenApi } from '../network/socket';
 import { TouchStation } from './TouchStation';
 import { GestureDemo } from './GestureDemo';
-import { Emoji } from './Emoji';
+import { Icon } from './Icon';
 
 interface Props {
   stuck: ChefStuck;
   motionAllowed: boolean;
+  /** The map sets the story ("the pirate grabbed you!"); the motion is the same everywhere. */
+  map?: MapId;
 }
 
 const buzz = (ms: number | number[]) => {
@@ -28,8 +30,9 @@ const buzz = (ms: number | number[]) => {
  * Like the stations, with motion the bar fills smoothly by how accurate the recovery motion
  * is (accuracy streamed to the server ~10x/s); with the on-screen buttons, each tap is a step.
  */
-export function RecoveryPanel({ stuck, motionAllowed }: Props) {
+export function RecoveryPanel({ stuck, motionAllowed, map = 'kitchen' }: Props) {
   const def = STUCK[stuck.kind];
+  const text = MAPS[map].stuck[stuck.kind];
   const gesture = stationById(def.gesture);
   const lastSent = useRef(0);
   const lastBuzz = useRef(0);
@@ -87,10 +90,10 @@ export function RecoveryPanel({ stuck, motionAllowed }: Props) {
   return (
     <div className={`krecover krecover--${stuck.kind}`}>
       <div className="krecover__icon" aria-hidden>
-        <Emoji ch={def.icon} />
+        <Icon name={stuck.kind === 'feathers' ? MAPS[map].hazards.chicken.icon : def.icon} />
       </div>
-      <h2>{def.title}</h2>
-      <p className="krecover__how">{def.howTo}</p>
+      <h2>{text.title}</h2>
+      <p className="krecover__how">{text.howTo}</p>
       <GestureDemo scene={stuck.kind} />
       <div className="kprog" role="progressbar" aria-label="Recovery" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
         <div className="kprog__fill" style={{ width: `${progress * 100}%` }} />

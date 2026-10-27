@@ -5,7 +5,7 @@ import { kitchenApi } from '../network/socket';
 import { colorVar } from '../utils/style';
 import { TouchStation } from './TouchStation';
 import { GestureDemo } from './GestureDemo';
-import { Emoji } from './Emoji';
+import { Icon } from './Icon';
 
 interface Props {
   work: ChefWork;
@@ -106,11 +106,11 @@ export function StationPanel({ work, motionAllowed }: Props) {
   return (
     <div className={`kpanel kpanel--${work.station}`} style={colorVar(def.color)}>
       <header className="kpanel__head">
-        <Emoji ch={def.icon} className="kpanel__icon" />
+        <Icon name={def.icon} className="kpanel__icon" />
         <div>
           <h2>{def.name}</h2>
           <p>
-            Making <b>{ing && <Emoji ch={ing.icon} />} {ing?.name}</b>
+            Making <b>{ing && <Icon name={ing.icon} />} {ing?.name}</b>
           </p>
         </div>
       </header>
@@ -140,7 +140,7 @@ export function StationPanel({ work, motionAllowed }: Props) {
 
       <footer className="kpanel__foot">
         <button className="kbtn kbtn--ghost kbtn--sm" onClick={() => kitchenApi.cancel()}>
-          ↩ Step away
+          Step away
         </button>
       </footer>
     </div>

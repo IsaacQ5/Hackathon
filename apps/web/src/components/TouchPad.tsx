@@ -1,5 +1,6 @@
 import { useRef, type MutableRefObject, type PointerEvent } from 'react';
 import type { Vec2 } from '../hooks/useTilt';
+import { Egg, PanHandle, PanOil } from './FryingPan';
 
 interface Props {
   /** Written with the current joystick vector in [-1, 1]. */
@@ -7,7 +8,7 @@ interface Props {
   color: string;
 }
 
-/** Virtual joystick used when motion sensors are unavailable or denied. */
+/** Virtual joystick (drag the egg round the frying pan) used when motion sensors are unavailable or denied. */
 export function TouchPad({ outputRef, color }: Props) {
   const padRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
@@ -43,7 +44,7 @@ export function TouchPad({ outputRef, color }: Props) {
 
   return (
     <div
-      className="touchpad"
+      className="touchpad kpan"
       ref={padRef}
       onPointerDown={(e) => {
         activeId.current = e.pointerId;
@@ -57,8 +58,16 @@ export function TouchPad({ outputRef, color }: Props) {
       onPointerCancel={release}
       onLostPointerCapture={release}
     >
-      <div className="touchpad__knob" ref={knobRef} style={{ background: color }} />
-      <span className="touchpad__hint">Drag to move</span>
+      <PanHandle />
+      <PanOil />
+      <span className="tilt__arrow tilt__arrow--up">▲</span>
+      <span className="tilt__arrow tilt__arrow--down">▼</span>
+      <span className="tilt__arrow tilt__arrow--left">◀</span>
+      <span className="tilt__arrow tilt__arrow--right">▶</span>
+      <div className="touchpad__knob kpan__egg" ref={knobRef}>
+        <Egg color={color} />
+      </div>
+      <span className="touchpad__hint">Drag the egg to move</span>
     </div>
   );
 }

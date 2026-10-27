@@ -1,12 +1,12 @@
 import type { StationId, StuckKind } from '@tilt-mayhem/shared';
-import { Emoji } from './Emoji';
+import { Icon } from './Icon';
 import '../styles/demo.css';
 
 /** Station motions, plus the hazard recoveries (which reuse a station's motion). */
 export type DemoScene = StationId | StuckKind;
 
 /**
- * Little animated scene showing exactly what to do with the phone: a 3D phone doing
+ * Little animated scene showing exactly what to do with the phone: a phone doing
  * the motion over the matching kitchen setup (a board that gets chopped, a pot that
  * swirls, dough that squishes...). Pure CSS animation, see styles/demo.css.
  */
@@ -32,7 +32,7 @@ function Props({ scene }: { scene: DemoScene }) {
     case 'chop':
       return (
         <div className="kdemo__board">
-          <Emoji ch="🥕" className="kdemo__veg" />
+          <Icon name="carrot" className="kdemo__veg" />
         </div>
       );
     case 'fry':
@@ -58,7 +58,7 @@ function Props({ scene }: { scene: DemoScene }) {
         </div>
       );
     case 'juice':
-      return <Emoji ch="🥛" className="kdemo__glass" />;
+      return <Icon name="juicebox" className="kdemo__glass" />;
     case 'slip':
       return (
         <div className="kdemo__puddle">
@@ -70,7 +70,7 @@ function Props({ scene }: { scene: DemoScene }) {
     case 'feathers':
       return null;
     case 'fire':
-      return <Emoji ch="🔥" className="kdemo__fire" />;
+      return <Icon name="fire" className="kdemo__fire" />;
   }
 }
 
@@ -86,7 +86,7 @@ function Effects({ scene }: { scene: DemoScene }) {
         </>
       );
     case 'fry':
-      return <Emoji ch="🥓" className="kdemo__toss" />;
+      return <Icon name="bacon" className="kdemo__toss" />;
     case 'juice':
       return <div className="kdemo__stream" />;
     case 'mix':
@@ -106,17 +106,17 @@ function Effects({ scene }: { scene: DemoScene }) {
     case 'bonk':
       return (
         <div className="kdemo__stars">
-          <Emoji ch="⭐" />
-          <Emoji ch="⭐" />
-          <Emoji ch="⭐" />
+          <Icon name="star" />
+          <Icon name="star" />
+          <Icon name="star" />
         </div>
       );
     case 'feathers':
       return (
         <>
-          <Emoji ch="🪶" className="kdemo__feather kdemo__feather--1" />
-          <Emoji ch="🪶" className="kdemo__feather kdemo__feather--2" />
-          <Emoji ch="🪶" className="kdemo__feather kdemo__feather--3" />
+          <Icon name="feather" className="kdemo__feather kdemo__feather--1" />
+          <Icon name="feather" className="kdemo__feather kdemo__feather--2" />
+          <Icon name="feather" className="kdemo__feather kdemo__feather--3" />
         </>
       );
     case 'fire':

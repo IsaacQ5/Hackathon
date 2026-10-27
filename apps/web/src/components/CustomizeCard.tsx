@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CHEF_FACES, FACE_NAMES, PLAYER_COLORS, type ChefFace, type PublicPlayer } from '@tilt-mayhem/shared';
 import { api } from '../network/socket';
 import { ChefPortrait } from './ChefPortrait';
+import { Icon } from './Icon';
 
 interface Props {
   color: string;
@@ -38,7 +39,7 @@ export function CustomizeCard({ color, face, players, myId }: Props) {
               onClick={() => void change({ color: c })}
               aria-label={used ? 'Colour taken' : mine ? 'Your colour' : 'Pick this colour'}
             >
-              {used ? '✕' : mine ? '✔' : ''}
+              {used ? <Icon name="cross" /> : mine ? <Icon name="check" /> : null}
             </button>
           );
         })}
