@@ -1,4 +1,4 @@
-import { KITCHEN, type MapId } from '@tilt-mayhem/shared';
+import { CLASSIC_LAYOUT, MAPS, type Layout, type MapId, type StationSpot } from '@tilt-mayhem/shared';
 import { circle, ellipse, hash, INK, outlined, roundRect, shine } from './draw';
 
 /**
@@ -16,7 +16,15 @@ import { circle, ellipse, hash, INK, outlined, roundRect, shine } from './draw';
  * and only put moving things in `live*` / `overlay*` (those run every frame).
  */
 
-const F = { x: KITCHEN.floor.x0 - 20, y: KITCHEN.floor.y0 - 20, w: KITCHEN.floor.x1 - KITCHEN.floor.x0 + 40, h: KITCHEN.floor.y1 - KITCHEN.floor.y0 + 40 };
+/** The floor area being painted (with a 20 unit lip) and its stations; set per map by useLayout(). */
+let F = { x: 0, y: 0, w: 0, h: 0 };
+let SPOTS: readonly StationSpot[] = [];
+function useLayout(L: Layout) {
+  F = { x: L.floor.x0 - 20, y: L.floor.y0 - 20, w: L.floor.x1 - L.floor.x0 + 40, h: L.floor.y1 - L.floor.y0 + 40 };
+  SPOTS = L.spots;
+}
+useLayout(CLASSIC_LAYOUT);
+
 const COUNTERS = [
   [14, 106],
   [480, 106],
@@ -170,14 +178,19 @@ function paintKitchen(g: G) {
 }
 
 function stationMats(g: G, color: string) {
-  for (const s of KITCHEN.spots) {
-    const my = s.fy + (s.fy < 300 ? -2 : 2);
-    roundRect(g, s.fx - 62, my - 16, 124, 32, 10);
+  for (const s of SPOTS) {
+    // mats run along the counter: across for the top/bottom counters, up-down for the side ones
+    const side = s.face === 'left' || s.face === 'right';
+    const mx = s.fx + (side ? (s.face === 'right' ? -4 : 4) : 0);
+    const my = s.fy + (side ? 0 : s.face === 'down' ? -2 : 2);
+    const w = side ? 32 : 124;
+    const h = side ? 124 : 32;
+    roundRect(g, mx - w / 2, my - h / 2, w, h, 10);
     g.fillStyle = color;
     g.fill();
     g.fillStyle = 'rgba(0,0,0,0.12)';
     for (let i = 0; i < 10; i++) {
-      circle(g, s.fx - 50 + i * 11, my, 2.2);
+      circle(g, side ? mx : mx - 50 + i * 11, side ? my - 50 + i * 11 : my, 2.2);
       g.fill();
     }
   }
@@ -377,7 +390,7 @@ function liveKitchen(ctx: G, t: number) {
 
 // ====================================================================== pirate galley
 
-function paintPirate(g: G) {
+function pirateHull(g: G) {
   // hull + gunwale rail around the deck
   roundRect(g, -30, -30, 1060, 660, 60);
   outlined(g, '#6b3e1f', 5);
@@ -391,7 +404,10 @@ function paintPirate(g: G) {
     circle(g, 500 + Math.cos(a) * 515, 300 + Math.sin(a) * 312, 3);
     g.fill();
   }
-  // deck planks
+}
+
+/** Deck planks across the whole floor. */
+function pirateDeck(g: G) {
   g.save();
   floorClip(g);
   const ph = 26;
@@ -428,6 +444,14 @@ function paintPirate(g: G) {
       g.stroke();
     }
   }
+  g.restore();
+}
+
+function paintPirate(g: G) {
+  pirateHull(g);
+  pirateDeck(g);
+  g.save();
+  floorClip(g);
   // cargo hatch grate
   roundRect(g, 120, 360, 90, 60, 6);
   outlined(g, '#6b3e1f', 3);
@@ -494,6 +518,115 @@ function paintPirate(g: G) {
     [1002, 210, 1],
     [1002, 390, 1],
   ] as const) cannon(g, x, y, dir);
+}
+
+/**
+ * Pirate Cove: the same ship, rearranged. The counters run down the left and right rails and the
+ * captain's table sits mid-deck, so there's open deck at the bow (top) and stern (bottom).
+ */
+function paintPirateCove(g: G) {
+  pirateHull(g);
+  pirateDeck(g);
+  g.save();
+  floorClip(g);
+  // the helm at the top of the deck and a cargo hatch at the bottom (painted flat, you can walk over them)
+  helmWheel(g, 500, 92);
+  roundRect(g, 455, 490, 90, 56, 6);
+  outlined(g, '#6b3e1f', 3);
+  g.strokeStyle = '#3d2210';
+  g.lineWidth = 4;
+  for (let i = 1; i < 5; i++) {
+    g.beginPath();
+    g.moveTo(455 + i * 18, 492);
+    g.lineTo(455 + i * 18, 544);
+    g.stroke();
+  }
+  ropeCoilFlat(g, 300, 520);
+  ropeCoilFlat(g, 700, 80);
+  g.restore();
+  floorDepth(g, 'rgba(60,30,10,0.25)');
+
+  // side counters (they run top to bottom)
+  for (const x of [24, 804]) {
+    roundRect(g, x, 14, 172, 572, 18);
+    outlined(g, '#5c3a1e', 4);
+    roundRect(g, x, 14, 172, 560, 18);
+    outlined(g, '#8a5a32', 3);
+    g.strokeStyle = 'rgba(30,15,5,0.45)';
+    g.lineWidth = 2;
+    for (let i = 1; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(x + (172 * i) / 4, 20);
+      g.lineTo(x + (172 * i) / 4, 568);
+      g.stroke();
+    }
+    for (let y = 40; y < 570; y += 130) {
+      g.fillStyle = '#4a4a55';
+      g.fillRect(x, y, 172, 8);
+      g.fillStyle = '#8a8f9c';
+      circle(g, x + 10, y + 4, 2.5);
+      g.fill();
+      circle(g, x + 162, y + 4, 2.5);
+      g.fill();
+    }
+    g.fillStyle = 'rgba(255,255,255,0.16)';
+    roundRect(g, x + 8, 22, 10, 540, 5);
+    g.fill();
+  }
+  stationMats(g, 'rgba(60,30,10,0.3)');
+  // props at the ends of the counters
+  barrelTop(g, 110, 548, 24);
+  treasure(g, 890, 550);
+  // cannons poking out over the bow and stern rails
+  for (const [x, y, rot] of [
+    [320, -4, -Math.PI / 2],
+    [680, -4, -Math.PI / 2],
+    [320, 604, Math.PI / 2],
+    [680, 604, Math.PI / 2],
+  ] as const) {
+    g.save();
+    g.translate(x, y);
+    g.rotate(rot);
+    cannon(g, 0, 0, 1);
+    g.restore();
+  }
+}
+
+function helmWheel(g: G, x: number, y: number) {
+  g.lineCap = 'round';
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a) * 40, y + Math.sin(a) * 40);
+    g.lineWidth = 8;
+    g.strokeStyle = INK;
+    g.stroke();
+    g.lineWidth = 4;
+    g.strokeStyle = '#a36b3d';
+    g.stroke();
+  }
+  circle(g, x, y, 28);
+  g.lineWidth = 9;
+  g.strokeStyle = INK;
+  g.stroke();
+  g.lineWidth = 5;
+  g.strokeStyle = '#8a5a32';
+  g.stroke();
+  circle(g, x, y, 8);
+  outlined(g, '#c9a24a', 3);
+}
+
+function ropeCoilFlat(g: G, x: number, y: number) {
+  for (let r = 16; r > 4; r -= 4) {
+    circle(g, x, y, r);
+    g.lineWidth = 5;
+    g.strokeStyle = INK;
+    g.stroke();
+    g.lineWidth = 3;
+    g.strokeStyle = '#d9b77a';
+    g.stroke();
+  }
 }
 
 function barrelTop(g: G, x: number, y: number, r: number) {
@@ -1113,6 +1246,7 @@ function liveArctic(ctx: G, t: number) {
 const PAINT: Record<MapId, (g: G) => void> = {
   kitchen: paintKitchen,
   pirate: paintPirate,
+  pirate2: paintPirateCove,
   space: paintSpace,
   jungle: paintJungle,
   arctic: paintArctic,
@@ -1120,6 +1254,7 @@ const PAINT: Record<MapId, (g: G) => void> = {
 const LIVE: Record<MapId, (ctx: G, t: number) => void> = {
   kitchen: liveKitchen,
   pirate: livePirate,
+  pirate2: livePirate,
   space: liveSpace,
   jungle: liveJungle,
   arctic: liveArctic,
@@ -1142,6 +1277,7 @@ function board(map: MapId): HTMLCanvasElement | null {
   g.translate(30, 30);
   g.lineJoin = 'round';
   g.lineCap = 'round';
+  useLayout(MAPS[map].layout);
   PAINT[map](g);
   boards.set(map, c);
   return c;
@@ -1150,6 +1286,7 @@ function board(map: MapId): HTMLCanvasElement | null {
 /** Floor, counters and props (world space). */
 export function drawMapBoard(ctx: G, map: MapId, t: number) {
   const b = board(map);
+  useLayout(MAPS[map].layout);
   if (b) ctx.drawImage(b, -30, -30, 1060, 660);
   else PAINT[map](ctx);
   LIVE[map](ctx, t);
@@ -1168,6 +1305,7 @@ export function drawMapPreview(ctx: G, map: MapId, w: number, h: number) {
 const MAP_BACKDROP: Record<MapId, string> = {
   kitchen: '#ff9f45',
   pirate: '#1f6fa8',
+  pirate2: '#1f6fa8',
   space: '#141a3a',
   jungle: '#2f7d3a',
   arctic: '#7fb6d9',
@@ -1177,7 +1315,7 @@ const MAP_BACKDROP: Record<MapId, string> = {
 export function drawMapBackdrop(ctx: G, map: MapId, t: number, w: number, h: number) {
   ctx.fillStyle = MAP_BACKDROP[map];
   ctx.fillRect(0, 0, w, h);
-  switch (map) {
+  switch (map === 'pirate2' ? 'pirate' : map) {
     case 'pirate': {
       // rolling ocean swells with foam caps
       for (let row = 0; row * 46 < h + 46; row++) {
@@ -1261,7 +1399,7 @@ export function drawMapBackdrop(ctx: G, map: MapId, t: number, w: number, h: num
 
 /** Light things drifting over everything (world space). */
 export function drawMapOverlay(ctx: G, map: MapId, t: number) {
-  switch (map) {
+  switch (map === 'pirate2' ? 'pirate' : map) {
     case 'pirate':
       // seagulls gliding across
       for (let i = 0; i < 2; i++) {
@@ -1324,7 +1462,7 @@ export function drawMapOverlay(ctx: G, map: MapId, t: number) {
 
 /** The pirate ship rocks gently (harder while a rogue wave is hitting). Radians. */
 export function mapRock(map: MapId, t: number, gust: number): number {
-  if (map !== 'pirate') return 0;
+  if (map !== 'pirate' && map !== 'pirate2') return 0;
   return Math.sin(t * 0.7) * 0.005 + gust * 0.02;
 }
 

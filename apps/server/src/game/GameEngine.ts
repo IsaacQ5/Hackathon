@@ -24,6 +24,7 @@ import {
   type HazardSnap,
   type KitchenEvent,
   type KitchenStatus,
+  type Layout,
   type MapId,
   type MatchResults,
   type PlayerInput,
@@ -197,7 +198,14 @@ export class GameEngine {
   }
 
   setMap(map: MapId): void {
-    if (this._phase === 'lobby' || this._phase === 'results') this._map = map;
+    if (this._phase !== 'lobby' && this._phase !== 'results') return;
+    this._map = map;
+    this.layout();
+  }
+
+  /** Where everything is on the current map. */
+  private get L(): Layout {
+    return MAPS[this._map].layout;
   }
 
   get chaos(): ChaosLevel {
@@ -274,7 +282,7 @@ export class GameEngine {
     c.vx = 0;
     c.vy = 0;
     // Two cooks can share a station: step into a free spot so nobody overlaps.
-    const spot = KITCHEN.spots.find((s) => s.id === station)!;
+    const spot = this.L.spots.find((s) => s.id === station)!;
     const taken = [...this.chefs.values()].filter((o) => o !== c && o.working?.station === station).map((o) => o.x);
     const slots = [spot.fx - 30, spot.fx + 30];
     const free = slots.filter((x) => !taken.some((t) => Math.abs(t - x) < 20));
@@ -485,8 +493,8 @@ export class GameEngine {
     if (this._phase !== 'playing') return;
     this.playMs += dt * 1000;
     const list = [...this.chefs.values()];
-    const f = KITCHEN.floor;
-    const pass = KITCHEN.pass;
+    const f = this.L.floor;
+    const pass = this.L.pass;
 
     for (const c of list) {
       if (c.knockMs > 0) {
@@ -502,9 +510,11 @@ export class GameEngine {
         c.vx *= 0.5;
         c.vy *= 0.5;
       } else {
-        const tx = c.input.x * this.config.maxSpeed;
-        const ty = c.input.y * this.config.maxSpeed;
-        const k = Math.min(1, 12 * dt);
+        // Sprinklers, quicksand, zero gravity and ice change how fast you go and how well you grip.
+        const foot = this.footing(c);
+        const tx = c.input.x * this.config.maxSpeed * foot.speed;
+        const ty = c.input.y * this.config.maxSpeed * foot.speed;
+        const k = Math.min(1, foot.grip * dt);
         c.vx += (tx - c.vx) * k;
         c.vy += (ty - c.vy) * k;
         if (Math.hypot(c.input.x, c.input.y) > 0.25) c.facing = Math.atan2(c.input.y, c.input.x);
@@ -542,7 +552,7 @@ export class GameEngine {
       c.x = clamp(c.x, f.x0 + R, f.x1 - R);
       c.y = clamp(c.y, f.y0 + R, f.y1 - R);
       // The serve table in the middle and the diner sitting at it are solid.
-      for (const ob of [pass, KITCHEN.customer]) {
+      for (const ob of [pass, this.L.customer]) {
         const dx = c.x - ob.x;
         const dy = c.y - ob.y;
         const d = Math.hypot(dx, dy);
@@ -602,7 +612,7 @@ export class GameEngine {
       this.nextHazardAt = this.playMs + base * chaos.interval * (this.rush ? 0.8 : 1) * (0.75 + this.random() * 0.5);
     }
 
-    const f = KITCHEN.floor;
+    const f = this.L.floor;
     const chefs = [...this.chefs.values()];
     for (const h of [...this.hazards]) {
       switch (h.kind) {
@@ -660,7 +670,7 @@ export class GameEngine {
           if (h.y > f.y1 - h.r) h.vy = -Math.abs(h.vy);
           h.x = clamp(h.x, f.x0 + h.r, f.x1 - h.r);
           h.y = clamp(h.y, f.y0 + h.r, f.y1 - h.r);
-          for (const ob of [KITCHEN.pass, KITCHEN.customer]) {
+          for (const ob of [this.L.pass, this.L.customer]) {
             const d = Math.hypot(h.x - ob.x, h.y - ob.y);
             if (d < ob.r + h.r && d > 0.01) {
               h.x = ob.x + ((h.x - ob.x) / d) * (ob.r + h.r);
@@ -694,10 +704,63 @@ export class GameEngine {
           h.ttl -= dtMs;
           if (h.ttl <= 0) this.removeHazard(h);
           break;
+        case 'sprinkler':
+        case 'lowgrav':
+        case 'freeze':
+          // Warn, then the whole floor is affected for a while (see footing()).
+          if (h.warnMs > 0) {
+            h.warnMs -= dtMs;
+            if (h.warnMs <= 0) {
+              h.warnMs = 0;
+              h.ttl = HAZARDS[h.kind].activeMs;
+              this.pendingEvents.push({ type: 'impact', kind: h.kind, x: h.x, y: h.y });
+            }
+            break;
+          }
+          h.ttl -= dtMs;
+          if (h.ttl <= 0) this.removeHazard(h);
+          break;
+        case 'quicksand':
+          h.ttl -= dtMs;
+          if (h.ttl <= 0) this.removeHazard(h);
+          break;
+        case 'kraken':
+          if (h.warnMs > 0) {
+            h.warnMs -= dtMs;
+            if (h.warnMs <= 0) {
+              // SLAM: a tentacle across the whole deck, top to bottom, at h.x.
+              h.warnMs = 0;
+              h.ttl = HAZARDS.kraken.landedMs;
+              this.pendingEvents.push({ type: 'impact', kind: 'kraken', x: h.x, y: h.y });
+              for (const c of chefs) if (this.hittable(c) && Math.abs(c.x - h.x) < h.r + R * 0.6) this.setStuck(c, 'bonk', null);
+            }
+            break;
+          }
+          h.ttl -= dtMs;
+          if (h.ttl <= 0) this.removeHazard(h);
+          break;
         case 'fire':
           break;
       }
     }
+  }
+
+  /** How a chef's feet are doing: top-speed multiplier and grip (how quickly they reach the speed they want). */
+  private footing(c: Chef): { speed: number; grip: number } {
+    let speed = 1;
+    let grip = 12;
+    for (const h of this.hazards) {
+      if (h.warnMs > 0) continue;
+      if (h.kind === 'sprinkler') speed *= HAZARDS.sprinkler.slow;
+      else if (h.kind === 'lowgrav') {
+        speed *= HAZARDS.lowgrav.speed;
+        grip = Math.min(grip, HAZARDS.lowgrav.grip);
+      } else if (h.kind === 'freeze') {
+        speed *= HAZARDS.freeze.speed;
+        grip = Math.min(grip, HAZARDS.freeze.grip);
+      } else if (h.kind === 'quicksand' && Math.hypot(c.x - h.x, c.y - h.y) < h.r) speed *= HAZARDS.quicksand.slow;
+    }
+    return { speed, grip };
   }
 
   private removeHazard(h: Hazard) {
@@ -708,7 +771,7 @@ export class GameEngine {
   private spawnRandomHazard(p: number) {
     const count = (k: HazardKind) => this.hazards.filter((h) => h.kind === k).length;
     const { extra, unlock } = CHAOS[this._chaos];
-    const unlocked = (k: Exclude<HazardKind, 'spill'>) => p >= HAZARDS[k].unlockAt * unlock;
+    const unlocked = (k: HazardKind) => p >= HAZARDS[k].unlockAt * unlock;
     const options: [HazardKind, number][] = [];
     if (count('spill') < 1 + Math.floor(p * 3) + extra) options.push(['spill', HAZARDS.spill.weight]);
     if (unlocked('chicken') && count('chicken') < 1 + extra) options.push(['chicken', HAZARDS.chicken.weight]);
@@ -721,6 +784,9 @@ export class GameEngine {
     }
     if (unlocked('cheese') && count('cheese') === 0 && (count('meteor') === 0 || extra >= 2)) options.push(['cheese', HAZARDS.cheese.weight]);
     if (MAPS[this._map].gust && unlocked('gust') && count('gust') === 0) options.push(['gust', HAZARDS.gust.weight]);
+    // and this map's very own event
+    const special = MAPS[this._map].special;
+    if (unlocked(special) && count(special) === 0) options.push([special, HAZARDS[special].weight]);
     // Every kind shows up at least once a shift: anything unlocked but not seen yet goes first.
     const unseen = options.find(([k]) => !this.seenHazards.has(k));
     if (unseen) {
@@ -741,12 +807,12 @@ export class GameEngine {
 
   /** A random open floor spot (away from the serve table and, optionally, the stations). */
   private floorPoint(margin: number, avoidStations: boolean): { x: number; y: number } {
-    const f = KITCHEN.floor;
+    const f = this.L.floor;
     let pt = { x: f.x0 + margin, y: f.y0 + margin };
     for (let i = 0; i < 25; i++) {
       pt = { x: f.x0 + margin + this.random() * (f.x1 - f.x0 - margin * 2), y: f.y0 + margin + this.random() * (f.y1 - f.y0 - margin * 2) };
-      const nearPass = Math.hypot(pt.x - KITCHEN.pass.x, pt.y - KITCHEN.pass.y) < KITCHEN.pass.serveR + margin;
-      const nearStation = avoidStations && KITCHEN.spots.some((s) => Math.hypot(pt.x - s.fx, pt.y - s.fy) < 60);
+      const nearPass = Math.hypot(pt.x - this.L.pass.x, pt.y - this.L.pass.y) < this.L.pass.serveR + margin;
+      const nearStation = avoidStations && this.L.spots.some((s) => Math.hypot(pt.x - s.fx, pt.y - s.fy) < 60);
       if (!nearPass && !nearStation) break;
     }
     return pt;
@@ -754,7 +820,7 @@ export class GameEngine {
 
   /** Start a hazard now. Random placement unless a spot (or station, for fire) is given. Returns its id. */
   spawnHazard(kind: HazardKind, at?: { x: number; y: number }, station?: StationId): number {
-    const f = KITCHEN.floor;
+    const f = this.L.floor;
     const h: Hazard = {
       id: this.nextHazardId++,
       kind,
@@ -790,7 +856,8 @@ export class GameEngine {
       }
       case 'cheese': {
         const dir = this.random() < 0.5 ? 1 : -1;
-        const y = at?.y ?? (this.random() < 0.5 ? f.y0 + 32 : f.y1 - 32);
+        const lanes = this.L.lanes;
+        const y = at?.y ?? lanes[Math.floor(this.random() * lanes.length)] ?? f.y0 + 32;
         Object.assign(h, { x: at?.x ?? (dir > 0 ? f.x0 - 60 : f.x1 + 60), y, dir, r: HAZARDS.cheese.r, warnMs: HAZARDS.warnMs });
         break;
       }
@@ -804,7 +871,7 @@ export class GameEngine {
         const free = STATION_IDS.filter((s) => !this.fireAt(s));
         const st = station ?? free[Math.floor(this.random() * free.length)];
         if (!st) return -1;
-        const spot = KITCHEN.spots.find((s) => s.id === st)!;
+        const spot = this.L.spots.find((s) => s.id === st)!;
         Object.assign(h, { x: spot.x, y: spot.y, r: 50, station: st });
         // Whoever was cooking there jumps back (their progress is kept).
         for (const c of this.chefs.values()) if (c.working?.station === st) this.cancel(c.id);
@@ -813,6 +880,24 @@ export class GameEngine {
       case 'gust': {
         // Blows across the whole floor, left or right.
         Object.assign(h, { x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2, dir: this.random() < 0.5 ? 1 : -1, warnMs: HAZARDS.warnMs });
+        break;
+      }
+      case 'sprinkler':
+      case 'lowgrav':
+      case 'freeze':
+        Object.assign(h, { x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2, warnMs: HAZARDS.warnMs });
+        break;
+      case 'quicksand': {
+        const pt = at ?? this.floorPoint(HAZARDS.quicksand.r + 10, true);
+        Object.assign(h, pt, { r: HAZARDS.quicksand.r, ttl: HAZARDS.quicksand.lifeMs });
+        break;
+      }
+      case 'kraken': {
+        // Slams near a random chef (never quite dead-on); comes up from the top or bottom edge.
+        const targets = [...this.chefs.values()].filter((c) => c.connected && !c.stuck);
+        const t = targets[Math.floor(this.random() * targets.length)];
+        const x = at?.x ?? clamp((t?.x ?? (f.x0 + f.x1) / 2) + (this.random() - 0.5) * 140, f.x0 + 50, f.x1 - 50);
+        Object.assign(h, { x, y: (f.y0 + f.y1) / 2, r: HAZARDS.kraken.r, dir: this.random() < 0.5 ? 1 : -1, warnMs: HAZARDS.warnMs });
         break;
       }
     }
@@ -839,10 +924,10 @@ export class GameEngine {
 
   private nearOf(c: Chef): StationId | 'pass' | null {
     // The pass wins: every station's standing spot is outside its zone.
-    if (Math.hypot(c.x - KITCHEN.pass.x, c.y - KITCHEN.pass.y) <= KITCHEN.pass.serveR) return 'pass';
+    if (Math.hypot(c.x - this.L.pass.x, c.y - this.L.pass.y) <= this.L.pass.serveR) return 'pass';
     let best: StationId | null = null;
     let bestD: number = KITCHEN.interactR;
-    for (const s of KITCHEN.spots) {
+    for (const s of this.L.spots) {
       const d = Math.hypot(c.x - s.fx, c.y - s.fy);
       if (d < bestD) {
         bestD = d;
@@ -856,9 +941,9 @@ export class GameEngine {
     const list = [...this.chefs.values()];
     list.forEach((c, i) => {
       const a = -Math.PI / 2 + (i * Math.PI * 2) / Math.max(1, list.length);
-      c.x = KITCHEN.pass.x + Math.cos(a) * 190;
-      c.y = KITCHEN.pass.y + Math.sin(a) * 110;
-      c.facing = Math.atan2(KITCHEN.pass.y - c.y, KITCHEN.pass.x - c.x);
+      c.x = this.L.pass.x + Math.cos(a) * 190;
+      c.y = this.L.pass.y + Math.sin(a) * 110;
+      c.facing = Math.atan2(this.L.pass.y - c.y, this.L.pass.x - c.x);
       c.near = this.nearOf(c);
     });
   }
@@ -869,8 +954,8 @@ export class GameEngine {
       nickname,
       color,
       face,
-      x: KITCHEN.pass.x,
-      y: KITCHEN.pass.y + 150,
+      x: this.L.pass.x,
+      y: this.L.pass.y + 150,
       vx: 0,
       vy: 0,
       facing: -Math.PI / 2,

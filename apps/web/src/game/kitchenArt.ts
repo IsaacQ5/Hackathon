@@ -1,4 +1,5 @@
 import {
+  CLASSIC_LAYOUT,
   INGREDIENTS,
   KITCHEN,
   STATIONS,
@@ -8,11 +9,15 @@ import {
   type ChefSnap,
   type ChefStuck,
   type ChefWork,
+  type Layout,
   type MapId,
   type StationId,
 } from '@tilt-mayhem/shared';
 import { INK, outlined, roundRect, shade } from './draw';
 import { drawStuckBadge } from './hazardArt';
+import { drawOutfitOver, drawOutfitTop, drawOutfitUnder, handColor, outfitLook } from './outfitArt';
+import { drawSign } from './sign';
+export { drawPass, EAT_MS } from './dinerArt';
 import { icon } from './icons';
 import { drawMapBoard } from './mapArt';
 
@@ -67,13 +72,21 @@ export interface StationActivity {
   workers: number;
 }
 
-export function drawStation(ctx: CanvasRenderingContext2D, id: StationId, act: StationActivity, t: number, highlight: string | null) {
-  const spot = KITCHEN.spots.find((s) => s.id === id)!;
+export function drawStation(
+  ctx: CanvasRenderingContext2D,
+  id: StationId,
+  act: StationActivity,
+  t: number,
+  highlight: string | null,
+  layout: Layout = CLASSIC_LAYOUT,
+) {
+  const spot = layout.spots.find((s) => s.id === id)!;
   const def = stationById(id);
   const { x, y } = spot;
   const busy = act.workers > 0;
   const pulse = busy ? Math.max(0, 1 - act.sinceRep / 260) : 0;
-  const top = y < 300;
+  const top = spot.face === 'down';
+  const side = spot.face === 'left' || spot.face === 'right';
 
   ctx.save();
   ctx.translate(x, y);
@@ -81,7 +94,9 @@ export function drawStation(ctx: CanvasRenderingContext2D, id: StationId, act: S
   // glowing ring in the station's own colour when a chef standing there can use it
   if (highlight) {
     ctx.beginPath();
-    ctx.ellipse(0, top ? 70 : -70, 70, 22, 0, 0, Math.PI * 2);
+    // under the spot where the chef stands
+    if (side) ctx.ellipse((spot.fx - x) * 0.92, 0, 26, 64, 0, 0, Math.PI * 2);
+    else ctx.ellipse(0, top ? 70 : -70, 70, 22, 0, 0, Math.PI * 2);
     ctx.fillStyle = `${def.color}55`;
     ctx.fill();
     ctx.lineWidth = 4;
@@ -411,190 +426,8 @@ export function drawStation(ctx: CanvasRenderingContext2D, id: StationId, act: S
 
   // Big sign on the counter's outer edge (so chefs' name tags never cover it),
   // styled like the station tiles on the phones: same symbol, verb and colour.
-  drawSign(ctx, def.icon, def.verb, def.color, top ? -64 : 64);
-  ctx.restore();
-}
-
-const CREAM = '#fffaf2';
-
-/** Mix a hex colour toward cream, like the phone's `color-mix(var(--c) 40%, cream)`. */
-function tint(hex: string, amt: number): string {
-  const a = parseInt(hex.slice(1), 16);
-  const b = parseInt(CREAM.slice(1), 16);
-  const ch = (sh: number) => Math.round(((a >> sh) & 255) * amt + ((b >> sh) & 255) * (1 - amt));
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
-}
-
-/** Station/serve sign: symbol + comic verb on a tinted tile with a hard ink shadow. */
-function drawSign(ctx: CanvasRenderingContext2D, iconName: string, verb: string, color: string, y: number) {
-  ctx.font = '32px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
-  const tw = ctx.measureText(verb).width;
-  const w = tw + 76;
-  const h = 54;
-  roundRect(ctx, -w / 2 + 4, y - h / 2 + 4, w, h, 16);
-  ctx.fillStyle = INK;
-  ctx.fill();
-  roundRect(ctx, -w / 2, y - h / 2, w, h, 16);
-  outlined(ctx, tint(color, 0.55), 4);
-  icon(ctx, iconName, -w / 2 + 30, y + 1, 30);
-  ctx.font = '32px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
-  ctx.fillStyle = INK;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(verb, -w / 2 + 54, y + 3);
-}
-
-/** `happy` (0..1) makes the customer bounce right after a dish is served. */
-/** How long the diner takes to eat a served dish before only the empty plate is left (ms). */
-export const EAT_MS = 1800;
-
-/**
- * The serve table. `happy` (0..1) makes the diner bounce right after a serve; `dish` is the last
- * dish served and how long ago: it's eaten over EAT_MS, then the empty plate stays on the table.
- */
-export function drawPass(
-  ctx: CanvasRenderingContext2D,
-  t: number,
-  ready: boolean,
-  happy = 0,
-  dish: { icon: string; age: number } | null = null,
-) {
-  const { x, y, r } = KITCHEN.pass;
-  ctx.save();
-  ctx.translate(x, y);
-  if (ready) {
-    ctx.beginPath();
-    ctx.arc(0, 0, KITCHEN.pass.serveR, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(124,255,107,${0.18 + Math.sin(t * 6) * 0.08})`;
-    ctx.fill();
-    ctx.setLineDash([12, 10]);
-    ctx.lineDashOffset = -t * 30;
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#3fbf2f';
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  const eating = !!dish && dish.age < EAT_MS;
-  drawCustomer(ctx, t, happy, -r + 2, eating);
-  ctx.beginPath();
-  ctx.arc(0, 6, r, 0, Math.PI * 2);
-  outlined(ctx, '#8a5a2f', 4);
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  outlined(ctx, '#f6f1ea', 4);
-  if (dish) drawPlate(ctx, dish.icon, dish.age, t);
-  drawSign(ctx, 'bell', 'SERVE', '#3fbf2f', r + 8);
-  ctx.restore();
-}
-
-/** Plate in front of the diner: food slides in, gets eaten bite by bite, then the empty plate stays. */
-function drawPlate(ctx: CanvasRenderingContext2D, dishIcon: string, age: number, t: number) {
-  const slide = Math.min(1, age / 250);
-  const px = 0;
-  const py = -20 + (1 - slide) * 30;
-  // plate
-  ctx.beginPath();
-  ctx.ellipse(px, py + 4, 24, 11, 0, 0, Math.PI * 2);
-  outlined(ctx, '#ffffff', 3);
-  ctx.beginPath();
-  ctx.ellipse(px, py + 4, 16, 7, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(43,26,18,0.15)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  if (age < EAT_MS) {
-    // the dish shrinks in bites while the diner chomps
-    const eaten = Math.max(0, (age - 300) / (EAT_MS - 300));
-    const bites = Math.floor(eaten * 4);
-    const size = 30 * (1 - bites * 0.2) * (1 + Math.max(0, Math.sin(t * 16)) * 0.04);
-    icon(ctx, dishIcon, px, py - 4, size);
-    // crumbs fly on each bite
-    ctx.fillStyle = '#d9a066';
-    for (let i = 0; i < bites; i++) {
-      ctx.beginPath();
-      ctx.arc(px - 18 + i * 12, py + 8 + Math.sin(t * 9 + i) * 1.5, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else {
-    // empty plate: a little sauce smear left behind
-    ctx.beginPath();
-    ctx.ellipse(px + 4, py + 4, 7, 3, 0.3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(232,67,47,0.35)';
-    ctx.fill();
-  }
-}
-
-/** Cosmetic diner seated at the serve table, peeking over its far edge. */
-function drawCustomer(ctx: CanvasRenderingContext2D, t: number, happy: number, baseY: number, eating: boolean) {
-  const hop = happy > 0 ? Math.abs(Math.sin(t * 14)) * 8 * happy : 0;
-  const sway = Math.sin(t * 1.6) * 1.5;
-  ctx.save();
-  ctx.translate(sway, baseY - hop);
-  // chair back
-  roundRect(ctx, -28, -62, 56, 60, 14);
-  outlined(ctx, '#a0522d', 3.5);
-  // body + bib
-  ctx.beginPath();
-  ctx.ellipse(0, -14, 21, 22, 0, 0, Math.PI * 2);
-  outlined(ctx, '#4f7cff', 3.5);
-  ctx.beginPath();
-  ctx.moveTo(-11, -30);
-  ctx.lineTo(11, -30);
-  ctx.lineTo(0, -10);
-  ctx.closePath();
-  outlined(ctx, '#ffffff', 2.5);
-  // head
-  ctx.beginPath();
-  ctx.arc(0, -46, 15, 0, Math.PI * 2);
-  outlined(ctx, '#ffd9b8', 3);
-  ctx.beginPath();
-  ctx.arc(0, -50, 15, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.lineTo(10, -54);
-  ctx.quadraticCurveTo(0, -58, -10, -54);
-  ctx.closePath();
-  outlined(ctx, '#6b3e1f', 2.5);
-  // eyes (blink now and then) + mouth
-  const blink = t % 3.7 < 0.12;
-  ctx.fillStyle = INK;
-  for (const s of [-1, 1]) {
-    if (blink) ctx.fillRect(s * 6 - 3, -47, 6, 2);
-    else {
-      ctx.beginPath();
-      ctx.arc(s * 6, -46, 2.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.beginPath();
-  if (eating) {
-    // chomp chomp
-    ctx.ellipse(0, -38, 4, 1 + Math.abs(Math.sin(t * 16)) * 3.5, 0, 0, Math.PI * 2);
-    ctx.fillStyle = INK;
-    ctx.fill();
-  } else {
-    if (happy > 0.05) ctx.arc(0, -40, 5, 0.1 * Math.PI, 0.9 * Math.PI);
-    else ctx.arc(0, -37, 2.5, 0, Math.PI * 2);
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = INK;
-    ctx.stroke();
-  }
-  // fork and knife, waiting for food
-  const wave = happy > 0 ? Math.sin(t * 16) * 6 * happy : Math.sin(t * 3) * 1.5;
-  for (const s of [-1, 1]) {
-    const hx = s * 25;
-    const hy = -16 + (s > 0 ? wave : -wave);
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(hx, hy + 4);
-    ctx.lineTo(hx, hy - 22);
-    ctx.stroke();
-    ctx.strokeStyle = '#dfe6ef';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(hx, hy, 5, 0, Math.PI * 2);
-    outlined(ctx, '#ffd9b8', 2.5);
-  }
+  // (side counters: the sign sits above the station, in the gap between stations)
+  drawSign(ctx, def.icon, def.verb, def.color, side ? -66 : top ? -64 : 64);
   ctx.restore();
 }
 
@@ -610,6 +443,8 @@ export interface ChefView extends ChefSnap {
    * panic: running for their life (home-screen gags).
    */
   mood?: 'dance' | 'sad' | 'shrug' | 'panic';
+  /** Dress the chef for this map (astronaut helmet, puffy coat...). The hat always stays. */
+  outfit?: MapId;
 }
 
 /**
@@ -987,6 +822,9 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.ellipse(R * 0.35, bodyY + 3, R * 0.6, R * 0.95, 0, -Math.PI / 2, Math.PI / 2);
   ctx.fillStyle = 'rgba(0,0,0,0.1)';
   ctx.fill();
+  const look = outfitLook(c.outfit);
+  const front = fy > -0.7;
+  drawOutfitUnder(ctx, look, bodyY, R);
   ctx.beginPath();
   ctx.ellipse(fx * 3, bodyY + 6, R * 0.62, R * 0.72, 0, 0, Math.PI * 2);
   ctx.fillStyle = '#ffffff';
@@ -1010,6 +848,8 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
       ctx.fill();
     }
   }
+
+  drawOutfitOver(ctx, look, c.color, bodyY, R, fx, front);
 
   const work = c.working;
 
@@ -1119,9 +959,24 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
     ctx.strokeStyle = c.color;
     ctx.lineWidth = 5;
     ctx.stroke();
+    if (look === 'pirate') {
+      // striped sleeves
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (look === 'arctic') {
+      // puffy sleeves
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      ctx.lineWidth = 7;
+      ctx.strokeStyle = shade(c.color, -0.04);
+      ctx.stroke();
+    }
     ctx.beginPath();
-    ctx.arc(hx, hy, 5, 0, Math.PI * 2);
-    outlined(ctx, '#ffe0c7', 2.5);
+    ctx.arc(hx, hy, look === 'arctic' ? 6 : 5, 0, Math.PI * 2);
+    outlined(ctx, handColor(look, c.color), 2.5);
   }
   if (work?.station === 'juice') drawJug(ctx, jugX, jugY, jugRot, tip, jugDir);
   if (stuck?.kind === 'fire') drawExtinguisher(ctx, exX, exY, Math.atan2(fy, fx) + sweep, t);
@@ -1155,8 +1010,10 @@ export function drawChef(ctx: CanvasRenderingContext2D, c: ChefView, t: number, 
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // leader's crown sits on top of the hat
-  if (c.crown) drawCrown(ctx, 0, hatY - 27 + Math.sin(t * 4) * 1.5, Math.sin(t * 2) * 0.08);
+  drawOutfitTop(ctx, look, t, bodyY, R, fx, c.seed, front);
+
+  // leader's crown sits on top of the hat (or the helmet)
+  if (c.crown) drawCrown(ctx, 0, hatY - 27 - (look === 'space' ? 8 : 0) + Math.sin(t * 4) * 1.5, Math.sin(t * 2) * 0.08);
   ctx.restore();
 
   if (stuck) drawStuckBadge(ctx, c.x, c.y - bob - (c.crown ? 132 : 110), stuck, t);

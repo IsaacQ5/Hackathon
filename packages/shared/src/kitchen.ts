@@ -254,6 +254,8 @@ export function isChefFace(v: unknown): v is ChefFace {
 
 export interface StationSpot {
   id: StationId;
+  /** Which way a chef stands from the station: 'down' = below it (the classic top counter). */
+  face: 'up' | 'down' | 'left' | 'right';
   /** Where the station is drawn (on the counter). */
   x: number;
   y: number;
@@ -270,12 +272,12 @@ export const KITCHEN = {
   interactR: 85,
   chefR: 22,
   spots: [
-    { id: 'chop', x: 200, y: 78, fx: 200, fy: 162 },
-    { id: 'fry', x: 500, y: 78, fx: 500, fy: 162 },
-    { id: 'stir', x: 800, y: 78, fx: 800, fy: 162 },
-    { id: 'knead', x: 200, y: 522, fx: 200, fy: 438 },
-    { id: 'mix', x: 500, y: 522, fx: 500, fy: 438 },
-    { id: 'juice', x: 800, y: 522, fx: 800, fy: 438 },
+    { id: 'chop', x: 200, y: 78, fx: 200, fy: 162, face: 'down' },
+    { id: 'fry', x: 500, y: 78, fx: 500, fy: 162, face: 'down' },
+    { id: 'stir', x: 800, y: 78, fx: 800, fy: 162, face: 'down' },
+    { id: 'knead', x: 200, y: 522, fx: 200, fy: 438, face: 'up' },
+    { id: 'mix', x: 500, y: 522, fx: 500, fy: 438, face: 'up' },
+    { id: 'juice', x: 800, y: 522, fx: 800, fy: 438, face: 'up' },
   ] as readonly StationSpot[],
 } as const;
 
@@ -297,6 +299,17 @@ export const HAZARDS = {
   cheese: { r: 30, unlockAt: 0.6, weight: 2, speed: 480 },
   /** Themed maps only (see MAPS): everyone walking slides sideways at `speed` for `activeMs`. */
   gust: { unlockAt: 0.22, weight: 2, speed: 150, activeMs: 3_000 },
+  // ---- one special event per map (MapDef.special)
+  /** Kitchen: the fire sprinklers go off; everyone walks at `slow` speed. */
+  sprinkler: { unlockAt: 0.15, weight: 3, activeMs: 6_000, slow: 0.55 },
+  /** Pirate: a tentacle slams down across a vertical strip of deck (half-width `r`), knocking chefs flat. */
+  kraken: { r: 44, unlockAt: 0.25, weight: 3, landedMs: 1_400 },
+  /** Space: gravity fails; chefs drift (slow to speed up, slow to stop). */
+  lowgrav: { unlockAt: 0.18, weight: 3, activeMs: 7_000, speed: 0.8, grip: 1.6 },
+  /** Jungle: a quicksand pit opens; anyone inside wades at `slow` speed. */
+  quicksand: { r: 56, unlockAt: 0.12, weight: 3, lifeMs: 13_000, slow: 0.3 },
+  /** Arctic: the floor flash-freezes; chefs skate (fast but hard to steer). */
+  freeze: { unlockAt: 0.18, weight: 3, activeMs: 6_500, speed: 1.25, grip: 1.3 },
 } as const;
 
 export interface StuckDef {

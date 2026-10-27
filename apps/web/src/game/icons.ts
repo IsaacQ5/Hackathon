@@ -1859,6 +1859,94 @@ const DRAW: Record<string, Draw> = {
     shine(g, -16, -22, 10, 4, -0.5, 0.3);
   },
 
+  // ---- special map events
+  sprinkler: (g) => {
+    roundRect(g, -8, -44, 16, 20, 4);
+    o(g, '#c4ccd8', 3.5);
+    g.beginPath();
+    g.moveTo(-26, -20);
+    g.lineTo(26, -20);
+    g.lineTo(14, -10);
+    g.lineTo(-14, -10);
+    g.closePath();
+    o(g, '#e8303f', 3.5);
+    for (const [x, y] of [
+      [-28, 8],
+      [0, 14],
+      [28, 8],
+      [-14, 32],
+      [14, 32],
+    ] as const) {
+      g.save();
+      g.translate(x, y);
+      g.scale(0.3, 0.3);
+      DRAW.water!(g);
+      g.restore();
+    }
+  },
+  tentacle: (g) => {
+    g.beginPath();
+    g.moveTo(-30, 46);
+    g.bezierCurveTo(-40, 0, 10, -10, 0, -30);
+    g.bezierCurveTo(-6, -42, 14, -50, 22, -38);
+    g.bezierCurveTo(30, -26, 16, -8, 14, 8);
+    g.bezierCurveTo(10, 26, 6, 40, 10, 46);
+    g.closePath();
+    o(g, '#b34fa3');
+    g.fillStyle = '#f2b8e6';
+    for (const [x, y, r] of [
+      [-12, 30, 5],
+      [-12, 12, 4.5],
+      [-4, -4, 4],
+      [4, -18, 3.5],
+    ] as const) {
+      circle(g, x, y, r);
+      g.fill();
+      g.lineWidth = 1.5;
+      g.strokeStyle = INK;
+      g.stroke();
+    }
+  },
+  planet: (g) => {
+    circle(g, 0, 0, 30);
+    o(g, '#b26bff');
+    g.fillStyle = 'rgba(255,255,255,0.25)';
+    for (const [x, y, r] of [
+      [-10, -8, 7],
+      [10, 10, 5],
+    ] as const) {
+      circle(g, x, y, r);
+      g.fill();
+    }
+    g.beginPath();
+    g.ellipse(0, 0, 46, 12, -0.35, 0.1 * Math.PI, 0.9 * Math.PI, true);
+    g.lineWidth = 9;
+    g.strokeStyle = INK;
+    g.stroke();
+    g.lineWidth = 5;
+    g.strokeStyle = '#ffd23f';
+    g.stroke();
+    star(g, 32, -32, 8, '#ffffff', 2);
+  },
+  quicksand: (g) => {
+    ellipse(g, 0, 6, 44, 30);
+    o(g, '#d9b06a');
+    g.strokeStyle = 'rgba(120,80,30,0.6)';
+    g.lineWidth = 3;
+    g.beginPath();
+    for (let a = 0; a < Math.PI * 5; a += 0.2) g.lineTo(Math.cos(a) * a * 2.6, 6 + Math.sin(a) * a * 1.7);
+    g.stroke();
+    // a hand sinking in
+    g.beginPath();
+    g.moveTo(18, 0);
+    g.lineTo(18, -24);
+    g.lineWidth = 8;
+    g.strokeStyle = INK;
+    g.stroke();
+    circle(g, 18, -28, 7);
+    o(g, '#ffe0c7', 3);
+  },
+
   // ---- arctic lodge
   ice: (g) => {
     g.beginPath();

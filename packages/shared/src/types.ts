@@ -40,7 +40,19 @@ export interface ChefWork {
 // ------------------------------------------------------------------ kitchen chaos (environmental hazards)
 
 /** `gust` is the themed maps' own event (wave / airlock / monsoon / blizzard): it slides every walking chef sideways. */
-export type HazardKind = 'spill' | 'chicken' | 'fire' | 'meteor' | 'cheese' | 'gust';
+export type HazardKind =
+  | 'spill'
+  | 'chicken'
+  | 'fire'
+  | 'meteor'
+  | 'cheese'
+  | 'gust'
+  // each map's own special event (MapDef.special)
+  | 'sprinkler'
+  | 'kraken'
+  | 'lowgrav'
+  | 'quicksand'
+  | 'freeze';
 
 /** What a chef has to do with their phone before they can move again. */
 export type StuckKind = 'slip' | 'bonk' | 'feathers' | 'fire';
@@ -67,7 +79,7 @@ export interface HazardSnap {
   progress: number;
   /** Direction of travel (chicken, cheese, gust): -1 left, 1 right. */
   dir: number;
-  /** Landed meteor: ms left before the meatball disappears; blowing gust: ms left (0 otherwise). */
+  /** Landed meteor / slammed tentacle: ms left on the floor; gust, sprinkler, low gravity, freeze: ms left blowing; quicksand: ms left. */
   ttl: number;
 }
 

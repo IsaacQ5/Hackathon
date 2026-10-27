@@ -61,7 +61,7 @@ export function KitchenLobby({ room, joinUrl }: Props) {
           {slots.map((p, i) =>
             p ? (
               <li key={p.id} className="kslot kslot--on" style={colorVar(p.color)}>
-                <ChefPortrait color={p.color} face={p.face} size={78} dim={!p.connected} />
+                <ChefPortrait color={p.color} face={p.face} size={78} dim={!p.connected} outfit={room.map} />
                 <span className="kslot__name">{p.nickname}</span>
                 {p.id === captainId && <span className="kslot__boss">HEAD CHEF</span>}
                 {!p.connected && <span className="kslot__away">away</span>}

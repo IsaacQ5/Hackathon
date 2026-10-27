@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import {
   INGREDIENTS,
-  KITCHEN,
   MAPS,
+  layoutOf,
   STATIONS,
   recipeById,
   stationById,
@@ -70,6 +70,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
     resize();
 
     const theme = MAPS[map];
+    const layout = layoutOf(map);
 
     const fx = new Fx();
     const seeds = new Map<string, { seed: number; bounce: number }>();
@@ -111,7 +112,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
         const words = e.kind === 'fire' ? `${skin.banner} ${where}!` : skin.banner;
         banner = { text: words, icon: skin.icon, color: e.kind === 'spill' ? '#7fd0ff' : '#ff8a3d', at: now };
         // Big ones get an alarm so everyone looks up.
-        if (e.kind === 'meteor' || e.kind === 'cheese' || e.kind === 'fire' || e.kind === 'gust') {
+        if (e.kind !== 'spill' && e.kind !== 'chicken') {
           sfx.warn();
           window.setTimeout(() => sfx.warn(), 500);
         } else sfx.pop();
@@ -127,6 +128,15 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
           gustAt = now;
           fx.shake(10, now);
           sfx.wham();
+        } else if (e.kind === 'kraken') {
+          fx.shake(18, now);
+          fx.word('SLAM!', e.x, 300, '#b34fa3', 56);
+          sfx.wham();
+        } else if (e.kind === 'sprinkler' || e.kind === 'lowgrav' || e.kind === 'freeze') {
+          const word = e.kind === 'sprinkler' ? 'SPLOOSH!' : e.kind === 'lowgrav' ? 'WHOOOA!' : 'FREEZE!';
+          fx.shake(6, now);
+          fx.word(word, 500, 300, e.kind === 'freeze' ? '#bfe6ff' : e.kind === 'sprinkler' ? '#7fd0ff' : '#b26bff', 54);
+          sfx.boing();
         } else {
           fx.word(theme.impact.cheese, e.x < 500 ? 140 : 860, e.y - 40, '#ffcf3d', 36);
           sfx.boing();
@@ -163,7 +173,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
       }
       if (e.type === 'rep') {
         const st = stationById(e.station);
-        const spot = KITCHEN.spots.find((s) => s.id === e.station)!;
+        const spot = layout.spots.find((s) => s.id === e.station)!;
         if (e.good) {
           fx.sparks(spot.x, spot.y, st.color, 7);
           if (e.station === 'knead' || e.station === 'mix') fx.dust(spot.x, spot.y, 3);
@@ -183,7 +193,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
         fx.stars(p.x, p.y - 60, 6);
         sfx.powerup();
       } else if (e.type === 'served') {
-        const pass = KITCHEN.pass;
+        const pass = layout.pass;
         lastServeAt = now;
         fx.word(`+${e.points}!`, pass.x, pass.y - 70, e.points > 150 ? '#ff3d5a' : '#2bb02b', 60);
         if (e.fast) fx.word('SPEEDY!', pass.x, pass.y - 20, '#ff8a3d', 32);
@@ -281,7 +291,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
           workers: workers.length,
         };
         const waiting = chefs.find((c) => !c.working && c.near === st.id && needs(c, st.id));
-        drawStation(ctx, st.id, act, t, waiting ? waiting.color : null);
+        drawStation(ctx, st.id, act, t, waiting ? waiting.color : null, layout);
       }
       drawFires(ctx, hazards, t, map);
       drawPass(
@@ -290,18 +300,22 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
         chefs.some((c) => complete(c)),
         Math.max(0, 1 - (now - lastServeAt) / 1500),
         lastDish ? { icon: lastDish.icon, age: now - lastDish.at } : null,
+        map,
       );
       fx.drawBack(ctx);
       const best = Math.max(0, ...chefs.map((c) => c.score));
       const over = frame.snap.phase === 'results';
       const tied = best > 0 && chefs.filter((c) => c.score === best).length > 1;
+      // zero gravity: everyone on their feet floats up and bobs
+      const floating = hazards.some((h) => h.kind === 'lowgrav' && h.warnMs <= 0);
       for (const c of [...chefs].sort((a, b) => a.y - b.y)) {
         const j = juice(c.id);
         const top = best > 0 && c.score === best;
         // When time's up the winner dances and everyone else droops.
         // (a tie: the tied chefs just shrug, and nobody gets the crown)
         const mood = over ? (top ? (tied ? 'shrug' : 'dance') : 'sad') : undefined;
-        const v: ChefView = { ...c, seed: j.seed, bounce: j.bounce, crown: top && !(over && tied), mood };
+        const lift = floating && !c.working && !c.stuck ? 10 + Math.sin(t * 2 + j.seed) * 5 : 0;
+        const v: ChefView = { ...c, y: c.y - lift, seed: j.seed, bounce: j.bounce, crown: top && !(over && tied), mood, outfit: map };
         drawChef(ctx, v, t, true);
       }
       drawHazardsFront(ctx, hazards, t, map);

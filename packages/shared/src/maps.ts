@@ -1,15 +1,17 @@
 /**
  * Maps and chaos levels (both picked between shifts by the head chef or the host screen).
  *
- * Every map has the same layout and the same six stations; only the look and the story change.
- * Hazards keep their rules on every map but get a themed skin (on the pirate ship the meteor is
- * a cannonball, the loose chicken is a pirate...). The themed maps also have one extra event,
- * `gust`, that slides every walking chef sideways for a few seconds.
+ * Every map has the same six stations. Most use the classic layout (KITCHEN); a map can bring
+ * its own (Pirate Cove puts the stations down the sides). Hazards keep their rules on every map
+ * but get a themed skin (on the pirate ship the meteor is a cannonball, the loose chicken is a
+ * pirate...). The themed maps also have `gust`, that slides every walking chef sideways, and
+ * every map has one `special` event of its own (sprinklers, the kraken, zero gravity...).
  */
 
+import { KITCHEN, type StationSpot } from './kitchen.js';
 import type { HazardKind, StuckKind } from './types.js';
 
-export const MAP_IDS = ['kitchen', 'pirate', 'space', 'jungle', 'arctic'] as const;
+export const MAP_IDS = ['kitchen', 'pirate', 'space', 'jungle', 'arctic', 'pirate2'] as const;
 export type MapId = (typeof MAP_IDS)[number];
 
 export function isMapId(v: unknown): v is MapId {
@@ -32,6 +34,42 @@ export interface StuckText {
   word: string;
 }
 
+/** Where everything is. World is 1000 x 600; chefs walk inside `floor`. */
+export interface Layout {
+  floor: { x0: number; x1: number; y0: number; y1: number };
+  /** The serve table (solid) and the zone around it where SERVE works. */
+  pass: { x: number; y: number; r: number; serveR: number };
+  /** The diner sitting at the far side of the serve table (solid). */
+  customer: { x: number; y: number; r: number };
+  spots: readonly StationSpot[];
+  /** Rows the rolling hazard (cheese wheel, barrel...) can come down. */
+  lanes: readonly number[];
+}
+
+export const CLASSIC_LAYOUT: Layout = {
+  floor: KITCHEN.floor,
+  pass: KITCHEN.pass,
+  customer: KITCHEN.customer,
+  spots: KITCHEN.spots,
+  lanes: [KITCHEN.floor.y0 + 32, KITCHEN.floor.y1 - 32],
+};
+
+/** Pirate Cove: the counters run down the left and right of the deck, the table sits in the middle. */
+export const COVE_LAYOUT: Layout = {
+  floor: { x0: 200, x1: 800, y0: 40, y1: 560 },
+  pass: { x: 500, y: 330, r: 58, serveR: 125 },
+  customer: { x: 500, y: 252, r: 30 },
+  spots: [
+    { id: 'chop', x: 110, y: 150, fx: 232, fy: 150, face: 'right' },
+    { id: 'fry', x: 110, y: 300, fx: 232, fy: 300, face: 'right' },
+    { id: 'stir', x: 110, y: 450, fx: 232, fy: 450, face: 'right' },
+    { id: 'knead', x: 890, y: 150, fx: 768, fy: 150, face: 'left' },
+    { id: 'mix', x: 890, y: 300, fx: 768, fy: 300, face: 'left' },
+    { id: 'juice', x: 890, y: 450, fx: 768, fy: 450, face: 'left' },
+  ],
+  lanes: [82, 518],
+};
+
 export interface MapDef {
   id: MapId;
   name: string;
@@ -41,11 +79,23 @@ export interface MapDef {
   backdrop: string;
   /** Themed maps have the sideways `gust` event; the classic kitchen doesn't. */
   gust: boolean;
+  /** This map's very own event. */
+  special: HazardKind;
+  layout: Layout;
   hazards: Record<HazardKind, HazardSkin>;
   stuck: Record<StuckKind, StuckText>;
   /** Comic words for a meteor landing / the rolling thing starting. */
   impact: { meteor: string; cheese: string };
 }
+
+/** Skins for the special events (each map only ever spawns its own). */
+const SPECIAL_SKINS: Pick<Record<HazardKind, HazardSkin>, 'sprinkler' | 'kraken' | 'lowgrav' | 'quicksand' | 'freeze'> = {
+  sprinkler: { banner: 'THE SPRINKLERS WENT OFF! EVERYTHING IS SOAKED!', warn: 'SPRINKLERS!', icon: 'sprinkler' },
+  kraken: { banner: 'THE KRAKEN IS ATTACKING! DODGE THE TENTACLE!', warn: 'KRAKEN!', icon: 'tentacle' },
+  lowgrav: { banner: 'GRAVITY FAILURE! EVERYONE IS FLOATING!', warn: 'ZERO-G!', icon: 'planet' },
+  quicksand: { banner: 'QUICKSAND! DON’T WADE IN!', warn: 'QUICKSAND', icon: 'quicksand' },
+  freeze: { banner: 'FLASH FREEZE! THE FLOOR IS AN ICE RINK!', warn: 'ICE RINK!', icon: 'snowflake' },
+};
 
 const FIRE_STUCK: StuckText = {
   title: 'This station is on fire!',
@@ -53,15 +103,18 @@ const FIRE_STUCK: StuckText = {
   word: 'SPRAY IT!',
 };
 
-export const MAPS: Record<MapId, MapDef> = {
+const BASE_MAPS: Record<Exclude<MapId, 'pirate2'>, MapDef> = {
   kitchen: {
     id: 'kitchen',
+    special: 'sprinkler',
+    layout: CLASSIC_LAYOUT,
     name: 'Classic Kitchen',
     blurb: 'The original diner kitchen. Spills, chickens and meatball meteors.',
     icon: 'chefhat',
     backdrop: '#ff9f45',
     gust: false,
     hazards: {
+      ...SPECIAL_SKINS,
       spill: { banner: 'SPILL ON THE FLOOR! DON’T SLIP!', warn: 'WET FLOOR', icon: 'splash' },
       chicken: { banner: 'A CHICKEN GOT LOOSE!', warn: 'BAWK!', icon: 'hen' },
       fire: { banner: 'FIRE AT THE', warn: 'FIRE!', icon: 'fire' },
@@ -83,12 +136,15 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   pirate: {
     id: 'pirate',
+    special: 'kraken',
+    layout: CLASSIC_LAYOUT,
     name: 'Pirate Galley',
     blurb: 'Cook on deck! Cannonballs, a rogue pirate, rolling barrels and big waves.',
     icon: 'anchor',
     backdrop: '#1f6fa8',
     gust: true,
     hazards: {
+      ...SPECIAL_SKINS,
       spill: { banner: 'SEAWATER ON DECK! DON’T SLIP!', warn: 'SLIPPERY', icon: 'wave' },
       chicken: { banner: 'A PIRATE IS LOOSE IN THE GALLEY!', warn: 'ARRR!', icon: 'pirate' },
       fire: { banner: 'GALLEY FIRE AT THE', warn: 'FIRE!', icon: 'fire' },
@@ -102,7 +158,7 @@ export const MAPS: Record<MapId, MapDef> = {
         howTo: 'MOP THE DECK: hold your phone flat and scrub in big circles to mop up the water.',
         word: 'WHOOPS!',
       },
-      bonk: { title: 'KABOOM! A cannonball knocked you flat!', howTo: 'GET UP: lift your phone up and down, like pushing yourself off the deck.', word: 'KABOOM!' },
+      bonk: { title: 'KABOOM! You got knocked flat!', howTo: 'GET UP: lift your phone up and down, like pushing yourself off the deck.', word: 'KABOOM!' },
       feathers: { title: 'The pirate grabbed you!', howTo: 'SHAKE HIM OFF: push your phone forward and pull it back, fast.', word: 'ARRR!' },
       fire: FIRE_STUCK,
     },
@@ -110,12 +166,15 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   space: {
     id: 'space',
+    special: 'lowgrav',
+    layout: CLASSIC_LAYOUT,
     name: 'Space Station',
     blurb: 'Zero-g cooking. Asteroids, a sneaky alien, robot vacuums and airlock breaches.',
     icon: 'rocket',
     backdrop: '#141a3a',
     gust: true,
     hazards: {
+      ...SPECIAL_SKINS,
       spill: { banner: 'ALIEN GOO ON THE FLOOR! DON’T SLIP!', warn: 'GOO', icon: 'goo' },
       chicken: { banner: 'AN ALIEN GOT ON BOARD!', warn: 'BLEEP!', icon: 'alien' },
       fire: { banner: 'ELECTRICAL FIRE AT THE', warn: 'FIRE!', icon: 'fire' },
@@ -137,12 +196,15 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   jungle: {
     id: 'jungle',
+    special: 'quicksand',
+    layout: CLASSIC_LAYOUT,
     name: 'Jungle Temple',
     blurb: 'A kitchen in the ruins. Falling coconuts, a cheeky monkey, rolling boulders and monsoons.',
     icon: 'palm',
     backdrop: '#2f7d3a',
     gust: true,
     hazards: {
+      ...SPECIAL_SKINS,
       spill: { banner: 'MUD PUDDLE! DON’T SLIP!', warn: 'MUD', icon: 'mud' },
       chicken: { banner: 'A MONKEY IS STEALING FOOD!', warn: 'OOK!', icon: 'monkey' },
       fire: { banner: 'TORCH FIRE AT THE', warn: 'FIRE!', icon: 'fire' },
@@ -164,12 +226,15 @@ export const MAPS: Record<MapId, MapDef> = {
   },
   arctic: {
     id: 'arctic',
+    special: 'freeze',
+    layout: CLASSIC_LAYOUT,
     name: 'Arctic Lodge',
     blurb: 'Ice floors and snow. Giant snowballs, a waddling penguin, rolling snowmen and blizzards.',
     icon: 'snowflake',
     backdrop: '#7fb6d9',
     gust: true,
     hazards: {
+      ...SPECIAL_SKINS,
       spill: { banner: 'ICE PATCH! DON’T SLIP!', warn: 'ICY', icon: 'ice' },
       chicken: { banner: 'A PENGUIN WADDLED IN!', warn: 'SQUAWK!', icon: 'penguin' },
       fire: { banner: 'STOVE FIRE AT THE', warn: 'FIRE!', icon: 'fire' },
@@ -190,6 +255,23 @@ export const MAPS: Record<MapId, MapDef> = {
     impact: { meteor: 'FWUMP!', cheese: 'ROLLING!' },
   },
 };
+
+export const MAPS: Record<MapId, MapDef> = {
+  ...BASE_MAPS,
+  // A copy of the pirate ship with a different layout, to try it out without touching the original.
+  pirate2: {
+    ...BASE_MAPS.pirate,
+    id: 'pirate2',
+    name: 'Pirate Cove',
+    blurb: 'The pirate ship, rearranged: counters down both sides, the captain’s table mid-deck. Watch for the kraken!',
+    layout: COVE_LAYOUT,
+  },
+};
+
+/** The layout for a map (the classic one if it's unknown). */
+export function layoutOf(id: unknown): Layout {
+  return mapOf(id).layout;
+}
 
 export function mapOf(id: unknown): MapDef {
   return isMapId(id) ? MAPS[id] : MAPS.kitchen;

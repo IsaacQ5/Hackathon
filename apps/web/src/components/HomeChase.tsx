@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { MAP_IDS, type MapId } from '@tilt-mayhem/shared';
 import { drawChef, icon, type ChefView } from '../game/kitchenArt';
 import { drawCheeseWheel, drawChickenAt } from '../game/hazardArt';
 
@@ -21,7 +22,12 @@ interface Run {
   offset: number;
   color: string;
   color2: string;
+  /** Both chefs in a run are dressed for the same map. */
+  outfit: MapId;
 }
+
+/** Food drifting slowly up the background. */
+const FLOATERS = ['tomato', 'egg', 'carrot', 'cheese', 'bun', 'lemon', 'mushroom', 'cookie', 'apple', 'bacon', 'orange', 'pancake'];
 
 const SCALE = 1;
 const SPEED = 260; // px/s
@@ -96,6 +102,7 @@ export function HomeChase() {
           offset: dx >= 0 ? offset : -offset,
           color: pick(COLORS),
           color2: pick(COLORS),
+          outfit: pick(MAP_IDS),
         };
         if ([...active, ...recent].some((o) => clashes(run, o))) continue;
         active.push(run);
@@ -106,7 +113,7 @@ export function HomeChase() {
       }
     };
 
-    const chef = (color: string, dx: number, dy: number, mood: ChefView['mood'], stuck: ChefView['stuck']): ChefView => ({
+    const chef = (color: string, dx: number, dy: number, mood: ChefView['mood'], stuck: ChefView['stuck'], outfit: MapId): ChefView => ({
       id: 'runner',
       nickname: '',
       color,
@@ -127,6 +134,7 @@ export function HomeChase() {
       seed: 1,
       bounce: 0,
       mood,
+      outfit,
     });
 
     /** Draw something at (x, y) in the chase's smaller scale. */
@@ -146,10 +154,10 @@ export function HomeChase() {
       // the chaser first, so the runner is drawn in front of it
       if (r.kind === 'cheese') at(fx, fy, () => drawCheeseWheel(ctx, 0, 0, 30, r.s / 30));
       else if (r.kind === 'chicken') at(fx, fy + 6, () => drawChickenAt(ctx, 0, 0, r.dx >= 0 ? 1 : -1, t, 3));
-      else at(fx, fy, () => drawChef(ctx, chef(r.color2, r.dx, r.dy, undefined, { kind: 'fire', progress: 0 }), t, false));
+      else at(fx, fy, () => drawChef(ctx, chef(r.color2, r.dx, r.dy, undefined, { kind: 'fire', progress: 0 }, r.outfit), t, false));
       // the panicking runner
       at(lx, ly, () => {
-        drawChef(ctx, chef(r.color, r.dx, r.dy, 'panic', null), t, false);
+        drawChef(ctx, chef(r.color, r.dx, r.dy, 'panic', null, r.outfit), t, false);
         if (r.kind === 'fire') {
           // their hat is on fire
           const flick = 1 + Math.sin(t * 18) * 0.08;
@@ -173,6 +181,16 @@ export function HomeChase() {
       last = now;
       const t = now / 1000;
       ctx.clearRect(0, 0, w, h);
+      FLOATERS.forEach((name, i) => {
+        const span = h + 120;
+        const y = h + 60 - ((t * (14 + (i % 4) * 5) + i * 173) % span);
+        const x = ((i * 0.618 * w) % w) + Math.sin(t * 0.4 + i) * 30;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.sin(t * 0.5 + i) * 0.6);
+        icon(ctx, name, 0, 0, 34 + (i % 3) * 10);
+        ctx.restore();
+      });
       // staggered: a new run every few seconds, never more than two at a time
       if (now >= nextSpawnAt && active.length < MAX_ON_SCREEN) {
         spawn();

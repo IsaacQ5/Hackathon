@@ -1,4 +1,4 @@
-import { HAZARDS, KITCHEN, MAPS, type ChefStuck, type HazardSnap, type MapId } from '@tilt-mayhem/shared';
+import { HAZARDS, MAPS, layoutOf, type ChefStuck, type HazardSnap, type MapId } from '@tilt-mayhem/shared';
 import { comicText, outlined, roundRect } from './draw';
 import { icon, iconSprite } from './icons';
 
@@ -18,6 +18,7 @@ const flashOn = (t: number, hz = 6) => Math.floor(t * hz) % 2 === 0;
 const PUDDLE: Record<MapId, [string, string]> = {
   kitchen: ['rgba(110,190,255,0.8)', '#2f86d6'],
   pirate: ['rgba(90,170,230,0.8)', '#1f6fa8'],
+  pirate2: ['rgba(90,170,230,0.8)', '#1f6fa8'],
   space: ['rgba(124,255,107,0.75)', '#2bb02b'],
   jungle: ['rgba(138,90,50,0.85)', '#5a3a1e'],
   arctic: ['rgba(220,245,255,0.9)', '#6fb4dc'],
@@ -27,6 +28,7 @@ const PUDDLE: Record<MapId, [string, string]> = {
 const SPLAT: Record<MapId, string> = {
   kitchen: 'rgba(232,67,47,0.75)',
   pirate: 'rgba(60,40,30,0.55)',
+  pirate2: 'rgba(60,40,30,0.55)',
   space: 'rgba(90,80,110,0.6)',
   jungle: 'rgba(240,240,220,0.7)',
   arctic: 'rgba(255,255,255,0.9)',
@@ -40,7 +42,126 @@ export function drawHazardsBack(ctx: CanvasRenderingContext2D, hazards: HazardSn
     else if (h.kind === 'meteor') drawMeteorGround(ctx, h, t, map);
     else if (h.kind === 'cheese' && h.warnMs > 0) drawLane(ctx, h, t, map);
     else if (h.kind === 'gust') drawGust(ctx, h, t, map);
+    else if (h.kind === 'quicksand') drawQuicksand(ctx, h, t);
+    else if (h.kind === 'sprinkler' || h.kind === 'freeze' || h.kind === 'lowgrav') drawFloorWash(ctx, h, t, map);
+    else if (h.kind === 'kraken') drawKrakenGround(ctx, h, t, map);
   }
+}
+
+/** The whole floor changes: soaked (sprinklers), frozen over (freeze), or eerie purple (zero gravity). */
+function drawFloorWash(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
+  const f = layoutOf(map).floor;
+  const skin = MAPS[map].hazards[h.kind];
+  if (h.warnMs > 0) {
+    // creeping in from the edges while the warning counts down
+    const k = 1 - h.warnMs / HAZARDS.warnMs;
+    ctx.save();
+    ctx.globalAlpha = 0.35 * k;
+    ctx.fillStyle = h.kind === 'freeze' ? '#e6f8ff' : h.kind === 'sprinkler' ? '#7fd0ff' : '#b26bff';
+    ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
+    ctx.restore();
+    warnText(ctx, skin.warn, (f.x0 + f.x1) / 2, f.y0 + 26, 30, t);
+    return;
+  }
+  const fade = Math.min(1, h.ttl / 600);
+  ctx.save();
+  ctx.globalAlpha = fade;
+  if (h.kind === 'freeze') {
+    ctx.fillStyle = 'rgba(225,246,255,0.55)';
+    ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
+    // frost cracks + glints
+    ctx.strokeStyle = 'rgba(120,190,230,0.7)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      const x = f.x0 + 40 + ((i * 263) % (f.x1 - f.x0 - 80));
+      const y = f.y0 + 30 + ((i * 151) % (f.y1 - f.y0 - 60));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 18, y + 10);
+      ctx.lineTo(x + 30, y + 4);
+      ctx.moveTo(x + 18, y + 10);
+      ctx.lineTo(x + 14, y + 26);
+      ctx.stroke();
+      const glint = Math.max(0, Math.sin(t * 3 + i * 1.7));
+      ctx.fillStyle = `rgba(255,255,255,${glint})`;
+      ctx.fillRect(x + 28, y - 6, 3, 3);
+    }
+  } else if (h.kind === 'sprinkler') {
+    ctx.fillStyle = 'rgba(110,190,255,0.22)';
+    ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
+    // rain rings popping on the floor
+    for (let i = 0; i < 18; i++) {
+      const p = (t * 1.2 + i * 0.37) % 1;
+      const x = f.x0 + 30 + ((i * 211) % (f.x1 - f.x0 - 60));
+      const y = f.y0 + 20 + ((i * 97) % (f.y1 - f.y0 - 40));
+      ctx.beginPath();
+      ctx.ellipse(x, y, 4 + p * 14, (4 + p * 14) * 0.45, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(255,255,255,${0.8 * (1 - p)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = 'rgba(150,90,255,0.16)';
+    ctx.fillRect(f.x0, f.y0, f.x1 - f.x0, f.y1 - f.y0);
+  }
+  ctx.restore();
+}
+
+function drawQuicksand(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number) {
+  const grow = Math.min(1, (HAZARDS.quicksand.lifeMs - h.ttl) / 500);
+  const fade = Math.min(1, h.ttl / 600);
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.translate(h.x, h.y);
+  ctx.scale(grow, grow * 0.62);
+  ctx.beginPath();
+  ctx.arc(0, 0, h.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#d9b06a';
+  ctx.fill();
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#8a5a32';
+  ctx.stroke();
+  // the sand swirls down into the middle
+  ctx.strokeStyle = 'rgba(120,80,30,0.55)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let a = 0; a < Math.PI * 6; a += 0.2) {
+    const r = (a / (Math.PI * 6)) * h.r * 0.9;
+    ctx.lineTo(Math.cos(a + t * 2) * r, Math.sin(a + t * 2) * r);
+  }
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fillStyle = '#8a5a32';
+  ctx.fill();
+  ctx.restore();
+  icon(ctx, 'warning', h.x + h.r * 0.85, h.y - h.r * 0.5, 18);
+}
+
+/** Where the tentacle will slam (a strip across the deck), then the wet splash it leaves. */
+function drawKrakenGround(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
+  const f = layoutOf(map).floor;
+  ctx.save();
+  if (h.warnMs > 0) {
+    const on = flashOn(t, 4 + (1 - h.warnMs / HAZARDS.warnMs) * 8);
+    roundRect(ctx, h.x - h.r, f.y0 - 6, h.r * 2, f.y1 - f.y0 + 12, 16);
+    ctx.fillStyle = on ? 'rgba(255,40,60,0.35)' : 'rgba(120,40,140,0.3)';
+    ctx.fill();
+    ctx.setLineDash([12, 10]);
+    ctx.lineDashOffset = -t * 40;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ff3d5a';
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    warnText(ctx, MAPS[map].hazards.kraken.warn, h.x, (f.y0 + f.y1) / 2, 28, t);
+    return;
+  }
+  ctx.globalAlpha = Math.min(1, h.ttl / 500) * 0.6;
+  roundRect(ctx, h.x - h.r * 1.4, f.y0, h.r * 2.8, f.y1 - f.y0, 30);
+  ctx.fillStyle = 'rgba(90,170,230,0.6)';
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawSpill(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
@@ -130,7 +251,7 @@ function drawMeteorGround(ctx: CanvasRenderingContext2D, h: HazardSnap, t: numbe
 }
 
 function drawLane(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
-  const f = KITCHEN.floor;
+  const f = layoutOf(map).floor;
   const on = flashOn(t, 5);
   ctx.save();
   ctx.fillStyle = on ? 'rgba(255,40,60,0.35)' : 'rgba(255,210,63,0.3)';
@@ -164,7 +285,7 @@ function chevrons(ctx: CanvasRenderingContext2D, x0: number, x1: number, y: numb
 
 /** Gust: warning arrows across the floor, then streaks blowing past while it's active. */
 function drawGust(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
-  const f = KITCHEN.floor;
+  const f = layoutOf(map).floor;
   ctx.save();
   if (h.warnMs > 0) {
     const on = flashOn(t, 4);
@@ -177,6 +298,7 @@ function drawGust(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: 
   const color: Record<MapId, string> = {
     kitchen: 'rgba(255,255,255,0.6)',
     pirate: 'rgba(140,210,255,0.55)',
+    pirate2: 'rgba(140,210,255,0.55)',
     space: 'rgba(170,220,255,0.55)',
     jungle: 'rgba(200,230,255,0.6)',
     arctic: 'rgba(255,255,255,0.85)',
@@ -300,8 +422,112 @@ export function drawHazardsFront(ctx: CanvasRenderingContext2D, hazards: HazardS
       else drawRoller(ctx, skin.cheese.icon, h.x, h.y, h.r, h.dir, map !== 'space');
     } else if (h.kind === 'chicken') {
       drawRunnerAt(ctx, skin.chicken.icon, h.x, h.y, h.dir, t, h.id);
+    } else if (h.kind === 'kraken') {
+      drawTentacle(ctx, h, t, map);
+    } else if (h.kind === 'sprinkler' && h.warnMs <= 0) {
+      drawRain(ctx, h, t, map);
+    } else if (h.kind === 'lowgrav' && h.warnMs <= 0) {
+      drawFloaters(ctx, h, t, map);
     }
   }
+}
+
+/** Sprinkler water falling over everything. */
+function drawRain(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
+  const f = layoutOf(map).floor;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, h.ttl / 600);
+  ctx.strokeStyle = 'rgba(160,215,255,0.8)';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  const hgt = f.y1 - f.y0 + 120;
+  for (let i = 0; i < 60; i++) {
+    const x = f.x0 + ((i * 157) % (f.x1 - f.x0));
+    const y = f.y0 - 60 + ((t * 520 + i * 89) % hgt);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 3, y + 14);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Zero gravity: crumbs, bubbles and the odd spoon drifting upward. */
+function drawFloaters(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
+  const f = layoutOf(map).floor;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, h.ttl / 600);
+  const names = ['star', 'water', 'tomato', 'cheese', 'egg'];
+  for (let i = 0; i < 12; i++) {
+    const span = f.y1 - f.y0 + 80;
+    const y = f.y1 + 40 - ((t * (30 + (i % 4) * 10) + i * 71) % span);
+    const x = f.x0 + 40 + ((i * 197) % (f.x1 - f.x0 - 80)) + Math.sin(t + i) * 16;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(t * (0.5 + (i % 3) * 0.3) + i);
+    icon(ctx, names[i % names.length]!, 0, 0, 14 + (i % 3) * 4);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/** The kraken's tentacle: rises at the end of the warning, slams across the deck, then sinks away. */
+function drawTentacle(ctx: CanvasRenderingContext2D, h: HazardSnap, t: number, map: MapId) {
+  const f = layoutOf(map).floor;
+  let reach: number;
+  let alpha = 1;
+  if (h.warnMs > 0) {
+    if (h.warnMs > 600) return;
+    reach = 0.15 * (1 - h.warnMs / 600);
+  } else {
+    reach = 1;
+    alpha = Math.min(1, h.ttl / 400);
+  }
+  const fromTop = h.dir > 0;
+  const y0 = fromTop ? f.y0 - 40 : f.y1 + 40;
+  const len = (f.y1 - f.y0 + 80) * reach;
+  const w = h.r * 1.1;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(h.x, y0);
+  if (!fromTop) ctx.scale(1, -1);
+  // body: thick wavy limb tapering to a curled tip
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 20; i++) {
+    const k = i / 20;
+    pts.push([Math.sin(k * 5 + t * 3) * 10 * k, k * len]);
+  }
+  ctx.beginPath();
+  pts.forEach(([x, y], i) => {
+    const ww = w * (1 - (i / 20) * 0.7);
+    if (i === 0) ctx.moveTo(x - ww, y);
+    else ctx.lineTo(x - ww, y);
+  });
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const [x, y] = pts[i]!;
+    ctx.lineTo(x + w * (1 - (i / 20) * 0.7), y);
+  }
+  ctx.closePath();
+  outlined(ctx, '#b34fa3', 4);
+  // suction cups down one side
+  for (let i = 2; i < 19; i += 2) {
+    const [x, y] = pts[i]!;
+    const ww = w * (1 - (i / 20) * 0.7);
+    ctx.beginPath();
+    ctx.ellipse(x - ww * 0.35, y, ww * 0.32, ww * 0.26, 0, 0, Math.PI * 2);
+    outlined(ctx, '#f2b8e6', 2);
+  }
+  // highlight along the other side
+  ctx.beginPath();
+  pts.forEach(([x, y], i) => {
+    const ww = w * (1 - (i / 20) * 0.7);
+    if (i === 0) ctx.moveTo(x + ww * 0.55, y);
+    else ctx.lineTo(x + ww * 0.55, y);
+  });
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function drawCheeseWheel(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, spin: number) {

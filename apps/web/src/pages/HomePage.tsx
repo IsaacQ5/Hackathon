@@ -72,8 +72,15 @@ export function HomePage() {
           SIZZLE <span>SCRAMBLE</span>
         </h1>
         <div className="home__crew" aria-hidden>
-          {['#ff3d7f', '#2de2e6', '#ffd23f', '#7cff6b', '#b26bff'].map((c, i) => (
-            <ChefPortrait key={c} color={c} size={78} station={(['chop', 'fry', 'stir', 'juice', 'mix'] as const)[i]} />
+          {/* the crew, dressed for each kitchen */}
+          {(['kitchen', 'pirate', 'space', 'jungle', 'arctic'] as const).map((m, i) => (
+            <ChefPortrait
+              key={m}
+              color={['#ff3d7f', '#2de2e6', '#ffd23f', '#7cff6b', '#b26bff'][i]!}
+              size={86}
+              station={(['chop', 'fry', 'stir', 'juice', 'mix'] as const)[i]}
+              outfit={m}
+            />
           ))}
         </div>
         <p className="tagline">Chop, flip, stir, knead, mix and pour with your phone. Most dishes before the timer runs out wins!</p>

@@ -360,7 +360,7 @@ export function ControllerPage({ code }: { code: string }) {
   const header = (
     <header className="kctrl__bar">
       <span className="kctrl__me">
-        <ChefPortrait color={color} face={face} size={40} />
+        <ChefPortrait color={color} face={face} size={40} outfit={room?.map} />
         <b>{session.nickname}</b>
       </span>
       {phase === 'playing' && (
@@ -502,7 +502,7 @@ export function ControllerPage({ code }: { code: string }) {
           </section>
         )}
         <section className="kbanner">
-          <ChefPortrait color={color} face={face} size={110} />
+          <ChefPortrait color={color} face={face} size={110} outfit={room?.map} />
           <h2>{phase === 'lobby' ? 'You’re on the line!' : 'Another shift?'}</h2>
           <p>
             {isCaptain
@@ -510,7 +510,7 @@ export function ControllerPage({ code }: { code: string }) {
               : `Waiting for ${captainName ?? 'the head chef'} to start…`}
           </p>
         </section>
-        <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} />
+        <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} outfit={room?.map} />
         {motionSetup}
         <section className="kcard khowto-card">
           <h3>How to cook</h3>
@@ -538,7 +538,7 @@ export function ControllerPage({ code }: { code: string }) {
         {header}
         {status && <RecipeBar recipeId={status.recipeId} have={status.have} workingIngredient={null} />}
         <section className="kready">
-          <ChefPortrait color={color} face={face} size={140} station="stir" />
+          <ChefPortrait color={color} face={face} size={140} station="stir" outfit={room?.map} />
           <h2>GET READY!</h2>
           <p>{mode === 'tilt' ? 'Hold your phone flat and still: calibrating…' : 'Thumbs on the controls!'}</p>
         </section>

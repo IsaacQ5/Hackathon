@@ -3,6 +3,8 @@ import { describe, it } from 'node:test';
 import {
   HAZARDS,
   KITCHEN,
+  MAPS,
+  MAP_IDS,
   RECIPES,
   STUCK,
   SCORING,
@@ -499,6 +501,98 @@ describe('Kitchen engine: chaos levels and maps', () => {
   });
 });
 
+describe('Kitchen engine: special map events + layouts', () => {
+  /** Walk chef 'a' right at full stick for `ms` and say how far they got. */
+  const walk = (e: GameEngine, run: (ms: number) => void, ms: number) => {
+    const x0 = e.peek('a')!.x;
+    let seq = 1000;
+    for (let t = 0; t < ms; t += 100) {
+      e.applyInput('a', { seq: seq++, x: 1, y: 0 });
+      run(100);
+    }
+    return e.peek('a')!.x - x0;
+  };
+
+  it('each map spawns its own special event (and only its own)', () => {
+    for (const map of MAP_IDS) {
+      let seed = 11;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 1 }, rnd);
+      e.addPlayer('a', 'A', '#ff3d7f');
+      e.addPlayer('b', 'B', '#2de2e6');
+      e.setMap(map);
+      e.setChaos('heavy');
+      let now = 1000;
+      e.startCountdown(now);
+      const kinds = new Set<string>();
+      while (now < 1000 + 100 + 180_000) {
+        now += 100;
+        e.update(now);
+        for (const ev of e.snapshot(now).events) if (ev.type === 'hazard') kinds.add(ev.kind);
+      }
+      const mine = MAPS[map].special;
+      assert.ok(kinds.has(mine), `${map} should get ${mine}`);
+      for (const other of new Set(MAP_IDS.map((m) => MAPS[m].special))) if (other !== mine) assert.ok(!kinds.has(other), `${map} got ${other}`);
+    }
+  });
+
+  it('sprinklers slow everyone down; freeze speeds you up but makes you skid', () => {
+    const a = kitchen(['a', 'b']);
+    a.e.setPlayerPosition('a', 150, 300);
+    const normal = walk(a.e, a.run, 1000);
+    const b = kitchen(['a', 'b']);
+    b.e.setPlayerPosition('a', 150, 300);
+    b.e.spawnHazard('sprinkler');
+    b.run(HAZARDS.warnMs);
+    const soaked = walk(b.e, b.run, 1000);
+    assert.ok(soaked < normal * 0.7, `soaked ${soaked} vs ${normal}`);
+    const c = kitchen(['a', 'b']);
+    c.e.setPlayerPosition('a', 150, 300);
+    c.e.spawnHazard('freeze');
+    c.run(HAZARDS.warnMs);
+    walk(c.e, c.run, 1000);
+    // let go of the stick: on ice you keep sliding
+    c.e.applyInput('a', { seq: 99_999, x: 0, y: 0 });
+    const x = c.e.peek('a')!.x;
+    c.run(300);
+    assert.ok(c.e.peek('a')!.x - x > 40, 'still sliding on the ice');
+  });
+
+  it('quicksand only slows the chefs standing in it', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.spawnHazard('quicksand', { x: 330, y: 300 });
+    const stuck = walk(e, run, 500);
+    e.setPlayerPosition('a', 600, 400);
+    const free = walk(e, run, 500);
+    assert.ok(stuck < free * 0.6, `in the sand ${stuck}, out ${free}`);
+  });
+
+  it('the kraken knocks down chefs under the tentacle', () => {
+    const { e, run } = kitchen(['a', 'b']);
+    e.setPlayerPosition('a', 300, 300);
+    e.setPlayerPosition('b', 700, 300);
+    e.spawnHazard('kraken', { x: 300, y: 300 });
+    run(HAZARDS.warnMs + 100);
+    assert.equal(e.peek('a')!.stuck?.kind, 'bonk');
+    assert.equal(e.peek('b')!.stuck, null);
+  });
+
+  it('Pirate Cove uses its own layout: stations down the sides', () => {
+    const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 0 }, () => 0.3);
+    e.addPlayer('a', 'A', '#ff3d7f');
+    e.addPlayer('b', 'B', '#2de2e6');
+    e.setMap('pirate2');
+    e.startCountdown(1000);
+    e.update(1100);
+    e.setRecipe('a', 'burger');
+    const chop = MAPS.pirate2.layout.spots.find((s) => s.id === 'chop')!;
+    e.setPlayerPosition('a', chop.fx, chop.fy);
+    assert.equal(e.peek('a')!.near, 'chop');
+    assert.equal(e.interact('a'), 'ok');
+  });
+});
+
 describe('Kitchen engine: chaos', () => {
   it('a spill makes you slip; mopping (stir circles) cleans it and frees you', () => {
     const { e, run } = kitchen(['a', 'b']);
@@ -601,6 +695,6 @@ describe('Kitchen engine: chaos', () => {
       run(500);
       for (const ev of e.snapshot(0).events) if (ev.type === 'hazard') seen.add(ev.kind);
     }
-    assert.deepEqual([...seen].sort(), ['cheese', 'chicken', 'fire', 'meteor', 'spill']);
+    assert.deepEqual([...seen].sort(), ['cheese', 'chicken', 'fire', 'meteor', 'spill', 'sprinkler'], 'plus the classic map sprinklers');
   });
 });

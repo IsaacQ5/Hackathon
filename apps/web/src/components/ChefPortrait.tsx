@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { ChefFace, StationId } from '@tilt-mayhem/shared';
+import type { ChefFace, MapId, StationId } from '@tilt-mayhem/shared';
 import { drawChef, type ChefView } from '../game/kitchenArt';
 
 interface Props {
@@ -13,10 +13,12 @@ interface Props {
   crown?: boolean;
   /** End-of-game mood: the winner dances, tied winners shrug, the rest look sad. */
   mood?: ChefView['mood'];
+  /** Dress the chef for a map (astronaut helmet, puffy coat...). */
+  outfit?: MapId;
 }
 
 /** Small animated chef for lobby slots, results and the phone header. */
-export function ChefPortrait({ color, face = 'plain', size = 80, station = null, dim = false, crown = false, mood }: Props) {
+export function ChefPortrait({ color, face = 'plain', size = 80, station = null, dim = false, crown = false, mood, outfit }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -58,12 +60,13 @@ export function ChefPortrait({ color, face = 'plain', size = 80, station = null,
         bounce: 0,
         crown,
         mood,
+        outfit,
       };
       drawChef(ctx, view, now / 1000, false);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [color, face, size, station, crown, mood]);
+  }, [color, face, size, station, crown, mood, outfit]);
 
   return <canvas ref={ref} style={{ width: size, height: size, opacity: dim ? 0.4 : 1 }} aria-hidden />;
 }

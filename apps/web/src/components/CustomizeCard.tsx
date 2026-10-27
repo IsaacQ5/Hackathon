@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CHEF_FACES, FACE_NAMES, PLAYER_COLORS, type ChefFace, type PublicPlayer } from '@tilt-mayhem/shared';
+import { CHEF_FACES, FACE_NAMES, PLAYER_COLORS, type ChefFace, type MapId, type PublicPlayer } from '@tilt-mayhem/shared';
 import { api } from '../network/socket';
 import { ChefPortrait } from './ChefPortrait';
 import { Icon } from './Icon';
@@ -9,10 +9,12 @@ interface Props {
   face: ChefFace;
   players: PublicPlayer[];
   myId: string;
+  /** The room's map, so the preview wears the outfit. */
+  outfit?: MapId;
 }
 
 /** Lobby-only: pick a colour nobody else has, and a face. The server has the final say. */
-export function CustomizeCard({ color, face, players, myId }: Props) {
+export function CustomizeCard({ color, face, players, myId, outfit }: Props) {
   const [error, setError] = useState<string | null>(null);
   const taken = new Set(players.filter((p) => p.id !== myId).map((p) => p.color));
 
@@ -48,7 +50,7 @@ export function CustomizeCard({ color, face, players, myId }: Props) {
       <div className="kcustom__faces">
         {CHEF_FACES.map((f) => (
           <button key={f} className={`kcustom__face ${f === face ? 'is-on' : ''}`} onClick={() => void change({ face: f })}>
-            <ChefPortrait color={color} face={f} size={50} />
+            <ChefPortrait color={color} face={f} size={50} outfit={outfit} />
             <span>{FACE_NAMES[f]}</span>
           </button>
         ))}

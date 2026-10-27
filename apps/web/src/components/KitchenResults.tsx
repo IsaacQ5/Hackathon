@@ -33,14 +33,14 @@ export function KitchenResults({ results, room, code }: Props) {
           {losers.length > 0 && (
             <div className="kresults__crowd">
               {losers.map((l) => (
-                <ChefPortrait key={l.id} color={l.color} face={l.face} size={90} mood="sad" />
+                <ChefPortrait key={l.id} color={l.color} face={l.face} size={90} mood="sad" outfit={room.map} />
               ))}
             </div>
           )}
           <div className="kresults__winners">
             {winners.map((w) => (
               // A tie: the tied chefs shrug like they don't care (no crown). Otherwise: crowned and dancing.
-              <ChefPortrait key={w.id} color={w.color} face={w.face} size={170} crown={!tie} mood={tie ? 'shrug' : 'dance'} />
+              <ChefPortrait key={w.id} color={w.color} face={w.face} size={170} crown={!tie} mood={tie ? 'shrug' : 'dance'} outfit={room.map} />
             ))}
           </div>
         </div>
@@ -70,7 +70,7 @@ export function KitchenResults({ results, room, code }: Props) {
               <td className="ktable__place">{r.placement <= 3 ? <Icon name={`medal${r.placement}`} /> : ordinal(r.placement)}</td>
               <td>
                 <div className="ktable__who">
-                  <ChefPortrait color={r.color} face={r.face} size={44} />
+                  <ChefPortrait color={r.color} face={r.face} size={44} outfit={room.map} />
                   <span>{r.nickname}</span>
                 </div>
               </td>
