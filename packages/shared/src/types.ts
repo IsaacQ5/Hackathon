@@ -118,7 +118,9 @@ export type KitchenEvent =
   | { type: 'stuck'; chef: string; kind: StuckKind }
   | { type: 'recovered'; chef: string; kind: StuckKind }
   /** One chef shoved another (they slide away from the pusher). */
-  | { type: 'push'; chef: string; target: string };
+  | { type: 'push'; chef: string; target: string }
+  /** A chef dropped through a trapdoor and popped out of the other one. */
+  | { type: 'hatch'; chef: string; from: { x: number; y: number }; to: { x: number; y: number } };
 
 export interface GameSnapshot {
   tick: number;

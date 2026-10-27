@@ -53,6 +53,8 @@ export interface Chef extends EnginePlayer {
   stuck: { kind: StuckKind; reps: number; hazardId: number | null; lastRepAt: number; lastEffortAt: number } | null;
   /** playMs until which hazards can't knock this chef down again (just got up). */
   immuneUntil: number;
+  /** playMs when this chef can use a trapdoor again (so they don't bounce straight back). */
+  hatchReadyAt: number;
   /** playMs when this chef can push again. */
   pushReadyAt: number;
   /** > 0 while sliding from a shove (ms left; steering is ignored). */

@@ -146,6 +146,15 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
       if (e.type === 'served') lastDish = { icon: recipeById(e.recipeId)?.icon ?? 'plate', at: now };
       const p = chefPos.get(e.chef);
       if (!p) return;
+      if (e.type === 'hatch') {
+        // dropped through one trapdoor, popped out of the other
+        fx.dust(e.from.x, e.from.y, 8);
+        fx.dust(e.to.x, e.to.y, 8);
+        fx.word('WHOOSH!', e.to.x, e.to.y - 70, '#ffd23f', 30);
+        juice(e.chef).bounce = 1;
+        sfx.boing();
+        return;
+      }
       if (e.type === 'stuck') {
         fx.word(theme.stuck[e.kind].word, p.x, p.y - 90, '#ff3d5a', 34);
         if (e.kind === 'slip') sfx.slip();

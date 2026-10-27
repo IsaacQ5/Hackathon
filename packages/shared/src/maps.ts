@@ -44,6 +44,12 @@ export interface Layout {
   spots: readonly StationSpot[];
   /** Rows the rolling hazard (cheese wheel, barrel...) can come down. */
   lanes: readonly number[];
+  /** Solid areas inside the floor nobody can walk into (holes, crates). */
+  walls?: readonly { x0: number; y0: number; x1: number; y1: number }[];
+  /** Solid round posts (masts, pillars). */
+  posts?: readonly { x: number; y: number; r: number }[];
+  /** Two trapdoors: step on one and you pop out of the other. */
+  hatches?: readonly [{ x: number; y: number; r: number }, { x: number; y: number; r: number }];
 }
 
 export const CLASSIC_LAYOUT: Layout = {
@@ -54,20 +60,28 @@ export const CLASSIC_LAYOUT: Layout = {
   lanes: [KITCHEN.floor.y0 + 32, KITCHEN.floor.y1 - 32],
 };
 
-/** Pirate Cove: the counters run down the left and right of the deck, the table sits in the middle. */
+/**
+ * Pirate Cove: an open cargo hold splits the deck into a top half (chop, fry, stir) and a bottom
+ * half (knead, mix, juice). Every recipe needs both halves, so you keep crossing: over one of the
+ * two narrow gangplanks at the ends, or squeezing past the captain's table on the middle bridge.
+ * Two masts get in the way, and two trapdoors in opposite corners are a shortcut between decks.
+ */
 export const COVE_LAYOUT: Layout = {
-  floor: { x0: 200, x1: 800, y0: 40, y1: 560 },
-  pass: { x: 500, y: 330, r: 58, serveR: 125 },
-  customer: { x: 500, y: 252, r: 30 },
-  spots: [
-    { id: 'chop', x: 110, y: 150, fx: 232, fy: 150, face: 'right' },
-    { id: 'fry', x: 110, y: 300, fx: 232, fy: 300, face: 'right' },
-    { id: 'stir', x: 110, y: 450, fx: 232, fy: 450, face: 'right' },
-    { id: 'knead', x: 890, y: 150, fx: 768, fy: 150, face: 'left' },
-    { id: 'mix', x: 890, y: 300, fx: 768, fy: 300, face: 'left' },
-    { id: 'juice', x: 890, y: 450, fx: 768, fy: 450, face: 'left' },
+  ...CLASSIC_LAYOUT,
+  walls: [
+    { x0: 60, y0: 262, x1: 118, y1: 338 },
+    { x0: 182, y0: 262, x1: 382, y1: 338 },
+    { x0: 618, y0: 262, x1: 818, y1: 338 },
+    { x0: 882, y0: 262, x1: 940, y1: 338 },
   ],
-  lanes: [82, 518],
+  posts: [
+    { x: 300, y: 197, r: 16 },
+    { x: 700, y: 403, r: 16 },
+  ],
+  hatches: [
+    { x: 92, y: 172, r: 22 },
+    { x: 908, y: 428, r: 22 },
+  ],
 };
 
 export interface MapDef {
@@ -263,7 +277,7 @@ export const MAPS: Record<MapId, MapDef> = {
     ...BASE_MAPS.pirate,
     id: 'pirate2',
     name: 'Pirate Cove',
-    blurb: 'The pirate ship, rearranged: counters down both sides, the captain’s table mid-deck. Watch for the kraken!',
+    blurb: 'A cargo hold splits the deck in two: cross the narrow gangplanks, dodge the masts, or drop through the trapdoors.',
     layout: COVE_LAYOUT,
   },
 };

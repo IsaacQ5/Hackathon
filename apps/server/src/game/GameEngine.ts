@@ -564,6 +564,9 @@ export class GameEngine {
           c.y = ob.y + uy * min;
         }
       }
+      // holes in the deck, masts, and the trapdoor shortcut
+      this.pushOut(c, R);
+      this.useHatch(c);
       c.near = this.nearOf(c);
       // If somehow moved away from the station, stop working (keep progress).
       if (c.working && c.near !== c.working.station) this.cancel(c.id);
@@ -670,6 +673,10 @@ export class GameEngine {
           if (h.y > f.y1 - h.r) h.vy = -Math.abs(h.vy);
           h.x = clamp(h.x, f.x0 + h.r, f.x1 - h.r);
           h.y = clamp(h.y, f.y0 + h.r, f.y1 - h.r);
+          if (this.pushOut(h, h.r)) {
+            h.vx = -h.vx;
+            h.vy = -h.vy;
+          }
           for (const ob of [this.L.pass, this.L.customer]) {
             const d = Math.hypot(h.x - ob.x, h.y - ob.y);
             if (d < ob.r + h.r && d > 0.01) {
@@ -808,14 +815,23 @@ export class GameEngine {
   /** A random open floor spot (away from the serve table and, optionally, the stations). */
   private floorPoint(margin: number, avoidStations: boolean): { x: number; y: number } {
     const f = this.L.floor;
-    let pt = { x: f.x0 + margin, y: f.y0 + margin };
-    for (let i = 0; i < 25; i++) {
-      pt = { x: f.x0 + margin + this.random() * (f.x1 - f.x0 - margin * 2), y: f.y0 + margin + this.random() * (f.y1 - f.y0 - margin * 2) };
+    // Maps with holes and masts leave less open floor, so try plenty of spots; the first one that
+    // isn't blocked is kept as a fallback in case none also clears the table and stations.
+    let fallback: { x: number; y: number } | null = null;
+    for (let i = 0; i < 80; i++) {
+      const pt = { x: f.x0 + margin + this.random() * (f.x1 - f.x0 - margin * 2), y: f.y0 + margin + this.random() * (f.y1 - f.y0 - margin * 2) };
+      if (this.blocked(pt, margin)) continue;
+      fallback ??= pt;
       const nearPass = Math.hypot(pt.x - this.L.pass.x, pt.y - this.L.pass.y) < this.L.pass.serveR + margin;
       const nearStation = avoidStations && this.L.spots.some((s) => Math.hypot(pt.x - s.fx, pt.y - s.fy) < 60);
-      if (!nearPass && !nearStation) break;
+      if (!nearPass && !nearStation) return pt;
     }
-    return pt;
+    if (fallback) return fallback;
+    // Unlucky (or a fixed test random): walk the floor for the first clear spot.
+    for (let y = f.y0 + margin; y <= f.y1 - margin; y += 20) {
+      for (let x = f.x0 + margin; x <= f.x1 - margin; x += 20) if (!this.blocked({ x, y }, margin)) return { x, y };
+    }
+    return { x: (f.x0 + f.x1) / 2, y: f.y0 + margin };
   }
 
   /** Start a hazard now. Random placement unless a spot (or station, for fire) is given. Returns its id. */
@@ -851,7 +867,9 @@ export class GameEngine {
         const pt = at ?? (t
           ? { x: clamp(t.x + (this.random() - 0.5) * 120, f.x0 + 40, f.x1 - 40), y: clamp(t.y + (this.random() - 0.5) * 120, f.y0 + 40, f.y1 - 40) }
           : this.floorPoint(60, false));
-        Object.assign(h, pt, { r: HAZARDS.meteor.r, warnMs: HAZARDS.warnMs });
+        // never aim into a hole in the deck
+        const aim = !at && this.blocked(pt, 10) ? this.floorPoint(60, false) : pt;
+        Object.assign(h, aim, { r: HAZARDS.meteor.r, warnMs: HAZARDS.warnMs });
         break;
       }
       case 'cheese': {
@@ -922,6 +940,78 @@ export class GameEngine {
     };
   }
 
+  /** Push a circle (a chef, a running hazard) out of the map's walls and posts. True if it hit one. */
+  private pushOut(o: { x: number; y: number }, r: number): boolean {
+    let hit = false;
+    for (const p of this.L.posts ?? []) {
+      const dx = o.x - p.x;
+      const dy = o.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= p.r + r) continue;
+      hit = true;
+      const ux = d > 0.01 ? dx / d : 0;
+      const uy = d > 0.01 ? dy / d : 1;
+      o.x = p.x + ux * (p.r + r);
+      o.y = p.y + uy * (p.r + r);
+    }
+    for (const w of this.L.walls ?? []) {
+      const cx = clamp(o.x, w.x0, w.x1);
+      const cy = clamp(o.y, w.y0, w.y1);
+      const dx = o.x - cx;
+      const dy = o.y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d >= r) continue;
+      hit = true;
+      if (d > 0.01) {
+        o.x = cx + (dx / d) * r;
+        o.y = cy + (dy / d) * r;
+      } else {
+        // centre inside the wall: out through the nearest side
+        const [gap, ux, uy] = (
+          [
+            [o.x - w.x0, -1, 0],
+            [w.x1 - o.x, 1, 0],
+            [o.y - w.y0, 0, -1],
+            [w.y1 - o.y, 0, 1],
+          ] as const
+        ).reduce((a, b) => (b[0] < a[0] ? b : a));
+        o.x += ux * (gap + r);
+        o.y += uy * (gap + r);
+      }
+    }
+    return hit;
+  }
+
+  /** Is this point inside (or within `margin` of) a wall, post or trapdoor? */
+  private blocked(pt: { x: number; y: number }, margin: number): boolean {
+    const L = this.L;
+    if ((L.walls ?? []).some((w) => pt.x > w.x0 - margin && pt.x < w.x1 + margin && pt.y > w.y0 - margin && pt.y < w.y1 + margin)) return true;
+    return [...(L.posts ?? []), ...(L.hatches ?? [])].some((p) => Math.hypot(pt.x - p.x, pt.y - p.y) < p.r + margin);
+  }
+
+  /** Step onto a trapdoor and you drop through, popping out just beside the other one. */
+  private useHatch(c: Chef) {
+    const hs = this.L.hatches;
+    if (!hs || c.working || c.stuck || c.knockMs > 0 || !c.connected || this.playMs < c.hatchReadyAt) return;
+    for (let i = 0; i < 2; i++) {
+      const h = hs[i]!;
+      if (Math.hypot(c.x - h.x, c.y - h.y) > h.r * 0.8) continue;
+      const to = hs[1 - i]!;
+      const f = this.L.floor;
+      // come out on the side facing the middle of the deck
+      const mx = (f.x0 + f.x1) / 2 - to.x;
+      const my = (f.y0 + f.y1) / 2 - to.y;
+      const d = Math.hypot(mx, my) || 1;
+      const from = { x: Math.round(c.x), y: Math.round(c.y) };
+      c.x = to.x + (mx / d) * (to.r + R + 4);
+      c.y = to.y + (my / d) * (to.r + R + 4);
+      c.facing = Math.atan2(my, mx);
+      c.hatchReadyAt = this.playMs + 1200;
+      this.pendingEvents.push({ type: 'hatch', chef: c.id, from, to: { x: Math.round(c.x), y: Math.round(c.y) } });
+      return;
+    }
+  }
+
   private nearOf(c: Chef): StationId | 'pass' | null {
     // The pass wins: every station's standing spot is outside its zone.
     if (Math.hypot(c.x - this.L.pass.x, c.y - this.L.pass.y) <= this.L.pass.serveR) return 'pass';
@@ -944,6 +1034,7 @@ export class GameEngine {
       c.x = this.L.pass.x + Math.cos(a) * 190;
       c.y = this.L.pass.y + Math.sin(a) * 110;
       c.facing = Math.atan2(this.L.pass.y - c.y, this.L.pass.x - c.x);
+      this.pushOut(c, R);
       c.near = this.nearOf(c);
     });
   }
@@ -972,6 +1063,7 @@ export class GameEngine {
       stuck: null,
       immuneUntil: 0,
       pushReadyAt: 0,
+      hatchReadyAt: 0,
       knockMs: 0,
       pushedBy: null,
       served: 0,

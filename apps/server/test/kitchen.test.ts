@@ -578,13 +578,71 @@ describe('Kitchen engine: special map events + layouts', () => {
     assert.equal(e.peek('b')!.stuck, null);
   });
 
-  it('Pirate Cove uses its own layout: stations down the sides', () => {
+  /** A running Pirate Cove shift (no random hazards) with the clock under our control. */
+  const cove = () => {
     const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 0 }, () => 0.3);
     e.addPlayer('a', 'A', '#ff3d7f');
     e.addPlayer('b', 'B', '#2de2e6');
     e.setMap('pirate2');
-    e.startCountdown(1000);
-    e.update(1100);
+    let now = 1000;
+    e.startCountdown(now);
+    now += 100;
+    e.update(now);
+    const run = (ms: number) => {
+      const end = now + ms;
+      while (now < end - 1e-6) {
+        now += 1000 / 30;
+        e.update(now);
+      }
+    };
+    let seq = 1;
+    const hold = (x: number, y: number, ms: number) => {
+      for (let t = 0; t < ms; t += 100) {
+        e.applyInput('a', { seq: seq++, x, y });
+        run(100);
+      }
+    };
+    return { e, run, hold };
+  };
+
+  it('Pirate Cove: the cargo hold blocks the way except over the gangplanks', () => {
+    const { e, hold } = cove();
+    // straight down from the top deck into the hold: stopped at its edge
+    e.setPlayerPosition('a', 260, 220);
+    hold(0, 1, 1500);
+    assert.ok(e.peek('a')!.y < 262, `stopped at the hold: ${e.peek('a')!.y}`);
+    // down the left gangplank: made it across to the bottom deck
+    e.setPlayerPosition('a', 150, 220);
+    hold(0, 1, 1500);
+    assert.ok(e.peek('a')!.y > 338, `crossed the plank: ${e.peek('a')!.y}`);
+  });
+
+  it('Pirate Cove: a trapdoor drops you out of the other one', () => {
+    const { e, run } = cove();
+    const [top, bottom] = MAPS.pirate2.layout.hatches!;
+    e.setPlayerPosition('a', top.x, top.y);
+    run(100);
+    const a = e.peek('a')!;
+    assert.ok(Math.hypot(a.x - bottom.x, a.y - bottom.y) < 60, `came out by the other hatch: ${a.x},${a.y}`);
+    assert.ok(e.snapshot(0).events.some((ev) => ev.type === 'hatch' && ev.chef === 'a'));
+    // and not straight back again
+    run(300);
+    assert.ok(Math.hypot(e.peek('a')!.x - bottom.x, e.peek('a')!.y - bottom.y) < 60);
+  });
+
+  it('Pirate Cove: spills never land in the hold or on a trapdoor', () => {
+    const { e } = cove();
+    const L = MAPS.pirate2.layout;
+    for (let i = 0; i < 200; i++) {
+      const id = e.spawnHazard('spill');
+      const h = e.snapshot(0).hazards.find((x) => x.id === id)!;
+      assert.ok(!L.hatches!.some((p) => Math.hypot(h.x - p.x, h.y - p.y) < p.r + h.r), `on a trapdoor at ${h.x},${h.y}`);
+      assert.ok(!L.walls!.some((w) => h.x > w.x0 - h.r && h.x < w.x1 + h.r && h.y > w.y0 - h.r && h.y < w.y1 + h.r), `in the hold at ${h.x},${h.y}`);
+    }
+  });
+
+  it('Pirate Cove: the classic stations still work', () => {
+    const { e } = cove();
     e.setRecipe('a', 'burger');
     const chop = MAPS.pirate2.layout.spots.find((s) => s.id === 'chop')!;
     e.setPlayerPosition('a', chop.fx, chop.fy);

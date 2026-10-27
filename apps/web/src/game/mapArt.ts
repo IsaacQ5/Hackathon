@@ -521,112 +521,160 @@ function paintPirate(g: G) {
 }
 
 /**
- * Pirate Cove: the same ship, rearranged. The counters run down the left and right rails and the
- * captain's table sits mid-deck, so there's open deck at the bow (top) and stern (bottom).
+ * Pirate Cove: the pirate ship with an open cargo hold splitting the deck in two. Two narrow
+ * gangplanks cross it at the ends and a bridge in the middle holds the captain's table; two
+ * masts stand in the way and two trapdoors (opposite corners) drop you to the other deck.
+ * Walls, masts and trapdoors come from COVE_LAYOUT, so the art always matches the collisions.
  */
 function paintPirateCove(g: G) {
-  pirateHull(g);
-  pirateDeck(g);
-  g.save();
-  floorClip(g);
-  // the helm at the top of the deck and a cargo hatch at the bottom (painted flat, you can walk over them)
-  helmWheel(g, 500, 92);
-  roundRect(g, 455, 490, 90, 56, 6);
-  outlined(g, '#6b3e1f', 3);
-  g.strokeStyle = '#3d2210';
-  g.lineWidth = 4;
-  for (let i = 1; i < 5; i++) {
-    g.beginPath();
-    g.moveTo(455 + i * 18, 492);
-    g.lineTo(455 + i * 18, 544);
-    g.stroke();
+  paintPirate(g);
+  const L = MAPS.pirate2.layout;
+  for (const w of L.walls ?? []) cargoHold(g, w);
+  // gangplanks over the hold: the gaps between the hold sections at the far ends
+  const walls = [...(L.walls ?? [])].sort((a, b) => a.x0 - b.x0);
+  for (let i = 0; i < walls.length - 1; i++) {
+    const a = walls[i]!;
+    const b = walls[i + 1]!;
+    const w = b.x0 - a.x1;
+    if (w < 120) gangplank(g, a.x1, a.y0, w, a.y1 - a.y0);
+    else bridgeRails(g, a.x1, a.y0, w, a.y1 - a.y0);
   }
-  ropeCoilFlat(g, 300, 520);
-  ropeCoilFlat(g, 700, 80);
-  g.restore();
-  floorDepth(g, 'rgba(60,30,10,0.25)');
-
-  // side counters (they run top to bottom)
-  for (const x of [24, 804]) {
-    roundRect(g, x, 14, 172, 572, 18);
-    outlined(g, '#5c3a1e', 4);
-    roundRect(g, x, 14, 172, 560, 18);
-    outlined(g, '#8a5a32', 3);
-    g.strokeStyle = 'rgba(30,15,5,0.45)';
-    g.lineWidth = 2;
-    for (let i = 1; i < 4; i++) {
-      g.beginPath();
-      g.moveTo(x + (172 * i) / 4, 20);
-      g.lineTo(x + (172 * i) / 4, 568);
-      g.stroke();
-    }
-    for (let y = 40; y < 570; y += 130) {
-      g.fillStyle = '#4a4a55';
-      g.fillRect(x, y, 172, 8);
-      g.fillStyle = '#8a8f9c';
-      circle(g, x + 10, y + 4, 2.5);
-      g.fill();
-      circle(g, x + 162, y + 4, 2.5);
-      g.fill();
-    }
-    g.fillStyle = 'rgba(255,255,255,0.16)';
-    roundRect(g, x + 8, 22, 10, 540, 5);
-    g.fill();
-  }
-  stationMats(g, 'rgba(60,30,10,0.3)');
-  // props at the ends of the counters
-  barrelTop(g, 110, 548, 24);
-  treasure(g, 890, 550);
-  // cannons poking out over the bow and stern rails
-  for (const [x, y, rot] of [
-    [320, -4, -Math.PI / 2],
-    [680, -4, -Math.PI / 2],
-    [320, 604, Math.PI / 2],
-    [680, 604, Math.PI / 2],
-  ] as const) {
-    g.save();
-    g.translate(x, y);
-    g.rotate(rot);
-    cannon(g, 0, 0, 1);
-    g.restore();
-  }
+  for (const p of L.posts ?? []) mastBase(g, p.x, p.y, p.r);
+  for (const h of L.hatches ?? []) trapdoor(g, h.x, h.y, h.r);
 }
 
-function helmWheel(g: G, x: number, y: number) {
-  g.lineCap = 'round';
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
+/** An open hold seen from above: the far inner wall, crates and barrels down in the dark, a beam frame. */
+function cargoHold(g: G, w: { x0: number; y0: number; x1: number; y1: number }) {
+  const W = w.x1 - w.x0;
+  const H = w.y1 - w.y0;
+  g.fillStyle = '#24140a';
+  g.fillRect(w.x0, w.y0, W, H);
+  // the far (north) inner wall, lit a little
+  g.fillStyle = '#5c3a1e';
+  g.fillRect(w.x0, w.y0, W, 16);
+  g.strokeStyle = 'rgba(0,0,0,0.35)';
+  g.lineWidth = 2;
+  for (let x = w.x0 + 14; x < w.x1; x += 14) {
     g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(a) * 40, y + Math.sin(a) * 40);
-    g.lineWidth = 8;
-    g.strokeStyle = INK;
-    g.stroke();
-    g.lineWidth = 4;
-    g.strokeStyle = '#a36b3d';
+    g.moveTo(x, w.y0);
+    g.lineTo(x, w.y0 + 16);
     g.stroke();
   }
-  circle(g, x, y, 28);
+  // cargo down below (darker, so it reads as deeper)
+  g.save();
+  g.beginPath();
+  g.rect(w.x0, w.y0 + 16, W, H - 16);
+  g.clip();
+  for (let i = 0; i < Math.floor(W / 46); i++) {
+    const cx = w.x0 + 22 + i * 46 + hash(w.x0 + i) * 8;
+    const cy = w.y0 + 30 + hash(w.y0 + i * 3) * (H - 44);
+    if (i % 3 === 1) {
+      circle(g, cx, cy, 13);
+      outlined(g, '#5a3a20', 2);
+      circle(g, cx, cy, 8);
+      g.lineWidth = 2;
+      g.strokeStyle = '#2b2b33';
+      g.stroke();
+    } else {
+      roundRect(g, cx - 15, cy - 13, 30, 26, 3);
+      outlined(g, '#6b4a2a', 2);
+      g.beginPath();
+      g.moveTo(cx - 15, cy - 13);
+      g.lineTo(cx + 15, cy + 13);
+      g.moveTo(cx + 15, cy - 13);
+      g.lineTo(cx - 15, cy + 13);
+      g.strokeStyle = 'rgba(30,15,5,0.6)';
+      g.stroke();
+    }
+  }
+  g.fillStyle = 'rgba(10,5,0,0.35)';
+  g.fillRect(w.x0, w.y0 + 16, W, H - 16);
+  g.restore();
+  // heavy beam frame round the opening
+  roundRect(g, w.x0, w.y0, W, H, 4);
   g.lineWidth = 9;
   g.strokeStyle = INK;
   g.stroke();
   g.lineWidth = 5;
   g.strokeStyle = '#8a5a32';
   g.stroke();
-  circle(g, x, y, 8);
-  outlined(g, '#c9a24a', 3);
 }
 
-function ropeCoilFlat(g: G, x: number, y: number) {
-  for (let r = 16; r > 4; r -= 4) {
-    circle(g, x, y, r);
+/** A narrow plank bridge with rope rails along both sides. */
+function gangplank(g: G, x: number, y: number, w: number, h: number) {
+  g.fillStyle = '#c8955a';
+  g.fillRect(x, y - 4, w, h + 8);
+  g.strokeStyle = 'rgba(70,40,15,0.6)';
+  g.lineWidth = 2;
+  for (let py = y + 10; py < y + h; py += 13) {
+    g.beginPath();
+    g.moveTo(x, py);
+    g.lineTo(x + w, py);
+    g.stroke();
+  }
+  bridgeRails(g, x, y, w, h);
+}
+
+/** Rope rails (with posts) down both sides of a crossing. */
+function bridgeRails(g: G, x: number, y: number, w: number, h: number) {
+  for (const rx of [x + 3, x + w - 3]) {
+    g.beginPath();
+    g.moveTo(rx, y - 4);
+    g.quadraticCurveTo(rx + (rx < x + w / 2 ? -3 : 3), y + h / 2, rx, y + h + 4);
     g.lineWidth = 5;
     g.strokeStyle = INK;
     g.stroke();
     g.lineWidth = 3;
     g.strokeStyle = '#d9b77a';
     g.stroke();
+    for (const py of [y - 4, y + h + 4]) {
+      circle(g, rx, py, 5);
+      outlined(g, '#6b3e1f', 2);
+    }
   }
+}
+
+/** The foot of a mast: a thick round trunk with iron bands and ropes tied off round it. */
+function mastBase(g: G, x: number, y: number, r: number) {
+  contact(g, x + 4, y + r * 0.6, r + 8, r * 0.6);
+  circle(g, x, y, r + 7);
+  outlined(g, '#6b3e1f', 3);
+  circle(g, x, y, r);
+  outlined(g, '#a36b3d', 3);
+  circle(g, x, y, r - 5);
+  g.lineWidth = 3;
+  g.strokeStyle = '#4a4a55';
+  g.stroke();
+  shine(g, x - r * 0.35, y - r * 0.35, r * 0.3, r * 0.18, -0.6, 0.35);
+  // rope coiled at the base
+  g.beginPath();
+  g.arc(x, y, r + 11, 0.2 * Math.PI, 0.8 * Math.PI);
+  g.lineWidth = 5;
+  g.strokeStyle = INK;
+  g.stroke();
+  g.lineWidth = 3;
+  g.strokeStyle = '#d9b77a';
+  g.stroke();
+}
+
+/** A trapdoor in the deck: iron-framed planks with a ring pull. */
+function trapdoor(g: G, x: number, y: number, r: number) {
+  roundRect(g, x - r - 4, y - r - 4, (r + 4) * 2, (r + 4) * 2, 5);
+  outlined(g, '#3b3b46', 3);
+  roundRect(g, x - r, y - r, r * 2, r * 2, 3);
+  outlined(g, '#8a5a32', 2);
+  g.strokeStyle = 'rgba(30,15,5,0.55)';
+  g.lineWidth = 2;
+  for (const dx of [-r / 2, 0, r / 2]) {
+    g.beginPath();
+    g.moveTo(x + dx, y - r);
+    g.lineTo(x + dx, y + r);
+    g.stroke();
+  }
+  circle(g, x, y + r * 0.35, 6);
+  g.lineWidth = 3;
+  g.strokeStyle = '#c4ccd8';
+  g.stroke();
 }
 
 function barrelTop(g: G, x: number, y: number, r: number) {
@@ -765,6 +813,18 @@ function cannon(g: G, x: number, y: number, dir: number) {
   outlined(g, '#3b3b46', 2.5);
   shine(g, 16, -5, 10, 2.5, 0, 0.3);
   g.restore();
+}
+
+/** Cove: the pirate lanterns, plus the trapdoors glowing so people notice the shortcut. */
+function liveCove(ctx: G, t: number) {
+  livePirate(ctx, t);
+  for (const h of MAPS.pirate2.layout.hatches ?? []) {
+    const p = (t * 1.2) % 1;
+    roundRect(ctx, h.x - h.r - 6 - p * 8, h.y - h.r - 6 - p * 8, (h.r + 6 + p * 8) * 2, (h.r + 6 + p * 8) * 2, 8);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = `rgba(255,210,63,${0.9 * (1 - p)})`;
+    ctx.stroke();
+  }
 }
 
 function livePirate(ctx: G, t: number) {
@@ -1254,7 +1314,7 @@ const PAINT: Record<MapId, (g: G) => void> = {
 const LIVE: Record<MapId, (ctx: G, t: number) => void> = {
   kitchen: liveKitchen,
   pirate: livePirate,
-  pirate2: livePirate,
+  pirate2: liveCove,
   space: liveSpace,
   jungle: liveJungle,
   arctic: liveArctic,
@@ -1399,6 +1459,18 @@ export function drawMapBackdrop(ctx: G, map: MapId, t: number, w: number, h: num
 
 /** Light things drifting over everything (world space). */
 export function drawMapOverlay(ctx: G, map: MapId, t: number) {
+  // Cove: the masts' yard beams (with the sails furled) pass over the chefs' heads
+  if (map === 'pirate2') {
+    for (const p of MAPS.pirate2.layout.posts ?? []) {
+      roundRect(ctx, p.x - 70, p.y - 50, 140, 12, 6);
+      outlined(ctx, '#8a5a32', 3);
+      roundRect(ctx, p.x - 62, p.y - 46, 124, 9, 4);
+      ctx.fillStyle = '#f3e2c4';
+      ctx.fill();
+      circle(ctx, p.x, p.y - 44, 8);
+      outlined(ctx, '#6b3e1f', 2.5);
+    }
+  }
   switch (map === 'pirate2' ? 'pirate' : map) {
     case 'pirate':
       // seagulls gliding across

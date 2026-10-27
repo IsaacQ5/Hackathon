@@ -77,7 +77,9 @@ export class KitchenBuffer {
     const t = span > 0 ? Math.min(1, Math.max(0, (target - a.snap.serverTime) / span)) : 1;
     const prev = new Map(a.snap.chefs.map((c) => [c.id, c]));
     const chefs = b.snap.chefs.map((cb) => {
-      const ca = prev.get(cb.id) ?? cb;
+      let ca = prev.get(cb.id) ?? cb;
+      // a big jump between two snapshots is a teleport (hatch): pop there instead of sliding across
+      if (Math.hypot(cb.x - ca.x, cb.y - ca.y) > 150) ca = cb;
       return { ...cb, x: ca.x + (cb.x - ca.x) * t, y: ca.y + (cb.y - ca.y) * t, facing: lerpAngle(ca.facing, cb.facing, t) };
     });
     return {
