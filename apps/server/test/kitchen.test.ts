@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   HAZARDS,
   KITCHEN,
+  LOBBY,
   LOBBY_LAYOUT,
   MAPS,
   MAP_IDS,
@@ -856,9 +857,73 @@ describe('Kitchen engine: map zones + the lobby apartment', () => {
     // the wardrobe rug
     const d = LOBBY_LAYOUT.dressing!;
     e.setPlayerPosition('a', d.x, d.y);
+    now += 100;
+    e.update(now);
     assert.equal(e.status('a', now)!.atWardrobe, true);
     // and the shift starts in the real kitchen
     e.startCountdown(now);
     assert.equal(e.status('a', now)!.atWardrobe, false);
+  });
+});
+
+describe('Lobby apartment: wardrobe + READY? elevator', () => {
+  /** A lobby with chefs a (head chef) and b, and a clock. */
+  const lobby = () => {
+    const e = new GameEngine({ countdownMs: 100, roundDurationMs: 180_000, hazards: 0 }, () => 0.3);
+    e.addPlayer('a', 'A', '#ff3d7f');
+    e.addPlayer('b', 'B', '#2de2e6');
+    e.setCaptain('a');
+    let now = 1000;
+    e.update(now);
+    const run = (ms: number) => {
+      const end = now + ms;
+      while (now < end - 1e-6) {
+        now += 1000 / 30;
+        e.update(now);
+      }
+    };
+    return { e, run };
+  };
+  const el = LOBBY_LAYOUT.elevator!;
+  const inElevator = { x: (el.x0 + el.x1) / 2, y: (el.y0 + el.y1) / 2 };
+
+  it('the wardrobe holds you still until you press exit, then steps you off the rug', () => {
+    const { e, run } = lobby();
+    const d = LOBBY_LAYOUT.dressing!;
+    e.setPlayerPosition('a', d.x + 5, d.y);
+    run(100);
+    assert.equal(e.status('a', 0)!.atWardrobe, true);
+    for (let i = 1; i <= 10; i++) e.applyInput('a', { seq: i, x: 1, y: 1 });
+    run(500);
+    assert.ok(Math.hypot(e.peek('a')!.x - d.x, e.peek('a')!.y - d.y) < 2, 'tilting does not walk you out');
+    e.cancel('a');
+    run(100);
+    assert.equal(e.status('a', 0)!.atWardrobe, false, 'exited');
+    assert.ok(Math.hypot(e.peek('a')!.x - d.x, e.peek('a')!.y - d.y) > d.r * 0.6, 'stepped off the rug');
+  });
+
+  it('everyone in the elevator: ready to go', () => {
+    const { e, run } = lobby();
+    e.setPlayerPosition('a', inElevator.x - 30, inElevator.y);
+    run(100);
+    assert.equal(e.lobbyReady().go, false, 'not everyone yet');
+    assert.equal(e.lobbyReady().inside, 1);
+    e.setPlayerPosition('b', inElevator.x + 30, inElevator.y);
+    run(100);
+    assert.equal(e.lobbyReady().go, true);
+    assert.equal(e.snapshot(0).elevator?.inside, 2);
+  });
+
+  it('the head chef waiting in the elevator for 10 seconds starts it anyway (nobody else can)', () => {
+    const { e, run } = lobby();
+    e.setPlayerPosition('b', inElevator.x, inElevator.y);
+    run(LOBBY.holdMs + 500);
+    assert.equal(e.lobbyReady().go, false, 'a regular chef waiting does nothing');
+    e.setPlayerPosition('b', 500, 300);
+    e.setPlayerPosition('a', inElevator.x, inElevator.y);
+    run(LOBBY.holdMs - 1000);
+    assert.equal(e.lobbyReady().go, false, 'not long enough yet');
+    run(1500);
+    assert.equal(e.lobbyReady().go, true);
   });
 });

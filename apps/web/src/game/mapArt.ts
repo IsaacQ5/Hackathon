@@ -1,4 +1,4 @@
-import { CLASSIC_LAYOUT, LOBBY_LAYOUT, MAPS, type Layout, type MapId, type StationSpot } from '@tilt-mayhem/shared';
+import { CLASSIC_LAYOUT, LOBBY, LOBBY_LAYOUT, MAPS, type Layout, type MapId, type StationSpot } from '@tilt-mayhem/shared';
 import { icon } from './icons';
 import { circle, ellipse, hash, INK, outlined, roundRect, shine } from './draw';
 
@@ -1577,12 +1577,14 @@ function kitchenExtras(g: G) {
 
 /**
  * The lobby apartment (PlateUp style): a kitchenette on the left with all six stations to
- * practise on, a living room on the right with the wardrobe rug, a couch, a TV and a coffee table.
- * The couch and table are solid (LOBBY_LAYOUT).
+ * practise on, a living room on the right with the wardrobe rug, a couch, a TV, a coffee table
+ * and the READY? elevator in the corner. The couch, table and elevator wall are solid (LOBBY_LAYOUT).
  */
 function paintLobby(g: G) {
   const L = LOBBY_LAYOUT;
   const split = 620;
+  const d = L.dressing!;
+  const el = L.elevator!;
   // the apartment's outline (a soft border, not detailed walls)
   roundRect(g, -30, -30, 1060, 660, 30);
   g.fillStyle = '#c98f62';
@@ -1596,26 +1598,44 @@ function paintLobby(g: G) {
       g.fillRect(x, y, 32, 32);
     }
   }
-  // living room: herringbone-ish wood parquet
-  for (let y = F.y, r = 0; y < F.y + F.h; y += 22, r++) {
-    for (let x = split + ((r % 2) * 30) - 60; x < F.x + F.w; x += 60) {
-      g.fillStyle = (r + Math.floor(x / 60)) % 2 ? '#b77a4a' : '#a86c3e';
-      g.fillRect(x, y, 60, 22);
-      g.strokeStyle = 'rgba(60,30,10,0.35)';
-      g.lineWidth = 1.5;
-      g.strokeRect(x, y, 60, 22);
+  // living room: long wooden floorboards with staggered joints
+  for (let y = F.y, r = 0; y < F.y + F.h; y += 24, r++) {
+    g.fillStyle = r % 2 ? '#b77a4a' : '#ad7143';
+    g.fillRect(split, y, F.x + F.w - split, 24);
+    g.strokeStyle = 'rgba(60,30,10,0.35)';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.moveTo(split, y);
+    g.lineTo(F.x + F.w, y);
+    for (let x = split + ((r * 97) % 160); x < F.x + F.w; x += 160) {
+      g.moveTo(x, y);
+      g.lineTo(x, y + 24);
     }
+    g.stroke();
   }
   g.fillStyle = 'rgba(60,30,10,0.4)';
   g.fillRect(split - 3, F.y, 6, F.h);
-  // round rug under the coffee table, and the wardrobe rug
-  ellipse(g, L.pass.x, L.pass.y + 10, 120, 60);
-  outlined(g, '#5f8fd9', 3);
-  ellipse(g, L.pass.x, L.pass.y + 10, 100, 46);
+  // a striped runner in the kitchenette and a welcome mat by the door
+  roundRect(g, 120, 268, 420, 64, 10);
+  outlined(g, '#5f8fd9', 2.5);
+  g.fillStyle = 'rgba(255,255,255,0.45)';
+  for (let x = 130; x < 530; x += 26) g.fillRect(x, 272, 10, 56);
+  roundRect(g, L.spawn!.x - 34, L.spawn!.y - 20, 68, 40, 6);
+  outlined(g, '#c9a96b', 2.5);
+  g.font = '13px Bangers, "Arial Black", Impact, sans-serif';
+  g.fillStyle = '#6b4022';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('WELCOME', L.spawn!.x, L.spawn!.y + 1);
+  // round rug under the coffee table
+  const p = L.posts![0]!;
+  ellipse(g, p.x, p.y + 6, 104, 54);
+  outlined(g, '#7cc4a0', 3);
+  ellipse(g, p.x, p.y + 6, 86, 40);
   g.strokeStyle = 'rgba(255,255,255,0.5)';
   g.lineWidth = 4;
   g.stroke();
-  const d = L.dressing!;
+  // the wardrobe rug
   circle(g, d.x, d.y, d.r);
   outlined(g, '#ff8fb0', 3);
   circle(g, d.x, d.y, d.r - 10);
@@ -1624,10 +1644,39 @@ function paintLobby(g: G) {
   g.lineWidth = 3;
   g.stroke();
   g.setLineDash([]);
+  // slippers by the rug
+  for (const s of [-1, 1]) {
+    ellipse(g, d.x - 54 + s * 7, d.y + 36, 5, 10, s * 0.2);
+    outlined(g, '#b26bff', 1.8);
+  }
+  // the elevator car: diamond-plate floor, a handrail
+  g.fillStyle = '#9aa3b2';
+  g.fillRect(el.x0, el.y0, el.x1 - el.x0, el.y1 - el.y0);
+  g.strokeStyle = 'rgba(255,255,255,0.35)';
+  g.lineWidth = 2;
+  for (let y = el.y0 + 10; y < el.y1; y += 16) {
+    for (let x = el.x0 + 10 + ((y / 16) % 2) * 8; x < el.x1; x += 16) {
+      g.beginPath();
+      g.moveTo(x - 4, y + 3);
+      g.lineTo(x + 4, y - 3);
+      g.stroke();
+    }
+  }
+  g.fillStyle = 'rgba(255,210,63,0.9)';
+  g.fillRect(el.x0, el.y1 - 8, el.x1 - el.x0, 8);
+  g.fillStyle = INK;
+  for (let x = el.x0; x < el.x1; x += 18) {
+    g.beginPath();
+    g.moveTo(x, el.y1);
+    g.lineTo(x + 9, el.y1 - 8);
+    g.lineTo(x + 14, el.y1 - 8);
+    g.lineTo(x + 5, el.y1);
+    g.fill();
+  }
   g.restore();
   floorDepth(g, 'rgba(60,30,10,0.2)');
 
-  // kitchenette counters (top and bottom, left part only)
+  // kitchenette counters (top and bottom, left part only), with a sink and a fridge
   for (const [y, h] of COUNTERS) {
     roundRect(g, 24, y, split - 20, h, 18);
     outlined(g, '#7a5a44', 4);
@@ -1637,31 +1686,77 @@ function paintLobby(g: G) {
     roundRect(g, 32, y + 6, split - 36, 10, 5);
     g.fill();
   }
+  roundRect(g, 568, 40, 44, 34, 8);
+  outlined(g, '#c4ccd8', 2.5);
+  roundRect(g, 574, 46, 32, 22, 6);
+  g.fillStyle = '#8ec5ff';
+  g.fill();
+  roundRect(g, 586, 30, 8, 14, 3);
+  outlined(g, '#a3a8b5', 2);
+  // tall fridge on the left strip, covered in magnets
+  contact(g, 6, 268, 30);
+  roundRect(g, -24, 150, 58, 116, 10);
+  outlined(g, '#e8edf5', 3.5);
+  g.beginPath();
+  g.moveTo(-24, 196);
+  g.lineTo(34, 196);
+  g.lineWidth = 3;
+  g.strokeStyle = INK;
+  g.stroke();
+  roundRect(g, 22, 162, 6, 24, 3);
+  outlined(g, '#a3a8b5', 1.5);
+  roundRect(g, 22, 206, 6, 40, 3);
+  outlined(g, '#a3a8b5', 1.5);
+  for (const [mx, my, c] of [
+    [-10, 214, '#ff3d5a'],
+    [4, 230, '#ffd23f'],
+    [-6, 246, '#3d8bff'],
+    [8, 170, '#7cd651'],
+  ] as const) {
+    circle(g, mx, my, 4);
+    outlined(g, c, 1.2);
+  }
   stationMats(g, 'rgba(120,70,40,0.25)');
 
-  // wardrobe against the top wall, with a mirror and a label
-  roundRect(g, d.x - 70, 18, 140, 92, 10);
+  // wardrobe on the top wall above its rug, with a mirror
+  roundRect(g, d.x - 66, 18, 132, 92, 10);
   outlined(g, '#8a5a32', 4);
   for (const s of [-1, 1]) {
-    roundRect(g, d.x + (s < 0 ? -64 : 2), 24, 62, 80, 6);
+    roundRect(g, d.x + (s < 0 ? -60 : 2), 24, 58, 80, 6);
     outlined(g, '#a36b3d', 2.5);
     circle(g, d.x + s * 8, 64, 3);
     outlined(g, '#ffd23f', 1.5);
   }
-  roundRect(g, d.x - 48, 30, 34, 60, 14);
+  roundRect(g, d.x - 46, 30, 32, 60, 14);
   outlined(g, '#cfe6ff', 2);
-  shine(g, d.x - 36, 46, 4, 12, 0.3, 0.7);
-  icon(g, 'chefhat', d.x + 33, 62, 30);
-  // a TV on a little stand
-  roundRect(g, 640, 36, 100, 64, 8);
-  outlined(g, '#3b3b46', 4);
-  roundRect(g, 648, 44, 84, 46, 4);
-  g.fillStyle = '#1d2b4a';
-  g.fill();
-  roundRect(g, 676, 100, 28, 10, 3);
-  outlined(g, '#3b3b46', 2);
+  shine(g, d.x - 34, 46, 4, 12, 0.3, 0.7);
+  icon(g, 'chefhat', d.x + 31, 62, 28);
+  // laundry basket
+  roundRect(g, d.x + 50, 150, 30, 26, 6);
+  outlined(g, '#e0c08a', 2.5);
+  circle(g, d.x + 60, 150, 6);
+  outlined(g, '#ff8fb0', 1.5);
 
-  // couch (solid) against the bottom wall
+  // the elevator: open doors and a frame over the top wall, side wall, call buttons
+  const ew = el.x1 - el.x0;
+  roundRect(g, el.x0 - 10, 14, ew + 20, 124, 12);
+  outlined(g, '#59658c', 4);
+  for (const s of [0, 1]) {
+    roundRect(g, el.x0 + 4 + s * (ew / 2), 32, ew / 2 - 8, 100, 4);
+    outlined(g, '#c4ccd8', 2.5);
+    g.fillStyle = 'rgba(255,255,255,0.3)';
+    g.fillRect(el.x0 + 10 + s * (ew / 2), 38, 5, 88);
+  }
+  const wall = L.walls![1]!;
+  roundRect(g, wall.x0 - 2, wall.y0 - 4, wall.x1 - wall.x0 + 4, wall.y1 - wall.y0 + 6, 3);
+  outlined(g, '#59658c', 3);
+  circle(g, wall.x0 - 12, wall.y1 - 12, 6);
+  outlined(g, '#c4ccd8', 2);
+  circle(g, wall.x0 - 12, wall.y1 - 12, 3);
+  g.fillStyle = '#ffd23f';
+  g.fill();
+
+  // couch (solid) against the bottom wall, with cushions and a throw blanket
   const couch = L.walls![0]!;
   roundRect(g, couch.x0 - 8, couch.y0 - 6, couch.x1 - couch.x0 + 16, couch.y1 - couch.y0 + 40, 16);
   outlined(g, '#d9534f', 4);
@@ -1671,11 +1766,24 @@ function paintLobby(g: G) {
     outlined(g, '#ff6b6b', 2.5);
   }
   for (const s of [-1, 1]) {
-    roundRect(g, (s < 0 ? couch.x0 - 22 : couch.x1 + 4), couch.y0 - 2, 18, couch.y1 - couch.y0 + 32, 8);
+    roundRect(g, s < 0 ? couch.x0 - 22 : couch.x1 + 4, couch.y0 - 2, 18, couch.y1 - couch.y0 + 32, 8);
     outlined(g, '#b33b38', 3);
   }
-  // coffee table (solid) with a mug and a magazine
-  const p = L.posts![0]!;
+  g.save();
+  g.translate(couch.x1 - 40, couch.y0 + 14);
+  g.rotate(0.2);
+  roundRect(g, -20, -12, 40, 24, 4);
+  outlined(g, '#ffd23f', 2);
+  g.fillStyle = '#ff8a3d';
+  for (const k of [-12, 0, 12]) g.fillRect(k - 2, -12, 4, 24);
+  g.restore();
+  // little TV on a stand, facing the couch
+  roundRect(g, 616, 500, 70, 54, 6);
+  outlined(g, '#3b3b46', 3.5);
+  roundRect(g, 622, 506, 58, 38, 3);
+  g.fillStyle = '#1d2b4a';
+  g.fill();
+  // coffee table (solid) with a games console, two controllers and a mug
   contact(g, p.x + 4, p.y + p.r * 0.7, p.r + 8, p.r * 0.5);
   circle(g, p.x, p.y, p.r);
   outlined(g, '#c9874a', 4);
@@ -1683,25 +1791,36 @@ function paintLobby(g: G) {
   g.strokeStyle = 'rgba(120,70,30,0.35)';
   g.lineWidth = 2;
   g.stroke();
-  g.save();
-  g.translate(p.x - 6, p.y + 2);
-  g.rotate(-0.3);
-  roundRect(g, -12, -8, 24, 16, 2);
-  outlined(g, '#ffd23f', 1.8);
-  g.restore();
-  roundRect(g, p.x + 8, p.y - 12, 10, 12, 3);
-  outlined(g, '#ffffff', 1.8);
+  roundRect(g, p.x - 12, p.y - 8, 20, 12, 3);
+  outlined(g, '#3b3b46', 1.8);
+  for (const [cx2, cy2, c] of [
+    [p.x - 14, p.y + 10, '#ff3d5a'],
+    [p.x + 4, p.y + 12, '#3d8bff'],
+  ] as const) {
+    roundRect(g, cx2 - 6, cy2 - 3.5, 12, 7, 3.5);
+    outlined(g, c, 1.4);
+  }
+  roundRect(g, p.x + 10, p.y - 14, 9, 11, 3);
+  outlined(g, '#ffffff', 1.6);
+  // floor cushions round the table
+  for (const [fx2, fy2, c] of [
+    [p.x - 62, p.y - 6, '#b26bff'],
+    [p.x + 64, p.y + 4, '#ffd23f'],
+  ] as const) {
+    roundRect(g, fx2 - 14, fy2 - 12, 28, 24, 9);
+    outlined(g, c, 2.5);
+  }
 
-  // plants, a floor lamp and a bookshelf on the right
-  plantPot(g, 996, 300);
-  plantPot(g, 600, 40);
-  roundRect(g, 900, 494, 70, 80, 6);
+  // plants, a floor lamp and a bookshelf
+  plantPot(g, 996, 330);
+  plantPot(g, 600, 560);
+  roundRect(g, 912, 494, 62, 80, 6);
   outlined(g, '#8a5a32', 3);
-  ['#ff3d5a', '#3d8bff', '#ffd23f', '#7cd651', '#b26bff'].forEach((c, i) => {
-    roundRect(g, 906 + i * 12, 504, 9, 28, 1.5);
+  ['#ff3d5a', '#3d8bff', '#ffd23f', '#7cd651'].forEach((c, i) => {
+    roundRect(g, 918 + i * 12, 504, 9, 28, 1.5);
     outlined(g, c, 1.2);
-    roundRect(g, 906 + i * 12, 540, 9, 26, 1.5);
-    outlined(g, ['#7cd651', '#ff8a3d', '#3d8bff', '#ff3d5a', '#ffd23f'][i]!, 1.2);
+    roundRect(g, 918 + i * 12, 540, 9, 26, 1.5);
+    outlined(g, ['#7cd651', '#ff8a3d', '#3d8bff', '#ff3d5a'][i]!, 1.2);
   });
   circle(g, 4, 470, 14);
   outlined(g, '#3b3b46', 2.5);
@@ -1714,36 +1833,128 @@ function paintLobby(g: G) {
 function liveLobby(ctx: G, t: number) {
   const L = LOBBY_LAYOUT;
   const d = L.dressing!;
-  // the wardrobe rug pulses so people find it, with its label
+  const el = L.elevator!;
+  // fairy lights strung along the top edge, twinkling
+  ctx.strokeStyle = 'rgba(43,26,18,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let x = -20; x <= 1020; x += 10) ctx.lineTo(x, -18 + Math.sin(x / 40) * 6);
+  ctx.stroke();
+  for (let i = 0; i < 26; i++) {
+    const x = -10 + i * 40;
+    const on = 0.5 + 0.5 * Math.sin(t * 3 + i * 1.3);
+    circle(ctx, x, -16 + Math.sin(x / 40) * 6, 4);
+    ctx.fillStyle = ['#ff3d5a', '#ffd23f', '#2de2e6', '#7cff6b', '#ff8fb0'][i % 5]!;
+    ctx.globalAlpha = 0.45 + on * 0.55;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // the wardrobe rug pulses so people find it
   const q = (t * 0.8) % 1;
-  circle(ctx, d.x, d.y, d.r + q * 14);
+  circle(ctx, d.x, d.y, d.r + q * 12);
   ctx.strokeStyle = `rgba(255,143,176,${0.9 * (1 - q)})`;
   ctx.lineWidth = 3;
   ctx.stroke();
-  ctx.save();
-  ctx.font = '22px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = INK;
-  ctx.strokeText('CHANGE YOUR LOOK', d.x, d.y + d.r + 16);
-  ctx.fillStyle = '#ff8fb0';
-  ctx.fillText('CHANGE YOUR LOOK', d.x, d.y + d.r + 16);
-  ctx.strokeText('PRACTICE KITCHEN', 330, 300);
-  ctx.fillStyle = '#fff6e0';
-  ctx.fillText('PRACTICE KITCHEN', 330, 300);
-  ctx.restore();
-  // the TV flickers through a cooking show
+  comicLabel(ctx, 'CHANGE YOUR LOOK', d.x, d.y + d.r + 14, 18, '#ff8fb0');
+  comicLabel(ctx, 'PRACTICE KITCHEN', 330, 236, 22, '#fff6e0');
+  // elevator: blinking "READY?" sign over the doors
+  const blink = Math.floor(t * 2) % 2 === 0;
+  roundRect(ctx, (el.x0 + el.x1) / 2 - 52, 2, 104, 26, 8);
+  ctx.fillStyle = INK;
+  ctx.fill();
+  comicLabel(ctx, 'READY?', (el.x0 + el.x1) / 2, 16, 20, blink ? '#7cff6b' : '#2bb02b');
+  // the TV plays a cooking show
   const hue = Math.floor(t * 1.5) % 3;
   ctx.fillStyle = ['#ff8a3d', '#2de2e6', '#7cd651'][hue]!;
-  ctx.globalAlpha = 0.35 + Math.sin(t * 9) * 0.08;
-  ctx.fillRect(648, 44, 84, 46);
+  ctx.globalAlpha = 0.4 + Math.sin(t * 9) * 0.08;
+  ctx.fillRect(622, 506, 58, 38);
   ctx.globalAlpha = 1;
-  icon(ctx, 'chefhat', 690, 66, 26);
+  icon(ctx, 'chefhat', 651, 524, 20);
+  // a cat asleep on the couch, tail swishing, z's floating up
+  const couch = L.walls![0]!;
+  const cx = couch.x0 + 40;
+  const cy = couch.y0 + 12;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx + 14, cy + 2);
+  ctx.quadraticCurveTo(cx + 26, cy + 4 + Math.sin(t * 2) * 6, cx + 22, cy - 8 + Math.sin(t * 2) * 6);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.lineWidth = 3.5;
+  ctx.strokeStyle = '#ff9a2e';
+  ctx.stroke();
+  ellipse(ctx, cx, cy, 16, 11);
+  outlined(ctx, '#ff9a2e', 2.5);
+  circle(ctx, cx - 13, cy - 3, 8);
+  outlined(ctx, '#ff9a2e', 2.5);
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(cx - 13 + s * 6, cy - 8);
+    ctx.lineTo(cx - 13 + s * 4, cy - 15);
+    ctx.lineTo(cx - 13 + s * 1, cy - 9);
+    ctx.closePath();
+    outlined(ctx, '#ff9a2e', 1.8);
+  }
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.5;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(cx - 13 + s * 3, cy - 3, 2, 0.1 * Math.PI, 0.9 * Math.PI);
+    ctx.stroke();
+  }
+  ctx.restore();
+  const z = (t * 0.5) % 1;
+  ctx.globalAlpha = 1 - z;
+  comicLabel(ctx, 'z', cx - 20 - z * 6, cy - 22 - z * 26, 14 + z * 8, '#ffffff');
+  ctx.globalAlpha = 1;
   // the floor lamp's warm glow
   circle(ctx, 4, 470, 60);
   ctx.fillStyle = `rgba(255,220,140,${0.12 + Math.sin(t * 2) * 0.02})`;
   ctx.fill();
+}
+
+function comicLabel(ctx: G, text: string, x: number, y: number, size: number, fill: string) {
+  ctx.save();
+  ctx.font = `${size}px Bangers, "Luckiest Guy", "Arial Black", Impact, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(3, size / 4.5);
+  ctx.strokeStyle = INK;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+/**
+ * Lobby: who's in the READY? elevator, over the car (world space). When the head chef is waiting
+ * in it, a ring fills over LOBBY.holdMs to show the auto-start coming.
+ */
+export function drawElevatorStatus(ctx: G, info: { inside: number; total: number; need: number; holdMs: number }, t: number) {
+  const el = LOBBY_LAYOUT.elevator!;
+  const cx = (el.x0 + el.x1) / 2;
+  const enough = info.total >= info.need;
+  const text = !enough ? `NEED ${info.need} CHEFS` : `${info.inside} / ${info.total} READY`;
+  roundRect(ctx, cx - 64, el.y1 + 6, 128, 26, 10);
+  ctx.fillStyle = 'rgba(43,26,18,0.85)';
+  ctx.fill();
+  comicLabel(ctx, text, cx, el.y1 + 20, 18, info.inside > 0 && enough ? '#7cff6b' : '#ffffff');
+  if (info.holdMs > 0 && enough) {
+    const k = Math.min(1, info.holdMs / LOBBY.holdMs);
+    const secs = Math.max(0, Math.ceil((LOBBY.holdMs - info.holdMs) / 1000));
+    const ry = el.y0 + 30;
+    circle(ctx, cx, ry, 22);
+    ctx.fillStyle = 'rgba(43,26,18,0.75)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, ry, 18, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#ffd23f';
+    ctx.stroke();
+    comicLabel(ctx, String(secs), cx, ry + 1, 20 + Math.sin(t * 8) * 1.5, '#ffffff');
+  }
 }
 
 // ====================================================================== cache + layers

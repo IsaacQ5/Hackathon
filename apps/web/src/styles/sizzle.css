@@ -1781,7 +1781,8 @@ img.krecipe__tick {
 /* ---------------------------------------------------------------- lobby apartment (PlateUp style) */
 .klobby__apartment {
   position: relative;
-  height: clamp(300px, 46vh, 520px);
+  /* big: this is where everyone hangs out before the shift */
+  height: clamp(380px, 68vh, 860px);
   border: 4px solid var(--ink);
   border-radius: 16px;
   overflow: hidden;
@@ -1835,4 +1836,31 @@ img.krecipe__tick {
   border: 3px solid var(--ink);
   border-radius: 12px;
   padding: 0.2rem 0.6rem;
+}
+
+/* lobby: a narrower join column so the apartment gets the room (wide screens only) */
+@media (min-width: 1001px) {
+  .klobby {
+    grid-template-columns: minmax(240px, 290px) minmax(560px, 1300px);
+  }
+}
+.klobby__mapname {
+  margin: 0.3rem 0 0;
+  font-weight: 700;
+  text-align: center;
+}
+.klobby__join .kmap__thumb {
+  margin: 0.2rem auto 0;
+}
+.kheadchef__elevator {
+  margin: 0;
+  text-align: center;
+  font-weight: 700;
+  background: var(--mustard);
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  padding: 0.5rem;
+}
+.kwardrobe__exit {
+  width: 100%;
 }

@@ -271,7 +271,14 @@ export function startGameLoop(io: IOServer, rooms: RoomManager, tickMs: number):
         continue;
       }
       // (the lobby runs too: chefs walk around the apartment, practise and change their look)
+      if (phase === 'lobby') room.engine.setCaptain(rooms.captainId(room));
       const result = room.engine.update(now);
+      // everyone's in the READY? elevator (or the head chef waited in it): open the kitchen
+      if (phase === 'lobby' && rooms.checkElevator(room)) {
+        io.to(channel.all(room.code)).emit('game:started', startedPayload(room, now));
+        emitRoomState(io, rooms, room);
+        continue;
+      }
       const snapshot = room.engine.snapshot(now);
       const hostChannel = io.to(channel.host(room.code));
 

@@ -1,5 +1,4 @@
 import { stationById, type MatchResults, type RoomState } from '@tilt-mayhem/shared';
-import { MapPicker } from './MapPicker';
 import { captainIdOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
@@ -105,9 +104,6 @@ export function KitchenResults({ results, room, code }: Props) {
         <p className="klobby__hint">
           New chefs can join now with code <b>{code}</b>.
         </p>
-        <div className="kcard kresults__maps">
-          <MapPicker map={room.map ?? 'kitchen'} chaos={room.chaos ?? 'medium'} canEdit compact />
-        </div>
       </div>
     </div>
   );

@@ -353,6 +353,20 @@ export class RoomManager {
     const phase = room.engine.phase;
     const allowed = kind === 'start' ? phase === 'lobby' || phase === 'results' : phase === 'results';
     if (!allowed) return fail('INVALID_PHASE', `Cannot ${kind} while the game is in "${phase}".`);
+    return this.beginShift(room);
+  }
+
+  /**
+   * Lobby: the chefs stepped into the "READY?" elevator (everyone, or the head chef waited long
+   * enough). Returns true if that started the shift. Called every tick by the game loop.
+   */
+  checkElevator(room: Room): boolean {
+    room.engine.setCaptain(this.captainId(room));
+    if (room.engine.phase !== 'lobby' || !room.engine.lobbyReady().go) return false;
+    return this.beginShift(room).ok;
+  }
+
+  private beginShift(room: Room): Result<void> {
     const now = this.now();
     this.pruneDisconnected(room, now);
     const n = this.connectedPlayerCount(room);

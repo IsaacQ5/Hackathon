@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { KITCHEN } from '@tilt-mayhem/shared';
+import { KITCHEN, LOBBY_LAYOUT } from '@tilt-mayhem/shared';
 import { RoomManager } from '../src/rooms/RoomManager.js';
 
 function setup(opts: ConstructorParameters<typeof RoomManager>[0] = {}) {
@@ -63,6 +63,21 @@ describe('RoomManager', () => {
     assert.equal(pub.face, 'shades');
     assert.ok(!rm.customize(room, b.player.id, '#123456', undefined).ok, 'only palette colours');
     assert.ok(!rm.customize(room, b.player.id, undefined, 'crown').ok, 'only known faces');
+  });
+
+  it('starts the shift when everyone steps into the lobby elevator', () => {
+    const { rm, room, clock } = setup();
+    const a = mustJoin(rm, room.code, 'A', 's1');
+    const b = mustJoin(rm, room.code, 'B', 's2');
+    const el = LOBBY_LAYOUT.elevator!;
+    room.engine.update(clock.now());
+    room.engine.setPlayerPosition(a.player.id, el.x0 + 40, el.y0 + 60);
+    assert.equal(rm.checkElevator(room), false, 'still waiting for B');
+    room.engine.setPlayerPosition(b.player.id, el.x0 + 110, el.y0 + 60);
+    clock.advance(100);
+    room.engine.update(clock.now());
+    assert.equal(rm.checkElevator(room), true);
+    assert.equal(room.engine.phase, 'countdown');
   });
 
   it('lets the head chef or the host pick the map and chaos level between shifts', () => {

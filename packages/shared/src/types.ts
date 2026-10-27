@@ -136,6 +136,8 @@ export interface GameSnapshot {
   chefs: ChefSnap[];
   hazards: HazardSnap[];
   events: KitchenEvent[];
+  /** Lobby only: the "READY?" elevator. `holdMs`: how long the head chef has been waiting in it. */
+  elevator?: { inside: number; total: number; need: number; holdMs: number };
 }
 
 /** Private per-phone status (sent only to that player's socket). */
@@ -152,8 +154,11 @@ export interface KitchenStatus {
   fireHere: boolean;
   /** Your phone is taken over until you do the recovery motion. */
   stuck: ChefStuck | null;
-  /** Lobby apartment: standing on the wardrobe rug (the phone shows the look picker). */
+  /** Lobby apartment: in the wardrobe (the phone shows the look picker and an exit button). */
   atWardrobe: boolean;
+  /** Lobby apartment: standing in the READY? elevator, and how full it is. */
+  inElevator: boolean;
+  elevator: { inside: number; total: number; need: number; holdMs: number } | null;
   /** ms until you can push again (0 = ready). */
   pushReadyInMs: number;
   /** Someone just shoved you (shown for a few seconds): who, and whether it knocked you off your station. */

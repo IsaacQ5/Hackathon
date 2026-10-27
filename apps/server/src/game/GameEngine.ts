@@ -5,6 +5,7 @@ import {
   HAZARDS,
   INGREDIENTS,
   KITCHEN,
+  LOBBY,
   LOBBY_LAYOUT,
   MAPS,
   ZONE_FOOTING,
@@ -75,6 +76,8 @@ export class GameEngine {
   private seenHazards = new Set<HazardKind>();
   /** Shake-to-push on/off for the room (head chef's choice). */
   private _pushEnabled = true;
+  /** The head chef's id (set by the room manager), for the lobby elevator. */
+  private captainId: string | null = null;
   /** Which kitchen (look + themed events) and how much chaos; both chosen between shifts. */
   private _map: MapId = 'kitchen';
   private _chaos: ChaosLevel = 'medium';
@@ -366,9 +369,13 @@ export class GameEngine {
     this.pendingEvents.push({ type: 'made', chef: c.id, station: w.station, ingredient: w.ingredient });
   }
 
-  /** Step away from the station; partial progress is remembered. */
+  /** Step away from the station (partial progress is remembered), or out of the lobby wardrobe. */
   cancel(id: string): void {
     const c = this.chefs.get(id);
+    if (c?.dressing) {
+      this.leaveWardrobe(c);
+      return;
+    }
     if (!c || !c.working) return;
     c.partial.set(c.working.ingredient, c.working.reps);
     c.working = null;
@@ -523,7 +530,7 @@ export class GameEngine {
           c.vx = 0;
           c.vy = 0;
         }
-      } else if (c.working || c.stuck || !c.connected) {
+      } else if (c.working || c.stuck || c.dressing || !c.connected) {
         c.vx *= 0.5;
         c.vy *= 0.5;
       } else {
@@ -557,8 +564,8 @@ export class GameEngine {
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const d = Math.hypot(dx, dy);
-        const aFixed = !!(a.working || a.stuck);
-        const bFixed = !!(b.working || b.stuck);
+        const aFixed = !!(a.working || a.stuck || a.dressing);
+        const bFixed = !!(b.working || b.stuck || b.dressing);
         if (d > 0 && d < R * 1.9 && !(aFixed && bFixed)) {
           const push = (R * 1.9 - d) / 2;
           if (!aFixed) {
@@ -593,6 +600,7 @@ export class GameEngine {
       // holes in the deck, masts, and the trapdoor shortcut
       this.pushOut(c, R);
       this.useHatch(c);
+      if (this._phase === 'lobby') this.lobbySpots(c);
       c.near = this.nearOf(c);
       // If somehow moved away from the station, stop working (keep progress).
       if (c.working && c.near !== c.working.station) this.cancel(c.id);
@@ -974,6 +982,59 @@ export class GameEngine {
     };
   }
 
+  /** Lobby: step onto the wardrobe rug (you stay put until you exit), and keep time in the elevator. */
+  private lobbySpots(c: Chef) {
+    const L = this.L;
+    const d = L.dressing;
+    if (d && !c.dressing && !c.working && this.playMs >= c.dressReadyAt && Math.hypot(c.x - d.x, c.y - d.y) < d.r * 0.6) {
+      c.dressing = true;
+      c.x = d.x;
+      c.y = d.y;
+      c.vx = 0;
+      c.vy = 0;
+      c.input = { x: 0, y: 0 };
+      c.facing = Math.PI / 2;
+    }
+    const e = L.elevator;
+    const inside = !!e && c.connected && c.x > e.x0 && c.x < e.x1 && c.y > e.y0 && c.y < e.y1;
+    c.elevatorSince = inside ? c.elevatorSince ?? this.playMs : null;
+  }
+
+  /** Out of the wardrobe: step off the rug toward the middle of the room, and no stepping straight back in. */
+  private leaveWardrobe(c: Chef) {
+    const d = this.L.dressing;
+    c.dressing = false;
+    c.dressReadyAt = this.playMs + LOBBY.wardrobeCooldownMs;
+    if (!d) return;
+    const s = this.L.spawn ?? this.L.pass;
+    const dx = s.x - d.x;
+    const dy = s.y - d.y;
+    const len = Math.hypot(dx, dy) || 1;
+    c.x = d.x + (dx / len) * (d.r + R + 4);
+    c.y = d.y + (dy / len) * (d.r + R + 4);
+    c.facing = Math.atan2(dy, dx);
+    this.pushOut(c, R);
+  }
+
+  /** The head chef (the room manager tells us who): their wait in the elevator can start the shift. */
+  setCaptain(id: string | null): void {
+    this.captainId = id;
+  }
+
+  /**
+   * The lobby elevator: how many connected chefs are in it, and how long the head chef has waited.
+   * `go` when there are enough chefs and either everyone is in, or the head chef has waited LOBBY.holdMs.
+   */
+  lobbyReady(): { inside: number; total: number; need: number; holdMs: number; go: boolean } {
+    const list = [...this.chefs.values()].filter((c) => c.connected);
+    const inside = list.filter((c) => c.elevatorSince !== null).length;
+    const cap = this.captainId ? this.chefs.get(this.captainId) : undefined;
+    const holdMs = cap && cap.elevatorSince !== null ? this.playMs - cap.elevatorSince : 0;
+    const need = this.config.minPlayers;
+    const go = this._phase === 'lobby' && list.length >= need && (inside === list.length || holdMs >= LOBBY.holdMs);
+    return { inside, total: list.length, need, holdMs: Math.round(holdMs), go };
+  }
+
   /** Push a circle (a chef, a running hazard) out of the map's walls and posts. True if it hit one. */
   private pushOut(o: { x: number; y: number }, r: number): boolean {
     let hit = false;
@@ -1099,6 +1160,9 @@ export class GameEngine {
       immuneUntil: 0,
       pushReadyAt: 0,
       hatchReadyAt: 0,
+      dressing: false,
+      dressReadyAt: 0,
+      elevatorSince: null,
       knockMs: 0,
       pushedBy: null,
       served: 0,
@@ -1176,7 +1240,7 @@ export class GameEngine {
     // in the lobby every station is open for practice
     const canInteract = atStation && (this._phase === 'lobby' || fireHere || this.neededAt(c, c.near as StationId) !== null);
     const dress = this._phase === 'lobby' ? this.L.dressing : undefined;
-    const atWardrobe = !!dress && !c.working && Math.hypot(c.x - dress.x, c.y - dress.y) < dress.r;
+    const atWardrobe = !!dress && c.dressing;
     const canServe =
       this._phase === 'playing' &&
       !c.working &&
@@ -1194,6 +1258,8 @@ export class GameEngine {
       fireHere,
       stuck: this.stuckSnap(c),
       atWardrobe,
+      inElevator: this._phase === 'lobby' && c.elevatorSince !== null,
+      elevator: this._phase === 'lobby' ? (({ go: _go, ...rest }) => rest)(this.lobbyReady()) : null,
       pushReadyInMs: Math.max(0, Math.round(c.pushReadyAt - this.playMs)),
       // the phone shows "X pushed you" for a few seconds after a shove
       pushedBy:
@@ -1260,6 +1326,7 @@ export class GameEngine {
       chefs,
       hazards: this.hazards.map((h) => this.hazardSnap(h)),
       events,
+      ...(this._phase === 'lobby' ? { elevator: (({ go: _go, ...rest }) => rest)(this.lobbyReady()) } : {}),
     };
   }
 

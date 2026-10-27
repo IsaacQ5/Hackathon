@@ -56,9 +56,18 @@ export interface Layout {
   zones?: readonly Zone[];
   /** Where chefs appear (defaults to around the serve table). */
   spawn?: { x: number; y: number };
-  /** Lobby only: stand here to change your look. */
+  /** Lobby only: step onto this rug to change your look (your chef stays put until you exit). */
   dressing?: { x: number; y: number; r: number };
+  /** Lobby only: the "READY?" elevator. Everyone inside starts the shift. */
+  elevator?: { x0: number; y0: number; x1: number; y1: number };
 }
+
+export const LOBBY = {
+  /** The head chef standing in the elevator this long starts the shift even if others aren't in. */
+  holdMs: 10_000,
+  /** After leaving the wardrobe you can't step straight back in for this long. */
+  wardrobeCooldownMs: 1_500,
+} as const;
 
 /**
  * belt: a moving walkway / current, carries anyone walking on it at (vx, vy) per second.
@@ -159,13 +168,14 @@ export const ARCTIC_LAYOUT: Layout = {
 /**
  * The lobby apartment (PlateUp style): chefs walk around before the first shift. A kitchenette
  * on the left has all six stations to practise on; the living room on the right has a wardrobe
- * (stand on its rug to change your look), a couch and a coffee table.
+ * (step on its rug to change your look), a couch, a coffee table and the "READY?" elevator in
+ * the corner: when everyone is inside (or the head chef waits in it for LOBBY.holdMs) the shift starts.
  */
 export const LOBBY_LAYOUT: Layout = {
   floor: KITCHEN.floor,
   // the coffee table: solid, nothing to serve
-  pass: { x: 790, y: 330, r: 0, serveR: 0 },
-  customer: { x: 790, y: 330, r: 0 },
+  pass: { x: 780, y: 338, r: 0, serveR: 0 },
+  customer: { x: 780, y: 338, r: 0 },
   spots: [
     { id: 'chop', x: 150, y: 78, fx: 150, fy: 162, face: 'down' },
     { id: 'fry', x: 330, y: 78, fx: 330, fy: 162, face: 'down' },
@@ -175,10 +185,16 @@ export const LOBBY_LAYOUT: Layout = {
     { id: 'juice', x: 510, y: 522, fx: 510, fy: 438, face: 'up' },
   ],
   lanes: [],
-  walls: [{ x0: 700, y0: 418, x1: 880, y1: 468 }],
-  posts: [{ x: 790, y: 330, r: 30 }],
+  walls: [
+    // couch
+    { x0: 690, y0: 420, x1: 880, y1: 468 },
+    // a stub of door frame beside the elevator (walk in from the side or from below)
+    { x0: 760, y0: 132, x1: 772, y1: 168 },
+  ],
+  posts: [{ x: 780, y: 338, r: 28 }],
   spawn: { x: 560, y: 300 },
-  dressing: { x: 830, y: 186, r: 46 },
+  dressing: { x: 690, y: 196, r: 40 },
+  elevator: { x0: 772, y0: 136, x1: 940, y1: 262 },
 };
 
 export interface MapDef {

@@ -62,6 +62,14 @@ export function HeadChefCard({ room, phase }: Props) {
         </button>
       </div>
       <MapPicker map={room.map ?? 'kitchen'} chaos={room.chaos ?? 'medium'} canEdit compact />
+      {/* the first shift starts from the READY? elevator in the apartment */}
+      {phase === 'lobby' ? (
+        <p className="kheadchef__elevator">
+          {need > 0
+            ? `Need ${need} more chef${need === 1 ? '' : 's'}`
+            : 'Get everyone into the READY? elevator to start, or wait inside it for 10 seconds.'}
+        </p>
+      ) : (
       <button className="kbtn kbtn--go" onClick={() => void start()} disabled={busy || need > 0}>
         {busy
           ? 'Starting…'
@@ -71,6 +79,7 @@ export function HeadChefCard({ room, phase }: Props) {
               ? 'NEXT SHIFT!'
               : 'OPEN THE KITCHEN!'}
       </button>
+      )}
       {error && <p className="error small">{error}</p>}
     </section>
   );

@@ -6,7 +6,7 @@ import { captainIdOf, roundMinutesOf } from '../utils/room';
 import { colorVar } from '../utils/style';
 import { ChefPortrait } from './ChefPortrait';
 import { KitchenArena } from './KitchenArena';
-import { MapPicker } from './MapPicker';
+import { MapThumb } from './MapPicker';
 
 interface Props {
   room: RoomState;
@@ -45,6 +45,12 @@ export function KitchenLobby({ room, joinUrl, buffer }: Props) {
         <p className="klobby__url">{joinUrl.replace(/^https?:\/\//, '')}</p>
         <p className="klobby__label">KITCHEN CODE</p>
         <p className="klobby__code">{room.code}</p>
+        {/* the head chef picks the kitchen on their phone; the TV just shows it */}
+        <p className="klobby__label">NEXT KITCHEN</p>
+        <MapThumb map={room.map ?? 'kitchen'} width={220} />
+        <p className="klobby__mapname">
+          {map.name} · {CHAOS[room.chaos ?? 'medium'].name} chaos
+        </p>
         {isLocal && (
           <p className="warn">
             Phones can't open <b>localhost</b>. Use the https tunnel or live link (see README).
@@ -60,7 +66,9 @@ export function KitchenLobby({ room, joinUrl, buffer }: Props) {
           </span>
         </div>
         <p className="klobby__hint">
-          Walk around with your phone! Stand on the pink rug to change your look, or practise any station in the kitchen.
+          Walk around with your phone! Step on the pink rug to change your look, practise any station in the kitchen, and
+          step into the <b>READY?</b> elevator when you're set. Everyone in, and the shift starts (or the head chef waits
+          inside for 10 seconds).
         </p>
         {/* PlateUp-style: everyone hangs out here until the head chef opens the kitchen */}
         <div className="klobby__apartment">
@@ -94,11 +102,6 @@ export function KitchenLobby({ room, joinUrl, buffer }: Props) {
           <span className="kpill">Pushing {pushOn ? 'on' : 'off'}</span>
           <span className="kpill">{CHAOS[room.chaos ?? 'medium'].name} chaos</span>
         </p>
-      </section>
-
-      <section className="kcard klobby__maps">
-        <h2>Pick a kitchen</h2>
-        <MapPicker map={room.map ?? 'kitchen'} chaos={room.chaos ?? 'medium'} canEdit />
       </section>
     </div>
   );

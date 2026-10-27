@@ -53,6 +53,12 @@ export interface Chef extends EnginePlayer {
   stuck: { kind: StuckKind; reps: number; hazardId: number | null; lastRepAt: number; lastEffortAt: number } | null;
   /** playMs until which hazards can't knock this chef down again (just got up). */
   immuneUntil: number;
+  /** Lobby: standing in the wardrobe changing their look (can't move until they exit). */
+  dressing: boolean;
+  /** playMs when this chef can step into the wardrobe again. */
+  dressReadyAt: number;
+  /** Lobby: playMs since when this chef has been standing in the elevator (null = outside). */
+  elevatorSince: number | null;
   /** playMs when this chef can use a trapdoor again (so they don't bounce straight back). */
   hatchReadyAt: number;
   /** playMs when this chef can push again. */

@@ -16,7 +16,7 @@ import { Fx } from '../game/fx';
 import { drawFires, drawHazardsBack, drawHazardsFront } from '../game/hazardArt';
 import type { Frame, KitchenBuffer } from '../game/kbuffer';
 import { drawChef, drawKitchen, drawPass, drawStation, icon, INK, roundRect, type ChefView, type StationActivity } from '../game/kitchenArt';
-import { drawMapBackdrop, drawMapOverlay, mapRock } from '../game/mapArt';
+import { drawElevatorStatus, drawMapBackdrop, drawMapOverlay, mapRock } from '../game/mapArt';
 import { sfx } from '../utils/sound';
 
 const W = 1000;
@@ -340,6 +340,7 @@ export function KitchenArena({ buffer, map = 'kitchen' }: { buffer: KitchenBuffe
       }
       drawHazardsFront(ctx, hazards, t, map);
       if (!inLobby) drawMapOverlay(ctx, map, t);
+      else if (frame.snap.elevator) drawElevatorStatus(ctx, frame.snap.elevator, t);
       fx.drawFront(ctx);
       ctx.restore();
 

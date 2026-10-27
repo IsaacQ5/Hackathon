@@ -206,7 +206,7 @@ export function ControllerPage({ code }: { code: string }) {
   // ------------------------------------------------------------ input loop
 
   // Stand still while cooking or while a hazard has you.
-  const working = !!status?.working || !!status?.stuck;
+  const working = !!status?.working || !!status?.stuck || !!status?.atWardrobe;
   useEffect(() => {
     // walk during a shift, and around the lobby apartment before it
     if (joinState !== 'joined' || (phase !== 'playing' && phase !== 'lobby') || !connected || working) return;
@@ -527,33 +527,51 @@ export function ControllerPage({ code }: { code: string }) {
           <>
             {/* PlateUp style: walk around the apartment on the big screen */}
             {status?.atWardrobe ? (
-              <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} outfit={room?.map} />
+              <>
+                {/* in the wardrobe your chef stays put (so tilting can't walk you out) until you press exit */}
+                <CustomizeCard color={color} face={face} players={room?.players ?? []} myId={session.playerId} outfit={room?.map} />
+                <button className="kact is-go kwardrobe__exit" onClick={() => kitchenApi.cancel()}>
+                  EXIT WARDROBE
+                </button>
+              </>
             ) : (
-              <p className="kcard klobbyhint">
-                <Icon name="chefhat" /> Walk onto the pink rug by the wardrobe to change your look, or into the kitchen to practise.
-              </p>
+              <>
+                <p className="kcard klobbyhint">
+                  <Icon name="chefhat" /> Step on the pink rug to change your look, practise in the kitchen, then get in the{' '}
+                  <b>READY?</b> elevator!
+                </p>
+                <div className="kctrl__move">
+                  {mode === 'tilt' && tiltReady ? (
+                    <TiltIndicator read={() => tilt.inputRef.current} color={color} />
+                  ) : mode === 'joystick' ? (
+                    <TouchPad outputRef={touchRef} color={color} />
+                  ) : (
+                    motionSetup
+                  )}
+                </div>
+                {(() => {
+                  const near = status?.near && status.near !== 'pass' ? stationById(status.near) : null;
+                  const lift = status?.elevator;
+                  if (status?.inElevator && lift) {
+                    const waiting = lift.total - lift.inside;
+                    return (
+                      <button className="kact is-serve" disabled>
+                        READY! {lift.total < lift.need ? `Need ${lift.need} chefs` : waiting > 0 ? `Waiting for ${waiting} more` : 'Here we go!'}
+                      </button>
+                    );
+                  }
+                  return near && status?.canInteract ? (
+                    <button className="kact is-go" onClick={() => kitchenApi.interact()}>
+                      <Icon name={near.icon} /> PRACTISE {near.verb}
+                    </button>
+                  ) : (
+                    <button className="kact is-idle" disabled>
+                      {near ? `${near.verb} station` : 'Walk around!'}
+                    </button>
+                  );
+                })()}
+              </>
             )}
-            <div className="kctrl__move">
-              {mode === 'tilt' && tiltReady ? (
-                <TiltIndicator read={() => tilt.inputRef.current} color={color} />
-              ) : mode === 'joystick' ? (
-                <TouchPad outputRef={touchRef} color={color} />
-              ) : (
-                motionSetup
-              )}
-            </div>
-            {(() => {
-              const near = status?.near && status.near !== 'pass' ? stationById(status.near) : null;
-              return near && status?.canInteract ? (
-                <button className="kact is-go" onClick={() => kitchenApi.interact()}>
-                  <Icon name={near.icon} /> PRACTISE {near.verb}
-                </button>
-              ) : (
-                <button className="kact is-idle" disabled>
-                  {near ? `${near.verb} station` : 'Walk around!'}
-                </button>
-              );
-            })()}
             {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
           </>
         ) : (
