@@ -514,15 +514,18 @@ export function ControllerPage({ code }: { code: string }) {
             ))}
           </section>
         )}
-        <section className="kbanner">
-          <ChefPortrait color={color} face={face} size={phase === 'lobby' ? 70 : 110} outfit={room?.map} />
-          <h2>{phase === 'lobby' ? 'Welcome to the apartment!' : 'Another shift?'}</h2>
-          <p>
-            {isCaptain
-              ? 'You’re the head chef: you start the shift!'
-              : `Waiting for ${captainName ?? 'the head chef'} to start…`}
-          </p>
-        </section>
+        {/* (not in the lobby: there the walk button and pan come straight under the header) */}
+        {phase !== 'lobby' && (
+          <section className="kbanner">
+            <ChefPortrait color={color} face={face} size={110} outfit={room?.map} />
+            <h2>Another shift?</h2>
+            <p>
+              {isCaptain
+                ? 'You’re the head chef: you start the shift!'
+                : `Waiting for ${captainName ?? 'the head chef'} to start…`}
+            </p>
+          </section>
+        )}
         {phase === 'lobby' ? (
           <>
             {/* PlateUp style: walk around the apartment on the big screen */}
@@ -536,19 +539,7 @@ export function ControllerPage({ code }: { code: string }) {
               </>
             ) : (
               <>
-                <p className="kcard klobbyhint">
-                  <Icon name="chefhat" /> Step on the pink rug to change your look, practise in the kitchen, then get in the{' '}
-                  <b>READY?</b> elevator!
-                </p>
-                <div className="kctrl__move">
-                  {mode === 'tilt' && tiltReady ? (
-                    <TiltIndicator read={() => tilt.inputRef.current} color={color} />
-                  ) : mode === 'joystick' ? (
-                    <TouchPad outputRef={touchRef} color={color} />
-                  ) : (
-                    motionSetup
-                  )}
-                </div>
+                {/* the action button sits above the frying pan, so it's on screen while you walk */}
                 {(() => {
                   const near = status?.near && status.near !== 'pass' ? stationById(status.near) : null;
                   const lift = status?.elevator;
@@ -570,6 +561,19 @@ export function ControllerPage({ code }: { code: string }) {
                     </button>
                   );
                 })()}
+                <div className="kctrl__move">
+                  {mode === 'tilt' && tiltReady ? (
+                    <TiltIndicator read={() => tilt.inputRef.current} color={color} />
+                  ) : mode === 'joystick' ? (
+                    <TouchPad outputRef={touchRef} color={color} />
+                  ) : (
+                    motionSetup
+                  )}
+                </div>
+                <p className="kcard klobbyhint">
+                  <Icon name="chefhat" /> Step on the pink rug to change your look, practise in the kitchen, then get in the{' '}
+                  <b>READY?</b> elevator!
+                </p>
               </>
             )}
             {isCaptain && room && <HeadChefCard room={room} phase={phase} />}
